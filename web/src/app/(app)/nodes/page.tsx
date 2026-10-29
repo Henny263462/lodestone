@@ -10,6 +10,7 @@ import { PlayitClaimDialog } from "@/components/playit-claim";
 import { api, useApi } from "@/lib/api";
 import { bytes } from "@/lib/format";
 import type { NodeInfo, PlayitStatus } from "@/lib/types";
+import { AdminSidebar } from "@/components/admin-sidebar";
 
 export default function NodesPage() {
   const user = useUser();
@@ -23,6 +24,7 @@ export default function NodesPage() {
 
   return (
     <>
+      {user.isAdmin && <AdminSidebar />}
       <PageHeader
         title="Nodes"
         description="Maschinen mit Docker, auf denen die Server laufen. Auf jeder läuft der Lodestone-Node-Daemon."

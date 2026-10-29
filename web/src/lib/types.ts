@@ -449,3 +449,50 @@ export interface PublicStatus {
   servers: { name: string; online: boolean; players: number; maxPlayers?: number }[];
   updated: number;
 }
+
+export interface AdminOverview {
+  users: number;
+  admins: number;
+  disabledUsers: number;
+  projects: number;
+  servers: number;
+  nodes: number;
+  members: number;
+  sessions: number;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  disabled: boolean;
+  createdAt: number;
+  totpEnabled: boolean;
+  projectCount: number;
+  sessionCount: number;
+}
+
+export interface AdminUserProject {
+  id: string;
+  name: string;
+  kind: "server" | "network";
+  role: Role;
+}
+
+export interface AdminUserDetail {
+  user: AdminUser;
+  projects: AdminUserProject[];
+}
+
+export interface AdminProject {
+  id: string;
+  name: string;
+  kind: "server" | "network";
+  description: string;
+  createdAt: number;
+  ownerId: string;
+  ownerName: string;
+  memberCount: number;
+  serverCount: number;
+}
+
