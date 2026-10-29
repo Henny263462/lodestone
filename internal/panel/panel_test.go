@@ -217,6 +217,13 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 		fake.mu.Unlock()
 		writeJSON(w, 200, node.PlayitClaim{State: node.ClaimAccepted})
 	})
+	mux.HandleFunc("GET /api/playit/options", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, node.PlayitOptions{
+			Premium: true,
+			Regions: []node.PlayitRegion{{ID: "europe", Name: "Europa"}},
+			Domains: []node.PlayitDomain{{ID: "dddddddd-0000-0000-0000-000000000001", Name: "play.example.org"}},
+		})
+	})
 	mux.HandleFunc("GET /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
@@ -228,9 +235,12 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
 		fake.tunnelReqs = append(fake.tunnelReqs, request)
-		tunnel := node.PlayitTunnel{ID: fmt.Sprintf("00000000-0000-0000-0000-%012d", len(fake.tunnelReqs)), Name: request.Name, Address: "abc.gl.at.ply.gg:4711", State: "allocated"}
+		tunnel := node.PlayitTunnel{ID: fmt.Sprintf("00000000-0000-0000-0000-%012d", len(fake.tunnelReqs)), Name: request.Name, Address: "abc.gl.at.ply.gg:4711", State: "allocated", Region: request.Region}
 		if request.Kind == node.TunnelJava {
 			tunnel.Address = "mein-server.joinmc.link"
+		}
+		if request.DomainID != "" {
+			tunnel.Domain, tunnel.Address = "play.example.org", "play.example.org"
 		}
 		if fake.tunnelNoAddress {
 			tunnel.Address, tunnel.State = "", "pending"

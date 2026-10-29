@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/lodestone-mc/lodestone/internal/node"
@@ -22,6 +23,9 @@ type TunnelDTO struct {
 	Address string `json:"address"`
 	// State: allocated (bereit), pending (wird eingerichtet) oder disabled.
 	State string `json:"state"`
+	// Region und Domain stehen nur da, wenn sie gewählt wurden.
+	Region string `json:"region,omitempty"`
+	Domain string `json:"domain,omitempty"`
 }
 
 // TunnelsDTO fasst zusammen, was für die Tunnel eines Servers gilt.
@@ -82,7 +86,7 @@ func serverTunnels(ctx context.Context, client *NodeClient, row ServerRow) ([]Tu
 	for _, kind := range []string{node.TunnelJava, node.TunnelVoicechat} {
 		for _, tunnel := range all {
 			if tunnel.Name == tunnelName(row.ID, kind) {
-				tunnels = append(tunnels, TunnelDTO{Kind: kind, ID: tunnel.ID, Address: tunnel.Address, State: tunnel.State})
+				tunnels = append(tunnels, TunnelDTO{Kind: kind, ID: tunnel.ID, Address: tunnel.Address, State: tunnel.State, Region: tunnel.Region, Domain: tunnel.Domain})
 			}
 		}
 	}
@@ -127,6 +131,31 @@ func (p *Panel) listTunnels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// tunnelOptions sagt, ob das playit-Konto Regionen und eigene Domains erlaubt, und listet sie auf.
+func (p *Panel) tunnelOptions(w http.ResponseWriter, r *http.Request) {
+	row, _, _, err := p.requireServer(r, rankAdmin)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	client, _, err := p.client(row.NodeID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	var options node.PlayitOptions
+	if err := client.Do(ctx, http.MethodGet, "/api/playit/options", nil, &options); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, options)
+}
+
+// tunnelChoice erlaubt nur Zeichen, die in Regionen- und Domain-Kennungen vorkommen.
+var tunnelChoice = regexp.MustCompile(`^[a-zA-Z0-9-]{0,64}$`)
+
 func (p *Panel) createTunnel(w http.ResponseWriter, r *http.Request) {
 	row, project, _, err := p.requireServer(r, rankAdmin)
 	if err != nil {
@@ -134,7 +163,9 @@ func (p *Panel) createTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Kind string `json:"kind"`
+		Kind     string `json:"kind"`
+		Region   string `json:"region"`
+		DomainID string `json:"domainId"`
 	}
 	if err := decode(r, &body); err != nil {
 		writeError(w, err)
@@ -142,6 +173,10 @@ func (p *Panel) createTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := tunnelSuffix[body.Kind]; !ok {
 		writeError(w, fail(http.StatusBadRequest, "unbekannte Tunnel-Art (erlaubt sind java und voicechat)"))
+		return
+	}
+	if !tunnelChoice.MatchString(body.Region) || !tunnelChoice.MatchString(body.DomainID) {
+		writeError(w, fail(http.StatusBadRequest, "Region oder Domain enthalten ungültige Zeichen"))
 		return
 	}
 	client, _, err := p.client(row.NodeID)
@@ -185,11 +220,11 @@ func (p *Panel) createTunnel(w http.ResponseWriter, r *http.Request) {
 	found := false
 	for _, entry := range existing {
 		if entry.Kind == body.Kind {
-			tunnel, found = node.PlayitTunnel{ID: entry.ID, Address: entry.Address, State: entry.State}, true
+			tunnel, found = node.PlayitTunnel{ID: entry.ID, Address: entry.Address, State: entry.State, Region: entry.Region, Domain: entry.Domain}, true
 		}
 	}
 	if !found {
-		request := node.PlayitTunnelRequest{Name: tunnelName(row.ID, body.Kind), Kind: body.Kind, LocalPort: port}
+		request := node.PlayitTunnelRequest{Name: tunnelName(row.ID, body.Kind), Kind: body.Kind, LocalPort: port, Region: body.Region, DomainID: body.DomainID}
 		if err := client.Do(ctx, http.MethodPost, "/api/playit/tunnels", request, &tunnel); err != nil {
 			writeError(w, err)
 			return
@@ -212,7 +247,7 @@ func (p *Panel) createTunnel(w http.ResponseWriter, r *http.Request) {
 	if tunnel.Address == "" {
 		code = http.StatusAccepted
 	}
-	writeJSON(w, code, TunnelDTO{Kind: body.Kind, ID: tunnel.ID, Address: tunnel.Address, State: tunnel.State})
+	writeJSON(w, code, TunnelDTO{Kind: body.Kind, ID: tunnel.ID, Address: tunnel.Address, State: tunnel.State, Region: tunnel.Region, Domain: tunnel.Domain})
 }
 
 func (p *Panel) deleteTunnel(w http.ResponseWriter, r *http.Request) {

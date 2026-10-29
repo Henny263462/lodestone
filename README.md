@@ -31,7 +31,9 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **playit.gg:** Der Node startet den playit-Agenten. Unter **Nodes** auf *Mit playit verbinden* klicken und einmal auf playit.gg
   bestätigen (ein Schlüssel aus dem playit-Dashboard darf nur lesen und kann keine Tunnel anlegen). Tunnel legt Lodestone selbst an:
   beim Server unter *Einstellungen → playit-Tunnel* ein Klick für **Minecraft Java** (TCP) und **Voicechat** (UDP). Die Adresse
-  wird beim Server eingetragen, bei Voicechat auch als `voice_host`. Keine Portfreigabe im Router nötig
+  wird beim Server eingetragen, bei Voicechat auch als `voice_host`. Keine Portfreigabe im Router nötig. Mit **playit Premium**
+  wählst du beim Anlegen eine **Region** (z. B. Deutschland, New York oder Japan) oder eine **eigene Domain** aus
+  deinem playit-Konto; ohne Premium zeigt der Dialog einen Hinweis und legt den Tunnel automatisch an
 - **Backups** (tar.gz, bei laufendem Server mit `save-off`), Wiederherstellen (sicher, nur bei ausgeschaltetem Server),
   Aufbewahrungsanzahl, Download
 - **Spieler** online (Serverlisten-Abfrage), Server-Einstellungen, Versionswechsel ohne Datenverlust

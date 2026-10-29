@@ -85,6 +85,52 @@ func TestJavaTunnelIsCreatedAndRemoved(t *testing.T) {
 	}
 }
 
+func TestTunnelRegionAndDomainAreForwarded(t *testing.T) {
+	p, admin, fake, nodeID, server, _ := serverProject(t)
+	path := "/api/servers/" + server.ID + "/tunnels"
+	admin.expect(200, "PUT", "/api/nodes/"+nodeID+"/playit", map[string]string{"secret": tunnelSecret})
+
+	var options node.PlayitOptions
+	if err := json.Unmarshal(admin.expect(200, "GET", path+"/options", nil), &options); err != nil {
+		t.Fatal(err)
+	}
+	if !options.Premium || len(options.Regions) != 1 || len(options.Domains) != 1 || options.Domains[0].Name != "play.example.org" {
+		t.Fatalf("Optionen: %+v", options)
+	}
+
+	for _, bad := range []map[string]string{
+		{"kind": "java", "region": "../etc"},
+		{"kind": "java", "domainId": "a b"},
+		{"kind": "java", "region": strings.Repeat("a", 65)},
+	} {
+		admin.expect(400, "POST", path, bad)
+	}
+
+	var tunnel TunnelDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", path, map[string]string{"kind": "java", "region": "europe"}), &tunnel)
+	if tunnel.Region != "europe" {
+		t.Errorf("Region in der Antwort: %+v", tunnel)
+	}
+	fake.mu.Lock()
+	request := fake.tunnelReqs[0]
+	fake.mu.Unlock()
+	if request.Region != "europe" || request.DomainID != "" {
+		t.Errorf("Anfrage an den Node: %+v", request)
+	}
+	if list := serverTunnelList(t, admin, server.ID); len(list.Tunnels) != 1 || list.Tunnels[0].Region != "europe" {
+		t.Errorf("Liste: %+v", list)
+	}
+	admin.expect(204, "DELETE", path+"/java", nil)
+
+	_ = json.Unmarshal(admin.expect(201, "POST", path, map[string]string{"kind": "java", "domainId": "dddddddd-0000-0000-0000-000000000001"}), &tunnel)
+	if tunnel.Domain != "play.example.org" || tunnel.Address != "play.example.org" {
+		t.Errorf("Domain in der Antwort: %+v", tunnel)
+	}
+	if address, _ := publicAddressOf(t, p, server.ID); address != "play.example.org" {
+		t.Errorf("die Domain ist jetzt die Adresse des Servers: %q", address)
+	}
+}
+
 func TestTunnelWithoutAddressIsAdoptedLater(t *testing.T) {
 	p, admin, fake, nodeID, server, _ := serverProject(t)
 	path := "/api/servers/" + server.ID + "/tunnels"
@@ -200,16 +246,20 @@ func TestTunnelRightsAndOtherProjects(t *testing.T) {
 	viewer.expect(200, "POST", "/api/auth/login", map[string]string{"username": "betrachter", "password": "ein-gutes-passwort"})
 	viewer.expect(200, "GET", path, nil)
 	viewer.expect(403, "POST", path, map[string]string{"kind": "java"})
+	viewer.expect(403, "GET", path+"/options", nil)
 	viewer.expect(403, "DELETE", path+"/java", nil)
 
 	stranger := newClient(t, admin.base)
 	stranger.expect(200, "POST", "/api/auth/login", map[string]string{"username": "fremder", "password": "ein-gutes-passwort"})
 	stranger.expect(404, "GET", path, nil)
 	stranger.expect(404, "POST", path, map[string]string{"kind": "java"})
+	stranger.expect(404, "GET", path+"/options", nil)
 	stranger.expect(404, "DELETE", path+"/java", nil)
 
 	newClient(t, admin.base).expect(401, "GET", path, nil)
+	newClient(t, admin.base).expect(401, "GET", path+"/options", nil)
 	admin.expect(404, "GET", "/api/servers/gibtsnicht/tunnels", nil)
+	admin.expect(404, "GET", "/api/servers/gibtsnicht/tunnels/options", nil)
 }
 
 func TestVoiceAddressOverridesTheMachineInNetworks(t *testing.T) {
