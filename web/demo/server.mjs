@@ -570,6 +570,17 @@ function staticFile(res, pathname) {
       return fs.createReadStream(file).pipe(res);
     }
   }
+  // SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/... und /status/<slug>/...
+  const first = clean.split(/[\\/]/)[0];
+  if (first === "project" || first === "server" || first === "status") {
+    const isTxt = clean.endsWith(".txt");
+    const fallback = path.join(root, first, isTxt ? "index.txt" : "index.html");
+    if (fs.existsSync(fallback) && fs.statSync(fallback).isFile()) {
+      res.writeHead(200, { "Content-Type": types[path.extname(fallback)] ?? "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+      return fs.createReadStream(fallback).pipe(res);
+    }
+  }
+
   const missing = path.join(root, "404.html");
   res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
   res.end(fs.existsSync(missing) ? fs.readFileSync(missing) : "nicht gefunden");

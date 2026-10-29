@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, Network, Plus, Server as ServerIcon, Trash2, UserPlus } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Switch, Tabs } from "@/components/ui/primitives";
@@ -32,10 +32,27 @@ export default function ProjectPage() {
 
 type Tab = "servers" | "network" | "groups" | "schedules" | "events" | "members" | "settings";
 
+function parseProjectRoute(pathname: string, searchParams: URLSearchParams): { id: string | null; tab: Tab } {
+  const segments = pathname.split("/").filter(Boolean);
+  let id: string | null = null;
+  let tabPart: string | null = null;
+  if (segments[0] === "project" && segments[1]) {
+    id = segments[1];
+    tabPart = segments[2] || null;
+  }
+  if (!id) {
+    id = searchParams.get("id");
+  }
+  const tab = (tabPart as Tab) || (searchParams.get("tab") as Tab) || "servers";
+  return { id, tab };
+}
+
 function ProjectView() {
-  const id = useSearchParams().get("id");
+  const router = useRouter();
+  const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const { id, tab: routeTab } = parseProjectRoute(pathname, searchParams);
   const { data: project, error, mutate } = useApi<Project>(id ? `/projects/${id}` : null, { refreshInterval: 4000 });
-  const [tab, setTab] = useState<Tab>("servers");
   const [adding, setAdding] = useState(false);
 
   if (!id) return <ErrorState error={new Error("Kein Projekt angegeben")} />;
@@ -55,6 +72,14 @@ function ProjectView() {
     { id: "members", label: "Mitglieder", count: project.members?.length },
     ...(canManage ? [{ id: "settings" as const, label: "Einstellungen" }] : []),
   ];
+
+  const activeTab = tabs.some((t) => t.id === routeTab) ? routeTab : "servers";
+
+  function setTab(next: Tab) {
+    if (!id) return;
+    const target = next === "servers" ? `/project/${id}/` : `/project/${id}/${next}/`;
+    router.push(target);
+  }
 
   return (
     <>
@@ -83,16 +108,16 @@ function ProjectView() {
       )}
 
       <div className="mb-5 overflow-x-auto">
-        <Tabs value={tab} onChange={setTab} items={tabs} />
+        <Tabs value={activeTab} onChange={setTab} items={tabs} />
       </div>
 
-      {tab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
-      {tab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
-      {tab === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
-      {tab === "schedules" && <SchedulesTab project={project} />}
-      {tab === "events" && <EventsTab project={project} />}
-      {tab === "members" && <MembersTab project={project} refresh={() => mutate()} />}
-      {tab === "settings" && canManage && <SettingsTab project={project} refresh={() => mutate()} />}
+      {activeTab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
+      {activeTab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
+      {activeTab === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
+      {activeTab === "schedules" && <SchedulesTab project={project} />}
+      {activeTab === "events" && <EventsTab project={project} />}
+      {activeTab === "members" && <MembersTab project={project} refresh={() => mutate()} />}
+      {activeTab === "settings" && canManage && <SettingsTab project={project} refresh={() => mutate()} />}
 
       <AddServerDialog project={project} open={adding} onClose={() => setAdding(false)} onCreated={() => mutate()} />
     </>
@@ -129,7 +154,7 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
       {project.servers.map((server) => (
         <Card key={server.id} className="p-4">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link href={`/server/?id=${server.id}`} className="flex min-w-[200px] flex-1 items-center gap-3">
+            <Link href={`/server/${server.id}/`} className="flex min-w-[200px] flex-1 items-center gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-muted">
                 <ServerIcon className="h-4 w-4" />
               </span>

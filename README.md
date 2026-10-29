@@ -47,7 +47,7 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   Zugriffen auf das interne Netz). **Auto-Restart** startet abgestürzte Server neu (höchstens 3-mal in 15 Minuten)
 - **Spielerverwaltung:** Kicken, Sperren, Operator, Whitelist und IP-Sperren per Klick (Listen aus den Dateien des
   Servers); **MOTD** des Netzwerks mit MiniMessage-Vorschau
-- **Öffentliche Statusseite** pro Projekt (`/status/?p=<Kürzel>`, mit `&embed=1` zum Einbetten) und JSON unter
+- **Öffentliche Statusseite** pro Projekt (`/status/<Kürzel>/` oder `/status/?p=<Kürzel>`, mit `&embed=1` zum Einbetten) und JSON unter
   `/api/public/status/<Kürzel>`; zeigt nur Online-Status, Spielerzahl, Version und Adresse
 - **Konsole:** Suche, Filter nach Stufe, Log-Download und Hinweise zu bekannten Fehlern (zu wenig RAM, EULA, Port belegt,
   falsche Java-Version, Plugin- und Mod-Konflikte)

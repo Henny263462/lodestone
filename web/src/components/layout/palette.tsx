@@ -25,9 +25,9 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
   const entries = useMemo<Entry[]>(() => {
     const list: Entry[] = [{ key: "home", label: "Übersicht", hint: "Seite", href: "/", icon: LayoutDashboard }];
     for (const project of projects ?? []) {
-      list.push({ key: `p-${project.id}`, label: project.name, hint: project.kind === "network" ? "Netzwerk" : "Projekt", href: `/project/?id=${project.id}`, icon: project.kind === "network" ? Network : Server });
+      list.push({ key: `p-${project.id}`, label: project.name, hint: project.kind === "network" ? "Netzwerk" : "Projekt", href: `/project/${project.id}/`, icon: project.kind === "network" ? Network : Server });
       for (const server of project.servers) {
-        list.push({ key: `s-${server.id}`, label: server.name, hint: `Server in ${project.name}`, href: `/server/?id=${server.id}`, icon: Server });
+        list.push({ key: `s-${server.id}`, label: server.name, hint: `Server in ${project.name}`, href: `/server/${server.id}/`, icon: Server });
       }
     }
     list.push({ key: "nodes", label: "Nodes", hint: "Seite", href: "/nodes/", icon: Cpu });
