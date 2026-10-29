@@ -11,6 +11,7 @@ func (p *Panel) Maintain(ctx context.Context) {
 	go p.scaleLoop(ctx)
 	go p.watchLoop(ctx)
 	go p.scheduleLoop(ctx)
+	go p.updateLoop(ctx)
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 	for {

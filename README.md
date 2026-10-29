@@ -53,6 +53,7 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   falsche Java-Version, Plugin- und Mod-Konflikte)
 - **Arbeitsspeicher-Planer:** Der Node prüft vor dem Start, ob genug RAM frei ist (Reserve einstellbar), und die
   Nodes-Seite zeigt zugesagt gegen tatsächlich belegt
+- **Auto-Updates:** Panel und Nodes können direkt über die Weboberfläche unter **Nodes** aktualisiert werden (mit Ein-Klick-Aktualisierung für das Panel oder alle Nodes). Optional aktualisiert das Panel sich und verbundene Nodes nachts automatisch, sobald ein neues GitHub-Release vorliegt
 - **Konto-Sicherheit:** Zwei-Faktor-Anmeldung (TOTP mit QR-Code und Wiederherstellungscodes), **API-Schlüssel** für
   Skripte (`Authorization: Bearer lds_…`), Sitzungsliste mit Abmelden und ein **Protokoll** aller Änderungen
   (90 Tage, nur für Administratoren)
@@ -75,7 +76,10 @@ Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions
 - `ghcr.io/henny263462/lodestone-panel:latest`
 - `ghcr.io/henny263462/lodestone-node:latest`
 
-### Automatische Updates (optional)
+### Auto-Update über das Panel (empfohlen)
+Administratoren können unter **Nodes** den aktuellen Versionsstand von Panel und Nodes einsehen, neue Releases prüfen und Updates direkt per Klick starten. Außerdem lässt sich dort das automatische nächtliche Update aktivieren, das neue Versionen prüft und Container ohne Unterbrechung der laufenden Minecraft-Server austauscht.
+
+### Automatische Updates per Watchtower (optional)
 In der Release-Compose-Datei (`docker-compose.release.yml`) liegt **Watchtower** bereit, ist aber standardmäßig **aus**
 (`--profile autoupdate` schaltet es ein). Es prüft stündlich auf neue Images. Watchtower von containrrr ist archiviert und
 läuft mit neuen Docker-Versionen (29+) nicht zuverlässig; das manuelle Update unten ist die sichere Wahl.

@@ -18,7 +18,7 @@ import (
 )
 
 // Arten von Ereignissen, auf die Webhooks hören können.
-var eventKinds = []string{"crash", "restart", "crashloop", "backup", "backup_failed", "schedule_failed", "node_offline", "node_online", "lowmemory", "scale"}
+var eventKinds = []string{"crash", "restart", "crashloop", "backup", "backup_failed", "schedule_failed", "node_offline", "node_online", "lowmemory", "scale", "update_available", "update_installed"}
 
 // defaultHookEvents sind die Ereignisse, die ein neuer Webhook bekommt, wenn nichts gewählt ist.
 var defaultHookEvents = []string{"crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory"}
@@ -98,6 +98,7 @@ var titles = map[string]string{
 	"crash": "Absturz", "restart": "Neustart", "crashloop": "Absturzschleife", "backup": "Backup", "backup_failed": "Backup fehlgeschlagen",
 	"schedule_failed": "Zeitplan fehlgeschlagen", "node_offline": "Node nicht erreichbar", "node_online": "Node wieder erreichbar",
 	"lowmemory": "Wenig Arbeitsspeicher", "scale": "Skalierung", "test": "Test",
+	"update_available": "Update verfügbar", "update_installed": "Update installiert",
 }
 
 func (p *Panel) deliver(hook Webhook, event Event, project, server string) string {

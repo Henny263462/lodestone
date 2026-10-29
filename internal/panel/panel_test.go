@@ -45,6 +45,12 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, map[string]any{"version": "test", "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
 	})
+	mux.HandleFunc("POST /api/system/update", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /api/system/update-panel", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, map[string]any{"ok": true})
+	})
 	mux.HandleFunc("GET /api/servers", func(w http.ResponseWriter, _ *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()

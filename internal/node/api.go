@@ -47,6 +47,8 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, map[string]bool{"ok": true}) })
 
 	mux.HandleFunc("GET /api/system", a.system)
+	mux.HandleFunc("POST /api/system/update", a.systemUpdate)
+	mux.HandleFunc("POST /api/system/update-panel", a.systemUpdatePanel)
 	mux.HandleFunc("GET /api/software", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, software.Catalog()) })
 	mux.HandleFunc("GET /api/software/{id}/versions", a.softwareVersions)
 
@@ -198,6 +200,30 @@ func (a *API) system(w http.ResponseWriter, r *http.Request) {
 		result["docker"] = info
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *API) systemUpdate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Image string `json:"image"`
+	}
+	_ = decode(r, &body)
+	if err := a.rt.UpdateSelf(r.Context(), body.Image); err != nil {
+		writeError(w, fmt.Errorf("Update des Node-Daemons fehlgeschlagen: %w", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Node-Update wurde gestartet. Der Daemon wird neu gestartet."})
+}
+
+func (a *API) systemUpdatePanel(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Image string `json:"image"`
+	}
+	_ = decode(r, &body)
+	if err := a.rt.UpdatePanel(r.Context(), body.Image); err != nil {
+		writeError(w, fmt.Errorf("Update des Panels fehlgeschlagen: %w", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Panel-Update wurde gestartet."})
 }
 
 func (a *API) softwareVersions(w http.ResponseWriter, r *http.Request) {

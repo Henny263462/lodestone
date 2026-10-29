@@ -333,3 +333,23 @@ func TestReadMeminfo(t *testing.T) {
 		t.Errorf("fehlende Datei = %d", got)
 	}
 }
+
+func TestSystemUpdateEndpoints(t *testing.T) {
+	a := newTestAPI(t)
+	// Node Update
+	status, body := a.do("POST", "/api/system/update", map[string]string{"image": "test-node:latest"})
+	if status != 200 || !strings.Contains(string(body), `"ok":true`) {
+		t.Fatalf("system/update: %d %s", status, body)
+	}
+	// Panel Update
+	status, body = a.do("POST", "/api/system/update-panel", map[string]string{"image": "test-panel:latest"})
+	if status != 200 || !strings.Contains(string(body), `"ok":true`) {
+		t.Fatalf("system/update-panel: %d %s", status, body)
+	}
+	// Ohne Auth
+	req, _ := http.NewRequest("POST", a.url+"/api/system/update", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != 401 {
+		t.Fatalf("erwarte 401 ohne Token, got %v", resp)
+	}
+}

@@ -70,6 +70,10 @@ CREATE TABLE IF NOT EXISTS api_keys (
   last_used INTEGER NOT NULL DEFAULT 0,
   expires_at INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `
 
 // moreColumns sind Spalten, die erst nach Version 0.1 dazukamen.
@@ -565,4 +569,20 @@ func (s *Store) SetExtras(projectID string, extras ProjectExtras) error {
 // ProjectByStatusSlug findet ein Projekt mit öffentlicher Statusseite.
 func (s *Store) ProjectByStatusSlug(slug string) (Project, error) {
 	return scanProject(s.db.QueryRow("SELECT "+projectColumns+" FROM projects WHERE status_public = 1 AND status_slug = ?", slug))
+}
+
+// Setting liest eine Einstellung aus der Datenbank oder liefert den Standardwert.
+func (s *Store) Setting(key, fallback string) (string, error) {
+	var val string
+	err := s.db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&val)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fallback, nil
+	}
+	return val, err
+}
+
+// SetSetting speichert oder aktualisiert eine Einstellung.
+func (s *Store) SetSetting(key, value string) error {
+	_, err := s.db.Exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value)
+	return err
 }

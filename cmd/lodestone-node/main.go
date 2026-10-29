@@ -22,9 +22,18 @@ var version = "dev"
 func main() {
 	configPath := flag.String("config", "config.json", "Pfad zur Config (wird mit einem zufälligen Token angelegt, wenn sie fehlt)")
 	showVersion := flag.Bool("version", false, "Version ausgeben und beenden")
+	updateSelf := flag.String("update-self", "", "ID des Containers, der ersetzt werden soll (nur intern vom Updater)")
+	updateImage := flag.String("update-image", "", "Image für den neuen Container")
 	flag.Parse()
 	if *showVersion {
 		fmt.Println("lodestone-node", version)
+		return
+	}
+	if *updateSelf != "" {
+		if err := node.RunSelfUpdate(*updateSelf, *updateImage); err != nil {
+			fmt.Fprintf(os.Stderr, "Update fehlgeschlagen: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))

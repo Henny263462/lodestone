@@ -7,11 +7,8 @@ Stand: Version 0.1 (Oktober 2026).
 
 Das sollte erledigt sein, bevor das Repository öffentlich wird oder jemand Fremdes Lodestone installiert.
 
-- [ ] **Auto-Update reparieren (S).** Das mitgelieferte Compose startet *Watchtower* mit Zugriff auf `docker.sock`, standardmäßig an. 
-  - *Teilweise erledigt:* Watchtower ist jetzt ein optionales Compose-Profil (`autoupdate`), standardmäßig aus. Offen: `latest` nur für getaggte Releases und der „Update verfügbar“-Hinweis im Panel.
-  - `containrrr/watchtower` ist seit Dezember 2025 archiviert und läuft mit Docker 29 nicht (es meldet API 1.25 und scheitert). Auf dem Home-Server läuft Docker 29.6.
-  - `latest` wird bei **jedem Push auf `main`** neu gebaut: Installationen würden ungetesteten Code automatisch übernehmen.
-  - Lösung: Auto-Update nur optional (Compose-Profil), `latest` nur für getaggte Releases (`main` und Commit-Hash als eigene Tags), ein gepflegter Fork oder besser ein **„Update verfügbar“-Hinweis im Panel** mit Link zu den Release Notes.
+- [x] **Auto-Update reparieren und automatisieren (S).** Das mitgelieferte Compose startete früher *Watchtower* mit Zugriff auf `docker.sock`. 
+  - *Erledigt:* Auto-Update für Panel und Nodes direkt über die Weboberfläche unter Nodes (mit Ein-Klick-Update für Panel & Nodes, Release-Notes-Link, Hintergrund-Prüfung gegen GitHub Releases und konfigurierbarem automatischen nächtlichen Auto-Update). Watchtower ist als optionales Compose-Profil (`autoupdate`) weiterhin möglich, aber das Panel-interne Update ist der empfohlene Weg.
 - [ ] **Tests für die neuen Panel-Endpunkte (M).** Es gibt keine Tests für Modpack-Server anlegen, Addon-Details und Versionswechsel, öffentliche Adresse und playit-Verwaltung. Außerdem ist die Modpack-Installation und der playit-Agent noch nie gegen ein echtes Modpack bzw. einen echten Schlüssel gelaufen. Zusätzlich in der CI `go test -race` (Linux) laufen lassen. 
   - *Teilweise erledigt:* Integrationstests mit gespieltem Modrinth/Node für Modpack, Addon-Details/Versionswechsel, öffentliche Adresse und playit. Offen: `go test -race` in der CI und ein Lauf gegen ein echtes Modpack / einen echten playit-Schlüssel.
 - [ ] **Doku auf den aktuellen Stand bringen (S).** README, `docs/architecture.md` und Website sagen noch „Gruppen kommen später“ und „Voicechat pro Server“. Gruppen, Statistiken und Voicechat über den Proxy fehlen auf der Website. Screenshots der neuen Oberfläche (Server-Seite, Gruppen, Statistiken) einbauen. Eine Seite „Modpacks, playit und Gruppen“ unter `docs/`.

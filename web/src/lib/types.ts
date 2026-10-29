@@ -27,7 +27,29 @@ export interface NodeInfo {
   serverCount: number;
   memoryAvailable?: number;
   memoryCommitted?: number;
+  updateAvailable?: boolean;
   system?: { dockerVersion: string; os: string; architecture: string; cpus: number; memoryBytes: number };
+}
+
+export interface NodeUpdateStatus {
+  id: string;
+  name: string;
+  version: string;
+  updateAvailable: boolean;
+  online: boolean;
+}
+
+export interface UpdateStatus {
+  panelVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  releaseUrl?: string;
+  releaseTitle?: string;
+  releaseNotes?: string;
+  publishedAt?: string;
+  autoUpdate: boolean;
+  lastChecked: number;
+  nodes: NodeUpdateStatus[];
 }
 
 export type ServerState = "installing" | "offline" | "starting" | "running" | "stopping" | "restoring";

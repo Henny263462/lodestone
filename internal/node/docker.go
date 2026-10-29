@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
@@ -300,4 +301,152 @@ func (d *DockerRuntime) List(ctx context.Context) ([]ContainerRef, error) {
 		refs = append(refs, ContainerRef{ID: item.ID, ServerID: item.Labels[LabelServer], Running: string(item.State) == "running"})
 	}
 	return refs, nil
+}
+
+// PullImage zieht das Image immer neu von der Registry, auch wenn eine ältere Version mit demselben Tag lokal liegt.
+func (d *DockerRuntime) PullImage(ctx context.Context, image string) error {
+	response, err := d.cli.ImagePull(ctx, image, client.ImagePullOptions{})
+	if err != nil {
+		return fmt.Errorf("Image %s konnte nicht geladen werden: %w", image, err)
+	}
+	defer response.Close()
+	return response.Wait(ctx)
+}
+
+func (d *DockerRuntime) UpdatePanel(ctx context.Context, image string) error {
+	if image == "" {
+		image = "ghcr.io/henny263462/lodestone-panel:latest"
+	}
+	if err := d.PullImage(ctx, image); err != nil {
+		return err
+	}
+	result, err := d.cli.ContainerList(ctx, client.ContainerListOptions{All: true})
+	if err != nil {
+		return err
+	}
+	var targetID string
+	for _, item := range result.Items {
+		if item.Labels["com.docker.compose.service"] == "panel" ||
+			strings.Contains(item.Image, "lodestone-panel") ||
+			hasContainerName(item.Names, "panel") {
+			targetID = item.ID
+			break
+		}
+	}
+	if targetID == "" {
+		return errors.New("kein Panel-Container auf dieser Maschine gefunden")
+	}
+	return d.replaceContainer(ctx, targetID, image)
+}
+
+func (d *DockerRuntime) UpdateSelf(ctx context.Context, image string) error {
+	if image == "" {
+		image = "ghcr.io/henny263462/lodestone-node:latest"
+	}
+	if err := d.PullImage(ctx, image); err != nil {
+		return err
+	}
+	targetID := d.findSelfID(ctx)
+	if targetID == "" {
+		return errors.New("der eigene Node-Container konnte nicht ermittelt werden (läuft der Daemon im Docker-Container?)")
+	}
+
+	helperName := fmt.Sprintf("lodestone-node-updater-%x", time.Now().UnixNano()&0xffff)
+	helper, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Name: helperName,
+		Config: &container.Config{
+			Image: image,
+			Cmd:   []string{"lodestone-node", "-update-self=" + targetID, "-update-image=" + image},
+		},
+		HostConfig: &container.HostConfig{
+			Binds:      []string{"/var/run/docker.sock:/var/run/docker.sock"},
+			AutoRemove: true,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("Update-Hilfscontainer konnte nicht angelegt werden: %w", err)
+	}
+	if _, err := d.cli.ContainerStart(ctx, helper.ID, client.ContainerStartOptions{}); err != nil {
+		return fmt.Errorf("Update-Hilfscontainer konnte nicht gestartet werden: %w", err)
+	}
+	return nil
+}
+
+func (d *DockerRuntime) findSelfID(ctx context.Context) string {
+	if hostname, err := os.Hostname(); err == nil && hostname != "" {
+		if inspect, err := d.cli.ContainerInspect(ctx, hostname, client.ContainerInspectOptions{}); err == nil {
+			return inspect.Container.ID
+		}
+	}
+	result, err := d.cli.ContainerList(ctx, client.ContainerListOptions{All: true})
+	if err != nil {
+		return ""
+	}
+	for _, item := range result.Items {
+		if item.Labels["com.docker.compose.service"] == "node" ||
+			strings.Contains(item.Image, "lodestone-node") ||
+			hasContainerName(item.Names, "node") {
+			return item.ID
+		}
+	}
+	return ""
+}
+
+func (d *DockerRuntime) replaceContainer(ctx context.Context, targetID, newImage string) error {
+	inspectRes, err := d.cli.ContainerInspect(ctx, targetID, client.ContainerInspectOptions{})
+	if err != nil {
+		return fmt.Errorf("Container %s konnte nicht inspiziert werden: %w", targetID, err)
+	}
+	inspect := inspectRes.Container
+	name := strings.TrimPrefix(inspect.Name, "/")
+	cfg := inspect.Config
+	if cfg == nil {
+		return errors.New("Container hat keine Konfiguration")
+	}
+	cfg.Image = newImage
+	hostCfg := inspect.HostConfig
+	var netCfg *network.NetworkingConfig
+	if inspect.NetworkSettings != nil && len(inspect.NetworkSettings.Networks) > 0 {
+		netCfg = &network.NetworkingConfig{EndpointsConfig: inspect.NetworkSettings.Networks}
+	}
+
+	timeout := 15
+	_, _ = d.cli.ContainerStop(ctx, targetID, client.ContainerStopOptions{Timeout: &timeout})
+	_, _ = d.cli.ContainerRemove(ctx, targetID, client.ContainerRemoveOptions{Force: true})
+
+	created, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Name:             name,
+		Config:           cfg,
+		HostConfig:       hostCfg,
+		NetworkingConfig: netCfg,
+	})
+	if err != nil {
+		return fmt.Errorf("neuer Container %s konnte nicht angelegt werden: %w", name, err)
+	}
+	if _, err := d.cli.ContainerStart(ctx, created.ID, client.ContainerStartOptions{}); err != nil {
+		return fmt.Errorf("neuer Container %s konnte nicht gestartet werden: %w", name, err)
+	}
+	return nil
+}
+
+func hasContainerName(names []string, match string) bool {
+	for _, n := range names {
+		trimmed := strings.TrimPrefix(n, "/")
+		if trimmed == match || strings.HasSuffix(trimmed, "-"+match+"-1") || strings.HasSuffix(trimmed, "_"+match+"_1") {
+			return true
+		}
+	}
+	return false
+}
+
+// RunSelfUpdate wird vom temporären Update-Container aufgerufen, um den bisherigen Daemon-Container zu ersetzen.
+func RunSelfUpdate(targetID, image string) error {
+	time.Sleep(2 * time.Second) // Warten, bis die HTTP-Antwort gesendet wurde
+	rt, err := NewDockerRuntime("")
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	return rt.replaceContainer(ctx, targetID, image)
 }
