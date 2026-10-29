@@ -47,6 +47,22 @@ func handlerFor(root fs.FS) http.Handler {
 			serve(w, r, root, candidate)
 			return
 		}
+		// SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/... und /status/<slug>/...
+		first := name
+		if idx := strings.IndexByte(name, '/'); idx != -1 {
+			first = name[:idx]
+		}
+		if first == "project" || first == "server" || first == "status" {
+			target := path.Join(first, "index.html")
+			if strings.HasSuffix(name, ".txt") {
+				target = path.Join(first, "index.txt")
+			}
+			if info, err := fs.Stat(root, target); err == nil && !info.IsDir() {
+				w.Header().Set("Cache-Control", "no-cache")
+				serve(w, r, root, target)
+				return
+			}
+		}
 		if page, err := fs.ReadFile(root, "404.html"); err == nil {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusNotFound)

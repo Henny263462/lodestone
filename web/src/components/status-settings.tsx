@@ -14,7 +14,7 @@ export function StatusCard({ project, refresh }: { project: Project; refresh: ()
   const [slug, setSlug] = useState(settings.statusSlug);
   const [busy, setBusy] = useState(false);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const link = `${origin}/status/?p=${settings.statusSlug}`;
+  const link = `${origin}/status/${settings.statusSlug}/`;
 
   async function save(patch: { public?: boolean; slug?: string }) {
     setBusy(true);

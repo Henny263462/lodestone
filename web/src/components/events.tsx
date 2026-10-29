@@ -48,7 +48,7 @@ export function EventsTab({ project }: { project: Project }) {
                     {event.serverId && names.has(event.serverId) && (
                       <>
                         {" · "}
-                        <Link href={`/server/?id=${event.serverId}`} className="hover:text-ink hover:underline">
+                        <Link href={`/server/${event.serverId}/`} className="hover:text-ink hover:underline">
                           {names.get(event.serverId)}
                         </Link>
                       </>

@@ -6,13 +6,13 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 
 ```
 Übersicht (/)                      Projekte als Karten, Kennzahlen, Nodes
-Projekt (/project/?id=)            Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
-  └─ Server (/server/?id=&tab=)    Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
+Projekt (/project/<id>/)           Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
+  └─ Server (/server/<id>/<bereich>/) Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
 Nodes (/nodes/)                    Maschinen, Speicher, playit
 Benutzer (/users/)                 nur Administratoren
 Protokoll (/audit/)                nur Administratoren
 Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen
-Status (/status/?p=)               öffentlich, ohne Anmeldung, ohne Shell
+Status (/status/<kürzel>/)         öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
 ```
 

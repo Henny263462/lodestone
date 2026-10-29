@@ -107,7 +107,7 @@ export function GroupsTab({ project, refresh }: { project: Project; refresh: () 
               ) : (
                 <div className="divide-y divide-white/[0.05] border-t border-white/[0.05]">
                   {instances.map((server) => (
-                    <Link key={server.id} href={`/server/?id=${server.id}`} className="row-hover flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-2.5">
+                    <Link key={server.id} href={`/server/${server.id}/`} className="row-hover flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-2.5">
                       <span className="min-w-[120px] flex-1 truncate text-sm">{server.name}</span>
                       <StateBadge server={server} />
                       <span className="w-24 text-right text-xs tabular-nums text-muted">
