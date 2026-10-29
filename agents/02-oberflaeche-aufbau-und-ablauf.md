@@ -8,7 +8,7 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 Übersicht (/)                      Projekte als Karten, Kennzahlen, Nodes
 Projekt (/project/?id=)            Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
   └─ Server (/server/?id=&tab=)    Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
-Nodes (/nodes/)                    Maschinen, Speicher, playit
+Nodes (/nodes/)                    Maschinen, Speicher, playit-Schlüssel (Tunnel legt man beim Server an: Einstellungen → playit-Tunnel)
 Benutzer (/users/)                 nur Administratoren
 Protokoll (/audit/)                nur Administratoren
 Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen

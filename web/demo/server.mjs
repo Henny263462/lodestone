@@ -444,6 +444,32 @@ async function api(req, res, url) {
     if (c === "command") return send(res, 204);
     if (c === "auto-restart") { server.autoRestart = !!body.enabled; return send(res, 200, server); }
     if (c === "public-address") { server.publicAddress = body.address || undefined; return send(res, 200, server); }
+    if (c === "tunnels") {
+      server.tunnels ??= [];
+      if (method === "GET") {
+        const udp = !!server.view.ports?.some((port) => port.protocol === "udp");
+        return send(res, 200, { configured: playit.configured, tunnels: server.tunnels, available: { java: !!server.view.ports?.some((port) => port.protocol === "tcp"), voicechat: udp } });
+      }
+      if (method === "POST") {
+        if (!playit.configured) return send(res, 409, { error: "playit ist auf diesem Node nicht eingerichtet. Ein Administrator hinterlegt den Schlüssel unter Nodes." });
+        let tunnel = server.tunnels.find((entry) => entry.kind === body.kind);
+        if (!tunnel) {
+          tunnel = body.kind === "voicechat"
+            ? { kind: "voicechat", id: id(), address: "demo.gl.at.ply.gg:41234", state: "allocated" }
+            : { kind: "java", id: id(), address: "demo-server.joinmc.link", state: "allocated" };
+          server.tunnels.push(tunnel);
+        }
+        if (tunnel.kind === "java") server.publicAddress = tunnel.address;
+        else server.publicVoiceAddress = tunnel.address;
+        return send(res, 201, tunnel);
+      }
+      if (method === "DELETE") {
+        server.tunnels = server.tunnels.filter((entry) => entry.kind !== d);
+        if (d === "java") server.publicAddress = undefined;
+        else server.publicVoiceAddress = undefined;
+        return send(res, 204);
+      }
+    }
     if (c === "reinstall") return send(res, 202, server.view);
     if (c === "player-lists") return send(res, 200, playerLists);
     if (c === "player-action") {

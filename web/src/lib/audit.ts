@@ -42,6 +42,8 @@ const rules: [RegExp, string][] = [
   [/^PATCH \/api\/nodes/, "Node geändert"],
   [/^DELETE \/api\/nodes\/\{id\}$/, "Node entfernt"],
   [/^(PUT|DELETE) \/api\/nodes\/\{id\}\/playit/, "playit geändert"],
+  [/^POST \/api\/servers\/\{id\}\/tunnels/, "playit-Tunnel angelegt"],
+  [/^DELETE \/api\/servers\/\{id\}\/tunnels/, "playit-Tunnel gelöscht"],
   [/^POST \/api\/auth\/logout/, "Abgemeldet"],
 ];
 

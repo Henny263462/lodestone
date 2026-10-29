@@ -4,6 +4,7 @@ import { RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, CardHeader, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
+import { TunnelsCard } from "@/components/server/tunnels";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
 import type { Server } from "@/lib/types";
@@ -133,6 +134,7 @@ export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; 
       </Card>
 
       <AutoRestart server={server} onDone={onChanged} />
+      <TunnelsCard server={server} onDone={onChanged} />
       <PublicAddress server={server} onDone={onChanged} />
 
       <Reinstall server={server} offline={!!offline} onDone={onChanged} />
@@ -199,7 +201,7 @@ function PublicAddress({ server, onDone }: { server: Server; onDone: () => void 
     <Card>
       <CardHeader
         title="Öffentliche Adresse"
-        description="Adresse, unter der Spieler den Server erreichen, z. B. ein playit-Tunnel (abc.joinmc.link:12345). Sie wird nur angezeigt; leer = Adresse der Maschine."
+        description="Adresse, unter der Spieler den Server erreichen. Ein playit-Tunnel von oben trägt sie selbst ein; hier kannst du eine eigene setzen (abc.joinmc.link:12345). Sie wird nur angezeigt; leer = Adresse der Maschine."
         action={
           <Button
             size="sm"

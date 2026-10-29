@@ -63,8 +63,21 @@ type NetServer struct {
 	PublicHost string
 	// VoiceHostPort ist der veröffentlichte UDP-Port für Voicechat (0, wenn es keinen gibt).
 	VoiceHostPort int
+	// VoiceAddress ersetzt PublicHost:VoiceHostPort als Adresse des Voicechats (z. B. ein playit-Tunnel).
+	VoiceAddress string
 	// MOTD ist die Nachricht in der Serverliste (nur am Proxy; leer = Standard von Velocity).
 	MOTD string
+}
+
+// voiceHost ist die Adresse, die Spieler für den Voicechat benutzen (leer, wenn es keine gibt).
+func (s NetServer) voiceHost() string {
+	switch {
+	case s.VoiceAddress != "":
+		return s.VoiceAddress
+	case s.VoiceHostPort > 0 && s.PublicHost != "":
+		return s.PublicHost + ":" + strconv.Itoa(s.VoiceHostPort)
+	}
+	return ""
 }
 
 func (s NetServer) internalAddress() string {
@@ -142,7 +155,7 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 	if proxy.MOTD != "" {
 		edits[0].Set = append(edits[0].Set, node.SetOp{Path: []string{"motd"}, Value: proxy.MOTD})
 	}
-	if voiceProxy && proxy.VoiceHostPort > 0 && proxy.PublicHost != "" {
+	if voice := proxy.voiceHost(); voiceProxy && voice != "" {
 		// Der Proxy nimmt den Voicechat aller Server über einen UDP-Port an und reicht ihn weiter
 		edits = append(edits, node.Edit{
 			File:   "plugins/voicechat/voicechat-proxy.properties",
@@ -150,7 +163,7 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 			Create: true,
 			Set: []node.SetOp{
 				{Path: []string{"port"}, Value: -1},
-				{Path: []string{"voice_host"}, Value: proxy.PublicHost + ":" + strconv.Itoa(proxy.VoiceHostPort)},
+				{Path: []string{"voice_host"}, Value: voice},
 			},
 		})
 	}
@@ -199,13 +212,13 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 		return node.Autoconfig{}, false
 	}
 
-	if !voiceProxy && server.Row.Voicechat && server.VoiceHostPort > 0 && server.PublicHost != "" {
+	if voice := server.voiceHost(); !voiceProxy && server.Row.Voicechat && voice != "" {
 		edits = append(edits, node.Edit{
 			File:   voiceFile,
 			Format: "properties",
 			Set: []node.SetOp{
 				{Path: []string{"port"}, Value: voicePort},
-				{Path: []string{"voice_host"}, Value: server.PublicHost + ":" + strconv.Itoa(server.VoiceHostPort)},
+				{Path: []string{"voice_host"}, Value: voice},
 			},
 		})
 	}
