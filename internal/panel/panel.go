@@ -124,6 +124,13 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/users/{id}", p.authenticate(p.deleteUser))
 	mux.HandleFunc("POST /api/users/{id}/password", p.authenticate(p.resetPassword))
 
+	// Admin-Bereich
+	mux.HandleFunc("GET /api/admin/overview", p.authenticate(p.adminOverview))
+	mux.HandleFunc("GET /api/admin/users", p.authenticate(p.adminListUsers))
+	mux.HandleFunc("GET /api/admin/users/{id}", p.authenticate(p.adminGetUser))
+	mux.HandleFunc("DELETE /api/admin/users/{id}/sessions", p.authenticate(p.adminDeleteUserSessions))
+	mux.HandleFunc("GET /api/admin/projects", p.authenticate(p.adminListProjects))
+
 	// Nodes und Software
 	mux.HandleFunc("GET /api/nodes", p.authenticate(p.listNodes))
 	mux.HandleFunc("POST /api/nodes", p.authenticate(p.createNode))

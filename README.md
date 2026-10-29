@@ -57,6 +57,9 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Konto-Sicherheit:** Zwei-Faktor-Anmeldung (TOTP mit QR-Code und Wiederherstellungscodes), **API-Schlüssel** für
   Skripte (`Authorization: Bearer lds_…`), Sitzungsliste mit Abmelden und ein **Protokoll** aller Änderungen
   (90 Tage, nur für Administratoren)
+- **Admin-Panel:** Für Administratoren gibt es einen eigenen Bereich mit Übersicht (Kennzahlen, letzte Aktivität),
+  Benutzerverwaltung (Suche, Zwei-Faktor zurücksetzen, Sitzungen beenden, Projekte je Benutzer), Liste aller Projekte,
+  Nodes und Protokoll – mit eigener Seitenleiste
 - **Anlegen:** Vorlagen (Survival, Lobby, Creative, Mods), **ZIP-Import** einer bestehenden Welt oder eines Servers
   und Strg+K als Schnellsuche
 

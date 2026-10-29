@@ -9,8 +9,11 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 Projekt (/project/<id>/)           Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
   └─ Server (/server/<id>/<bereich>/) Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
 Nodes (/nodes/)                    Maschinen, Speicher, playit verbinden (Tunnel legt man beim Server an: Einstellungen → playit-Tunnel)
-Benutzer (/users/)                 nur Administratoren
-Protokoll (/audit/)                nur Administratoren
+Admin-Panel (/admin/)              nur Administratoren; Übersicht mit Kennzahlen. Zweite Seitenleiste (`AdminSidebar`) mit:
+  ├─ Benutzer (/users/)            Benutzerverwaltung (Zwei-Faktor, Sitzungen, Projekte je Benutzer)
+  ├─ Projekte (/admin/projects/)   alle Projekte mit Eigentümer, Mitgliedern, Servern
+  ├─ Nodes (/nodes/)               dieselbe Seite wie in der Hauptleiste
+  └─ Protokoll (/audit/)
 Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen
 Status (/status/<kürzel>/)         öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
