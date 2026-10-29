@@ -172,6 +172,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/servers/{id}/public-address", p.authenticate(p.putPublicAddress))
 	mux.HandleFunc("PUT /api/servers/{id}/auto-restart", p.authenticate(p.putAutoRestart))
 	mux.HandleFunc("GET /api/servers/{id}/tunnels", p.authenticate(p.listTunnels))
+	mux.HandleFunc("GET /api/servers/{id}/tunnels/options", p.authenticate(p.tunnelOptions))
 	mux.HandleFunc("POST /api/servers/{id}/tunnels", p.authenticate(p.createTunnel))
 	mux.HandleFunc("DELETE /api/servers/{id}/tunnels/{kind}", p.authenticate(p.deleteTunnel))
 	mux.HandleFunc("GET /api/projects/{id}/events", p.authenticate(p.listEvents))

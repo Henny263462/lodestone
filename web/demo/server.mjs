@@ -460,6 +460,13 @@ async function api(req, res, url) {
     if (c === "public-address") { server.publicAddress = body.address || undefined; return send(res, 200, server); }
     if (c === "tunnels") {
       server.tunnels ??= [];
+      if (method === "GET" && d === "options") {
+        return send(res, 200, {
+          premium: true,
+          regions: [{ id: "europe", name: "Europa" }, { id: "germany", name: "Deutschland" }, { id: "north-america", name: "Nordamerika" }, { id: "asia", name: "Asien" }],
+          domains: [{ id: "dddddddd-0000-0000-0000-000000000001", name: "play.beispiel.de", external: true, used: false }, { id: "dddddddd-0000-0000-0000-000000000002", name: "alt.beispiel.de", external: true, used: true }],
+        });
+      }
       if (method === "GET") {
         const udp = !!server.view.ports?.some((port) => port.protocol === "udp");
         return send(res, 200, { configured: playit.configured, tunnels: server.tunnels, available: { java: !!server.view.ports?.some((port) => port.protocol === "tcp"), voicechat: udp } });
@@ -471,6 +478,8 @@ async function api(req, res, url) {
           tunnel = body.kind === "voicechat"
             ? { kind: "voicechat", id: id(), address: "demo.gl.at.ply.gg:41234", state: "allocated" }
             : { kind: "java", id: id(), address: "demo-server.joinmc.link", state: "allocated" };
+          if (body.region) tunnel.region = { europe: "Europa", germany: "Deutschland", "north-america": "Nordamerika", asia: "Asien" }[body.region] ?? body.region;
+          if (body.domainId && body.kind === "java") tunnel.domain = tunnel.address = "play.beispiel.de";
           server.tunnels.push(tunnel);
         }
         if (tunnel.kind === "java") server.publicAddress = tunnel.address;

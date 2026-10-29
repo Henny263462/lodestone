@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -43,6 +44,10 @@ type PlayitTunnel struct {
 	Address string `json:"address"`
 	// State: allocated (bereit), pending (wird eingerichtet) oder disabled.
 	State string `json:"state"`
+	// Region ist der Name der gewählten Region (leer bei „Automatisch“).
+	Region string `json:"region,omitempty"`
+	// Domain ist die eigene Domain, unter der der Tunnel erreichbar ist (leer ohne eigene Domain).
+	Domain string `json:"domain,omitempty"`
 }
 
 // PlayitTunnelRequest beschreibt einen neuen Tunnel.
@@ -53,6 +58,58 @@ type PlayitTunnelRequest struct {
 	Kind string `json:"kind"`
 	// LocalPort ist der Port auf dieser Maschine, auf den der Tunnel zeigt.
 	LocalPort int `json:"localPort"`
+	// Region legt fest, über welches Rechenzentrum der Tunnel läuft (leer = automatisch). Braucht playit Premium.
+	Region string `json:"region,omitempty"`
+	// DomainID ist die Kennung einer eigenen Domain aus dem playit-Konto (nur für Java). Braucht playit Premium.
+	DomainID string `json:"domainId,omitempty"`
+}
+
+// PlayitRegion ist eine Region, in der playit Tunnel betreibt.
+type PlayitRegion struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// PlayitDomain ist eine Domain im playit-Konto.
+type PlayitDomain struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	External bool   `json:"external"`
+	// Used sagt, dass die Domain schon auf etwas zeigt und deshalb nicht noch einmal vergeben werden kann.
+	Used bool `json:"used"`
+}
+
+// PlayitOptions fasst zusammen, was das playit-Konto beim Anlegen eines Tunnels erlaubt.
+type PlayitOptions struct {
+	// Premium sagt, ob das Konto Regionen und eigene Domains nutzen darf.
+	Premium bool           `json:"premium"`
+	Regions []PlayitRegion `json:"regions"`
+	Domains []PlayitDomain `json:"domains"`
+	// DomainsProblem erklärt, warum die Domains fehlen (z. B. playit hat die Liste abgelehnt).
+	DomainsProblem string `json:"domainsProblem,omitempty"`
+}
+
+// playitRegions sind die Regionen, die Lodestone zur Wahl anbietet („global“ ist die automatische Wahl und steht nicht darin).
+var playitRegions = []PlayitRegion{
+	{"europe", "Europa"}, {"germany", "Deutschland"}, {"united-kingdom", "Vereinigtes Königreich"}, {"sweden", "Schweden"},
+	{"poland", "Polen"}, {"romania", "Rumänien"},
+	{"north-america", "Nordamerika"}, {"new-york", "New York"}, {"chicago-illinois", "Chicago"}, {"dallas-texas", "Dallas"},
+	{"denver-colorado", "Denver"}, {"los-angeles-california", "Los Angeles"}, {"seattle-washington", "Seattle"},
+	{"south-america", "Südamerika"}, {"chile", "Chile"},
+	{"asia", "Asien"}, {"japan", "Japan"}, {"india", "Indien"}, {"australia", "Australien"},
+}
+
+// playitRegionName übersetzt die Kennung einer Region in ihren Namen ("" für die automatische Wahl).
+func playitRegionName(id string) string {
+	if id == "" || id == "global" {
+		return ""
+	}
+	for _, region := range playitRegions {
+		if region.ID == id {
+			return region.Name
+		}
+	}
+	return id
 }
 
 type playitEnvelope struct {
@@ -150,8 +207,16 @@ func playitFailure(data json.RawMessage) error {
 	switch code {
 	case "RequiresVerifiedAccount":
 		return badRequest("das playit-Konto ist noch nicht bestätigt. Bestätige deine E-Mail-Adresse bei playit.gg")
-	case "RequiresPlayitPremium", "PublicPortRequiresPlayitPremium", "RegionRequiresPlayitPremium":
+	case "RegionRequiresPlayitPremium":
+		return badRequest("diese Region erlaubt playit nur mit Premium. Wähle „Automatisch“ oder hole dir playit Premium")
+	case "RegionNotSupported":
+		return badRequest("playit bietet diese Region für den Tunnel nicht an. Wähle eine andere oder „Automatisch“")
+	case "RequiresPlayitPremium", "PublicPortRequiresPlayitPremium":
 		return badRequest("diesen Tunnel erlaubt playit nur mit Premium")
+	case "InvalidHostnameId":
+		return badRequest("playit kennt diese Domain nicht (mehr). Lade die Auswahl neu")
+	case "HostnameHasTunnelTypeTarget":
+		return badRequest("diese Domain zeigt bei playit schon auf einen anderen Tunnel. Wähle eine freie Domain")
 	case "AgentNotFound", "InvalidAgentId":
 		return badRequest("playit kennt diesen Agenten nicht. Hinterlege den Schlüssel unter Nodes neu")
 	case "AgentVersionTooOld":
@@ -214,31 +279,60 @@ func limitText(text string) string {
 	return text
 }
 
-// playitSession liest den Schlüssel und holt die Kennung des Agenten.
-func (m *Manager) playitSession(ctx context.Context) (secret, agentID string, err error) {
-	secret, _, err = m.readPlayit()
-	if err != nil {
-		return "", "", err
-	}
-	if secret == "" {
-		return "", "", badRequest("playit ist auf diesem Node noch nicht eingerichtet. Hinterlege zuerst unter Nodes den Secret Key")
-	}
+// playitRunData ist, was playit über den Agenten und das Konto sagt.
+type playitRunData struct {
+	AgentID         string `json:"agent_id"`
+	AccountFeatures struct {
+		RegionalTunnels bool `json:"regional_tunnels"`
+	} `json:"account_features"`
+}
+
+// playitRun holt die Laufdaten des Agenten.
+func (m *Manager) playitRun(ctx context.Context, secret string) (playitRunData, error) {
 	data, err := m.playitCall(ctx, secret, "/agents/rundata", struct{}{})
 	if err != nil {
+		return playitRunData{}, err
+	}
+	var run playitRunData
+	if json.Unmarshal(data, &run) != nil || !playitTunnelID.MatchString(run.AgentID) {
+		return playitRunData{}, fmt.Errorf("%w: die Kennung des Agenten fehlt in der Antwort", errUpstream)
+	}
+	return run, nil
+}
+
+// playitSecret liest den Schlüssel oder erklärt, dass es keinen gibt.
+func (m *Manager) playitSecret() (string, error) {
+	secret, _, err := m.readPlayit()
+	if err != nil {
+		return "", err
+	}
+	if secret == "" {
+		return "", badRequest("playit ist auf diesem Node noch nicht eingerichtet. Hinterlege zuerst unter Nodes den Secret Key")
+	}
+	return secret, nil
+}
+
+// playitSession liest den Schlüssel und holt die Kennung des Agenten.
+func (m *Manager) playitSession(ctx context.Context) (secret, agentID string, err error) {
+	secret, err = m.playitSecret()
+	if err != nil {
 		return "", "", err
 	}
-	var run struct {
-		AgentID string `json:"agent_id"`
-	}
-	if json.Unmarshal(data, &run) != nil || !playitTunnelID.MatchString(run.AgentID) {
-		return "", "", fmt.Errorf("%w: die Kennung des Agenten fehlt in der Antwort", errUpstream)
+	run, err := m.playitRun(ctx, secret)
+	if err != nil {
+		return "", "", err
 	}
 	return secret, run.AgentID, nil
 }
 
 type playitTunnelData struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	TunnelType string `json:"tunnel_type"`
+	Region     string `json:"region"`
+	Domain     *struct {
+		Name string `json:"name"`
+	} `json:"domain"`
 	Alloc struct {
 		Status string `json:"status"`
 		Data   struct {
@@ -250,12 +344,19 @@ type playitTunnelData struct {
 }
 
 func (t playitTunnelData) tunnel() PlayitTunnel {
-	tunnel := PlayitTunnel{ID: t.ID, Name: t.Name, State: t.Alloc.Status}
+	tunnel := PlayitTunnel{ID: t.ID, Name: t.Name, State: t.Alloc.Status, Region: playitRegionName(t.Region)}
 	if tunnel.State != "allocated" && tunnel.State != "disabled" {
 		tunnel.State = "pending"
 	}
+	if t.Domain != nil {
+		tunnel.Domain = t.Domain.Name
+	}
 	switch data := t.Alloc.Data; {
 	case tunnel.State != "allocated":
+	case tunnel.Domain != "" && t.TunnelType == "minecraft-java":
+		tunnel.Address = tunnel.Domain // Minecraft findet den Port über den SRV-Eintrag der Domain
+	case tunnel.Domain != "" && data.PortStart > 0:
+		tunnel.Address = fmt.Sprintf("%s:%d", tunnel.Domain, data.PortStart)
 	case data.AssignedSRV != "":
 		tunnel.Address = data.AssignedSRV
 	case data.AssignedDomain != "" && data.PortStart > 0:
@@ -314,6 +415,25 @@ func (m *Manager) CreatePlayitTunnel(ctx context.Context, request PlayitTunnelRe
 	default:
 		return PlayitTunnel{}, badRequest("unbekannte Tunnel-Art")
 	}
+	if request.Region == "global" {
+		request.Region = ""
+	}
+	if request.Region != "" && playitRegionName(request.Region) == request.Region {
+		return PlayitTunnel{}, badRequest("unbekannte Region")
+	}
+	if request.DomainID != "" {
+		switch {
+		case !playitTunnelID.MatchString(request.DomainID):
+			return PlayitTunnel{}, badRequest("die Kennung der Domain ist ungültig")
+		case request.Kind != TunnelJava:
+			return PlayitTunnel{}, badRequest("eine eigene Domain gibt es nur für den Minecraft-Tunnel")
+		case request.Region != "":
+			return PlayitTunnel{}, badRequest("Region und Domain schließen sich aus: Die Region einer Domain legt sie bei playit fest")
+		}
+	}
+	if request.Region != "" {
+		body["alloc"] = map[string]any{"type": "region", "details": map[string]any{"region": request.Region}}
+	}
 
 	m.playit.mu.Lock()
 	defer m.playit.mu.Unlock()
@@ -330,10 +450,29 @@ func (m *Manager) CreatePlayitTunnel(ctx context.Context, request PlayitTunnelRe
 			return PlayitTunnel{}, ErrTunnelExists
 		}
 	}
-	body["origin"] = map[string]any{"type": "agent", "data": map[string]any{
-		"agent_id": agentID, "local_ip": "127.0.0.1", "local_port": request.LocalPort,
-	}}
-	data, err := m.playitCall(ctx, secret, "/tunnels/create", body)
+	path := "/tunnels/create"
+	if request.DomainID != "" {
+		// Eine eigene Domain lässt sich nur mit der neueren Schnittstelle zuweisen
+		path = "/v1/tunnels/create"
+		body = map[string]any{
+			"name":    request.Name,
+			"enabled": true,
+			"ports":   map[string]any{"type": "tunnel-type", "details": "minecraft-java"},
+			"alloc":   map[string]any{"type": "hostname", "details": map[string]any{"hostname_id": request.DomainID}},
+			"origin": map[string]any{"type": "agent", "data": map[string]any{
+				"agent_id": agentID,
+				"config": map[string]any{"fields": []map[string]string{
+					{"name": "local_ip", "value": "127.0.0.1"},
+					{"name": "local_port", "value": strconv.Itoa(request.LocalPort)},
+				}},
+			}},
+		}
+	} else {
+		body["origin"] = map[string]any{"type": "agent", "data": map[string]any{
+			"agent_id": agentID, "local_ip": "127.0.0.1", "local_port": request.LocalPort,
+		}}
+	}
+	data, err := m.playitCall(ctx, secret, path, body)
 	if err != nil {
 		return PlayitTunnel{}, err
 	}
@@ -368,6 +507,44 @@ func (m *Manager) CreatePlayitTunnel(ctx context.Context, request PlayitTunnelRe
 		}
 	}
 	return result, nil
+}
+
+// PlayitOptions sagt, ob das Konto Premium-Funktionen hat, und listet die wählbaren Regionen und die Domains des Kontos.
+func (m *Manager) PlayitOptions(ctx context.Context) (PlayitOptions, error) {
+	secret, err := m.playitSecret()
+	if err != nil {
+		return PlayitOptions{}, err
+	}
+	run, err := m.playitRun(ctx, secret)
+	if err != nil {
+		return PlayitOptions{}, err
+	}
+	options := PlayitOptions{Premium: run.AccountFeatures.RegionalTunnels, Regions: playitRegions, Domains: []PlayitDomain{}}
+	data, err := m.playitCall(ctx, secret, "/domains/list", struct{}{})
+	if err == nil {
+		var list struct {
+			Domains []struct {
+				ID         string          `json:"id"`
+				Name       string          `json:"name"`
+				IsExternal bool            `json:"is_external"`
+				Target     json.RawMessage `json:"target"`
+			} `json:"domains"`
+		}
+		if json.Unmarshal(data, &list) != nil {
+			err = fmt.Errorf("%w: die Domainliste ließ sich nicht lesen", errUpstream)
+		}
+		for _, domain := range list.Domains {
+			if !playitTunnelID.MatchString(domain.ID) || domain.Name == "" {
+				continue
+			}
+			used := len(domain.Target) > 0 && string(domain.Target) != "null"
+			options.Domains = append(options.Domains, PlayitDomain{ID: domain.ID, Name: domain.Name, External: domain.IsExternal, Used: used})
+		}
+	}
+	if err != nil {
+		options.DomainsProblem = err.Error()
+	}
+	return options, nil
 }
 
 // DeletePlayitTunnel löscht einen Tunnel des Agenten.

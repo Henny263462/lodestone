@@ -25,6 +25,10 @@ type fakePlayit struct {
 	pending   int    // so viele Listenabfragen lang bleibt ein neuer Tunnel „pending“
 	badKey    bool
 
+	premium     bool             // account_features.regional_tunnels
+	domains     []map[string]any // Antwort von /domains/list
+	domainsFail string           // Antwort mit status „fail“ von /domains/list
+
 	claimState string // Antwort von /claim/setup
 	claimFail  string // Antwort mit status „fail“ von /claim/setup
 	claimCode  string // der zuletzt gemeldete Code
@@ -86,14 +90,20 @@ func (f *fakePlayit) handler(t *testing.T) http.Handler {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		switch r.URL.Path {
 		case "/agents/rundata":
-			reply("success", map[string]any{"agent_id": testAgentID})
+			reply("success", map[string]any{"agent_id": testAgentID, "account_features": map[string]any{"regional_tunnels": f.premium}})
+		case "/domains/list":
+			if f.domainsFail != "" {
+				reply("fail", f.domainsFail)
+				return
+			}
+			reply("success", map[string]any{"domains": f.domains})
 		case "/tunnels/list":
 			if body["agent_id"] != testAgentID {
 				t.Errorf("Liste ohne Agent: %v", body)
 			}
 			list := []map[string]any{}
 			for _, tunnel := range f.tunnels {
-				entry := map[string]any{"id": tunnel["id"], "name": tunnel["name"], "alloc": tunnel["alloc"]}
+				entry := map[string]any{"id": tunnel["id"], "name": tunnel["name"], "alloc": tunnel["alloc"], "tunnel_type": tunnel["tunnel_type"], "region": tunnel["region"], "domain": tunnel["domain"]}
 				if left, _ := tunnel["pending"].(int); left > 0 {
 					tunnel["pending"] = left - 1
 					entry["alloc"] = map[string]any{"status": "pending"}
@@ -101,7 +111,7 @@ func (f *fakePlayit) handler(t *testing.T) http.Handler {
 				list = append(list, entry)
 			}
 			reply("success", map[string]any{"tunnels": list})
-		case "/tunnels/create":
+		case "/tunnels/create", "/v1/tunnels/create":
 			if f.errorWith != nil {
 				reply("error", f.errorWith)
 				return
@@ -118,7 +128,20 @@ func (f *fakePlayit) handler(t *testing.T) http.Handler {
 			if body["tunnel_type"] == "minecraft-java" {
 				alloc["data"].(map[string]any)["assigned_srv"] = "mein-server.joinmc.link"
 			}
-			f.tunnels = append(f.tunnels, map[string]any{"id": id, "name": body["name"], "alloc": alloc, "pending": f.pending})
+			entry := map[string]any{"id": id, "name": body["name"], "alloc": alloc, "pending": f.pending, "tunnel_type": body["tunnel_type"]}
+			if choice, ok := body["alloc"].(map[string]any); ok && choice["type"] == "region" {
+				entry["region"] = choice["details"].(map[string]any)["region"]
+			}
+			if r.URL.Path == "/v1/tunnels/create" {
+				entry["tunnel_type"] = "minecraft-java"
+				hostname := body["alloc"].(map[string]any)["details"].(map[string]any)["hostname_id"]
+				for _, domain := range f.domains {
+					if domain["id"] == hostname {
+						entry["domain"] = map[string]any{"id": domain["id"], "name": domain["name"]}
+					}
+				}
+			}
+			f.tunnels = append(f.tunnels, entry)
 			reply("success", map[string]string{"id": id})
 		case "/tunnels/delete":
 			f.deleted = append(f.deleted, body["tunnel_id"].(string))
@@ -202,6 +225,119 @@ func TestCreatePlayitTunnels(t *testing.T) {
 	}
 	if len(fake.deleted) != 1 || fake.deleted[0] != java.ID {
 		t.Errorf("gelöscht: %v", fake.deleted)
+	}
+}
+
+const testDomainID = "dddddddd-0000-0000-0000-000000000001"
+
+func TestPlayitOptions(t *testing.T) {
+	fake := &fakePlayit{premium: true, domains: []map[string]any{
+		{"id": testDomainID, "name": "play.example.org", "is_external": true, "target": nil},
+		{"id": "dddddddd-0000-0000-0000-000000000002", "name": "belegt.example.org", "is_external": false, "target": map[string]any{"type": "tunnel", "details": map[string]any{"tunnel_id": "x"}}},
+		{"id": "kaputt", "name": "ungueltig.example.org"},
+	}}
+	manager := newPlayitTestManager(t, fake)
+	options, err := manager.PlayitOptions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !options.Premium || len(options.Regions) == 0 || options.DomainsProblem != "" {
+		t.Fatalf("Optionen: %+v", options)
+	}
+	if len(options.Domains) != 2 || options.Domains[0].Used || !options.Domains[0].External || !options.Domains[1].Used {
+		t.Errorf("Domains: %+v", options.Domains)
+	}
+
+	// Ohne Premium und wenn playit die Domainliste ablehnt, geht der Rest trotzdem
+	fake.premium, fake.domainsFail = false, "Irgendwas"
+	options, err = manager.PlayitOptions(context.Background())
+	if err != nil || options.Premium || len(options.Domains) != 0 || options.DomainsProblem == "" || len(options.Regions) == 0 {
+		t.Errorf("Optionen ohne Domains: %+v %v", options, err)
+	}
+
+	empty := newTestManager(t, testConfig(t), newFakeRuntime())
+	if _, err := empty.PlayitOptions(context.Background()); !errors.Is(err, errBadRequest) {
+		t.Errorf("ohne Schlüssel: %v", err)
+	}
+}
+
+func TestCreatePlayitTunnelInARegion(t *testing.T) {
+	fake := &fakePlayit{premium: true}
+	manager := newPlayitTestManager(t, fake)
+	ctx := context.Background()
+
+	tunnel, err := manager.CreatePlayitTunnel(ctx, PlayitTunnelRequest{Name: "ls-abc-java", Kind: TunnelJava, LocalPort: 25570, Region: "europe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	alloc, _ := fake.created[0]["alloc"].(map[string]any)
+	if alloc["type"] != "region" || alloc["details"].(map[string]any)["region"] != "europe" {
+		t.Errorf("Anfrage mit Region: %v", fake.created[0])
+	}
+	if tunnel.Region != "Europa" {
+		t.Errorf("Name der Region: %+v", tunnel)
+	}
+
+	// „Automatisch“ schickt keine Wahl mit
+	if _, err := manager.CreatePlayitTunnel(ctx, PlayitTunnelRequest{Name: "ls-abc-voice", Kind: TunnelVoicechat, LocalPort: 24454, Region: "global"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, has := fake.created[1]["alloc"]; has {
+		t.Errorf("bei „global“ darf keine Region mitgehen: %v", fake.created[1])
+	}
+}
+
+func TestCreatePlayitTunnelWithADomain(t *testing.T) {
+	fake := &fakePlayit{premium: true, domains: []map[string]any{{"id": testDomainID, "name": "play.example.org"}}}
+	manager := newPlayitTestManager(t, fake)
+	tunnel, err := manager.CreatePlayitTunnel(context.Background(), PlayitTunnelRequest{Name: "ls-abc-java", Kind: TunnelJava, LocalPort: 25570, DomainID: testDomainID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tunnel.Domain != "play.example.org" || tunnel.Address != "play.example.org" {
+		t.Errorf("Tunnel mit Domain: %+v", tunnel)
+	}
+	body := fake.created[0]
+	ports := body["ports"].(map[string]any)
+	alloc := body["alloc"].(map[string]any)
+	data := body["origin"].(map[string]any)["data"].(map[string]any)
+	fields := data["config"].(map[string]any)["fields"].([]any)
+	if ports["type"] != "tunnel-type" || ports["details"] != "minecraft-java" || alloc["type"] != "hostname" ||
+		alloc["details"].(map[string]any)["hostname_id"] != testDomainID || data["agent_id"] != testAgentID || body["name"] != "ls-abc-java" ||
+		len(fields) != 2 || fields[1].(map[string]any)["value"] != "25570" {
+		t.Errorf("Anfrage mit Domain: %v", body)
+	}
+}
+
+func TestCreatePlayitTunnelRejectsBadChoices(t *testing.T) {
+	fake := &fakePlayit{premium: true}
+	manager := newPlayitTestManager(t, fake)
+	ctx := context.Background()
+	for _, bad := range []PlayitTunnelRequest{
+		{Name: "ls-abc-java", Kind: TunnelJava, LocalPort: 25565, Region: "mars"},
+		{Name: "ls-abc-java", Kind: TunnelJava, LocalPort: 25565, DomainID: "../x"},
+		{Name: "ls-abc-voice", Kind: TunnelVoicechat, LocalPort: 24454, DomainID: testDomainID},
+		{Name: "ls-abc-java", Kind: TunnelJava, LocalPort: 25565, Region: "europe", DomainID: testDomainID},
+	} {
+		if _, err := manager.CreatePlayitTunnel(ctx, bad); !errors.Is(err, errBadRequest) {
+			t.Errorf("%+v hätte abgelehnt werden müssen: %v", bad, err)
+		}
+	}
+	if len(fake.created) != 0 {
+		t.Error("bei ungültiger Wahl darf nichts bei playit ankommen")
+	}
+
+	for code, contains := range map[string]string{
+		"RegionRequiresPlayitPremium": "Premium",
+		"RegionNotSupported":          "Region",
+		"InvalidHostnameId":           "Domain",
+		"HostnameHasTunnelTypeTarget": "Domain",
+	} {
+		fake.failWith = code
+		_, err := manager.CreatePlayitTunnel(ctx, PlayitTunnelRequest{Name: "ls-abc-java", Kind: TunnelJava, LocalPort: 25565})
+		if !errors.Is(err, errBadRequest) || !strings.Contains(err.Error(), contains) {
+			t.Errorf("%s: %v", code, err)
+		}
 	}
 }
 
