@@ -259,4 +259,26 @@ func TestPlayitIsAdminOnlyAndKeepsTheKeySecret(t *testing.T) {
 	viewer.expect(403, "GET", path, nil)
 	viewer.expect(403, "PUT", path, map[string]string{"secret": "a1b2c3d4e5f60718293a4b5c6d7e8f90"})
 	viewer.expect(403, "DELETE", path, nil)
+	viewer.expect(403, "POST", path+"/claim", nil)
+	viewer.expect(403, "GET", path+"/claim", nil)
+}
+
+func TestPlayitClaimIsAdminOnlyAndNeverShowsTheKey(t *testing.T) {
+	_, admin, fake, nodeID, _, _ := serverProject(t)
+	path := "/api/nodes/" + nodeID + "/playit/claim"
+
+	var claim node.PlayitClaim
+	_ = json.Unmarshal(admin.expect(201, "POST", path, nil), &claim)
+	if claim.State != node.ClaimWaiting || !strings.HasPrefix(claim.URL, "https://playit.gg/claim/") {
+		t.Fatalf("Start: %+v", claim)
+	}
+	body := admin.expect(200, "GET", path, nil)
+	_ = json.Unmarshal(body, &claim)
+	fake.mu.Lock()
+	secret := fake.playitSecret
+	fake.mu.Unlock()
+	if claim.State != node.ClaimAccepted || secret == "" || strings.Contains(string(body), secret) {
+		t.Errorf("Stand: %s, Schlüssel beim Node: %q", body, secret)
+	}
+	admin.expect(404, "POST", "/api/nodes/gibt-es-nicht/playit/claim", nil)
 }

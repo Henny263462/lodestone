@@ -24,6 +24,44 @@ type fakePlayit struct {
 	errorWith any    // Antwort mit status „error“ beim Anlegen
 	pending   int    // so viele Listenabfragen lang bleibt ein neuer Tunnel „pending“
 	badKey    bool
+
+	claimState string // Antwort von /claim/setup
+	claimFail  string // Antwort mit status „fail“ von /claim/setup
+	claimCode  string // der zuletzt gemeldete Code
+	exchanges  int    // so oft wurde /claim/exchange aufgerufen
+}
+
+// claim spielt die Verbindung (/claim/setup und /claim/exchange); beide Aufrufe kommen ohne Schlüssel.
+func (f *fakePlayit) claim(t *testing.T, w http.ResponseWriter, r *http.Request, reply func(string, any)) {
+	if r.Header.Get("Authorization") != "" {
+		t.Errorf("die Verbindung darf keinen Schlüssel schicken: %q", r.Header.Get("Authorization"))
+	}
+	var body map[string]any
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	switch r.URL.Path {
+	case "/claim/setup":
+		if body["agent_type"] != "self-managed" || body["version"] == "" {
+			t.Errorf("Anfrage der Verbindung: %v", body)
+		}
+		if f.claimFail != "" {
+			reply("fail", f.claimFail)
+			return
+		}
+		f.claimCode, _ = body["code"].(string)
+		reply("success", f.claimState)
+	case "/claim/exchange":
+		f.exchanges++
+		if body["code"] != f.claimCode {
+			t.Errorf("Code beim Tausch: %v", body)
+		}
+		if f.claimState != "UserAccepted" {
+			reply("fail", "NotAccepted")
+			return
+		}
+		reply("success", map[string]string{"secret_key": testSecret})
+	default:
+		t.Errorf("unbekannter Pfad %s", r.URL.Path)
+	}
 }
 
 func (f *fakePlayit) handler(t *testing.T) http.Handler {
@@ -35,6 +73,10 @@ func (f *fakePlayit) handler(t *testing.T) http.Handler {
 		}
 		if r.Method != http.MethodPost {
 			t.Errorf("playit-Aufruf mit %s", r.Method)
+		}
+		if strings.HasPrefix(r.URL.Path, "/claim/") {
+			f.claim(t, w, r, reply)
+			return
 		}
 		if f.badKey || r.Header.Get("Authorization") != "Agent-Key "+testSecret {
 			reply("error", map[string]string{"type": "auth", "message": "InvalidAgentKey"})
