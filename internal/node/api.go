@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +48,8 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, map[string]bool{"ok": true}) })
 
 	mux.HandleFunc("GET /api/system", a.system)
+	mux.HandleFunc("POST /api/system/update", a.systemUpdate)
+	mux.HandleFunc("POST /api/system/update-panel", a.systemUpdatePanel)
 	mux.HandleFunc("GET /api/software", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, software.Catalog()) })
 	mux.HandleFunc("GET /api/software/{id}/versions", a.softwareVersions)
 
@@ -201,6 +204,49 @@ func (a *API) system(w http.ResponseWriter, r *http.Request) {
 		result["docker"] = info
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// updateVersionPattern erlaubt nur Release-Versionen wie „0.3.0“ oder „v0.3.0-rc.1“; sie landen im Tag eines Images.
+var updateVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$`)
+
+// updateVersion liest die Zielversion eines Updates aus dem Körper der Anfrage und prüft sie streng.
+func updateVersion(r *http.Request) (string, error) {
+	var body struct {
+		Version string `json:"version"`
+	}
+	if err := decode(r, &body); err != nil {
+		return "", err
+	}
+	if !updateVersionPattern.MatchString(body.Version) {
+		return "", badRequest("Version fehlt oder ist ungültig (erwartet zum Beispiel 0.3.0)")
+	}
+	return body.Version, nil
+}
+
+func (a *API) systemUpdate(w http.ResponseWriter, r *http.Request) {
+	version, err := updateVersion(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.rt.UpdateSelf(r.Context(), version); err != nil {
+		writeError(w, fmt.Errorf("Update des Node-Daemons fehlgeschlagen: %w", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Node-Update wurde gestartet. Der Daemon wird neu gestartet."})
+}
+
+func (a *API) systemUpdatePanel(w http.ResponseWriter, r *http.Request) {
+	version, err := updateVersion(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.rt.UpdatePanel(r.Context(), version); err != nil {
+		writeError(w, fmt.Errorf("Update des Panels fehlgeschlagen: %w", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Panel-Update wurde gestartet."})
 }
 
 func (a *API) softwareVersions(w http.ResponseWriter, r *http.Request) {

@@ -26,6 +26,8 @@ type nodeDTO struct {
 	MemoryAvailable int64 `json:"memoryAvailable,omitempty"`
 	// MemoryCommitted ist der Arbeitsspeicher, den die laufenden Server auf dem Node als Limit haben (Bytes).
 	MemoryCommitted int64 `json:"memoryCommitted,omitempty"`
+	// UpdateAvailable ist wahr, wenn es ein neueres Release als die Version des Nodes gibt (nach der letzten Prüfung).
+	UpdateAvailable bool `json:"updateAvailable,omitempty"`
 }
 
 func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +61,7 @@ func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			result[i].Online, result[i].System, result[i].Version, result[i].MemoryAvailable = true, system.Docker, system.Version, system.MemoryAvailable
+			result[i].UpdateAvailable = isNewer(p.latestVersion(), system.Version)
 			if views, err := p.nodeViews(ctx, n.ID); err == nil {
 				for _, view := range views {
 					if activeState(view.State) {

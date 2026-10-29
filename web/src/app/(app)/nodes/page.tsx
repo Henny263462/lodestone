@@ -1,6 +1,6 @@
 "use client";
 
-import { Cable, Cpu, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowUpCircle, Cable, Cpu, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, Dot, EmptyState, Meter, PageHeader } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
@@ -17,6 +17,7 @@ export default function NodesPage() {
   const { data, error, mutate } = useApi<NodeInfo[]>("/nodes", { refreshInterval: 10000 });
   const [editing, setEditing] = useState<NodeInfo | "new" | null>(null);
   const [removing, setRemoving] = useState<NodeInfo | null>(null);
+  const [updatingNode, setUpdatingNode] = useState<NodeInfo | null>(null);
   const toast = useToast();
 
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
@@ -62,6 +63,13 @@ export default function NodesPage() {
               </div>
               {node.online && node.system ? (
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <dt className="text-muted">Version</dt>
+                  <dd className="flex items-center gap-1.5">
+                    <span>{!node.version ? "–" : node.version === "dev" ? "dev" : `v${node.version}`}</span>
+                    {node.updateAvailable && (
+                      <Badge tone="warn">Update verfügbar</Badge>
+                    )}
+                  </dd>
                   <dt className="text-muted">Docker</dt>
                   <dd>{node.system.dockerVersion}</dd>
                   <dt className="text-muted">System</dt>
@@ -77,6 +85,15 @@ export default function NodesPage() {
                 </dl>
               ) : (
                 node.error && <p className="mt-4 rounded-md border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">{node.error}</p>
+              )}
+              {user.isAdmin && node.online && node.updateAvailable && (
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-warn/25 bg-warn/10 px-3 py-2 text-xs">
+                  <span className="text-warn">Ein Update ist verfügbar.</span>
+                  <Button variant="secondary" size="sm" onClick={() => setUpdatingNode(node)}>
+                    <ArrowUpCircle className="h-3.5 w-3.5" />
+                    Aktualisieren
+                  </Button>
+                </div>
               )}
               {node.online && node.system && <MemoryPlanner node={node} />}
               {user.isAdmin && node.online && <PlayitCard node={node} />}
@@ -98,6 +115,18 @@ export default function NodesPage() {
         </div>
       )}
       <NodeDialog node={editing} onClose={() => setEditing(null)} onDone={() => mutate()} />
+      <ConfirmDialog
+        open={!!updatingNode}
+        onClose={() => setUpdatingNode(null)}
+        title={`Node „${updatingNode?.name}“ aktualisieren?`}
+        text="Der Node-Daemon wird auf das Image der neuen Version gehoben und neu gestartet. Laufende Minecraft-Server auf diesem Node laufen ungestört weiter."
+        confirm="Aktualisieren"
+        onConfirm={async () => {
+          if (!updatingNode) return;
+          await toast.run(() => api.post(`/nodes/${updatingNode.id}/update`), "Node-Update gestartet");
+          mutate();
+        }}
+      />
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}

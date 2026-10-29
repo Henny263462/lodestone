@@ -3,6 +3,8 @@
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
+# Release-Version für die Update-Prüfung; ohne Angabe meldet sich das Binary als „dev“ und gilt nie als veraltet.
+ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -12,7 +14,7 @@ COPY internal ./internal
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/lodestone-node ./cmd/lodestone-node
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/lodestone-node ./cmd/lodestone-node
 
 FROM alpine:3.22
 RUN apk add --no-cache ca-certificates tzdata

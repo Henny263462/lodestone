@@ -29,11 +29,30 @@ const users = [
 const nodes = [
   {
     id: "n1", name: "home", url: "http://node:8480", publicHost: "mc.example.org", online: true, version: "0.1.0", serverCount: 6,
+    updateAvailable: true,
     system: { dockerVersion: "29.6.2", os: "Ubuntu 24.04.4 LTS", architecture: "x86_64", cpus: 8, memoryBytes: 16 * 1024 ** 3 },
     memoryAvailable: 5.2 * 1024 ** 3, memoryCommitted: 9.5 * 1024 ** 3,
   },
   { id: "n2", name: "hetzner-1", url: "https://node.example.com:8480", publicHost: "mc2.example.org", online: false, serverCount: 0, error: "der Node ist nicht erreichbar (hetzner-1): connection refused" },
 ];
+
+let updateStatus = {
+  panelVersion: "0.1.0-demo",
+  latestVersion: "0.2.0",
+  panelUpdateAvailable: true,
+  updateAvailable: true,
+  checkFailed: false,
+  releaseUrl: "https://github.com/lodestone-mc/lodestone/releases/tag/v0.2.0",
+  releaseTitle: "Lodestone 0.2.0",
+  releaseNotes: "Neu in diesem Release: Auto-Update für Panel und Nodes, verbesserte UI.",
+  publishedAt: new Date(now() - 2 * 24 * HOUR).toISOString(),
+  autoUpdate: true,
+  lastChecked: now() - 10 * MIN,
+  nodes: [
+    { id: "n1", name: "home", version: "0.1.0", updateAvailable: true, online: true },
+    { id: "n2", name: "hetzner-1", version: "", updateAvailable: false, online: false },
+  ],
+};
 
 let seq = 100;
 const id = () => (seq++).toString(16).padStart(12, "0");
@@ -435,7 +454,26 @@ async function api(req, res, url) {
     }
     return send(res, method === "GET" ? 200 : 204, method === "GET" ? users : undefined);
   }
-
+  if (a === "updates") {
+    if (b === "check" && method === "POST") {
+      updateStatus.lastChecked = now();
+      return send(res, 200, updateStatus);
+    }
+    if (b === "settings" && method === "PUT") {
+      updateStatus.autoUpdate = !!body.autoUpdate;
+      return send(res, 200, { autoUpdate: updateStatus.autoUpdate });
+    }
+    return send(res, 200, updateStatus);
+  }
+  if (a === "panel" && b === "update") {
+    return send(res, 200, { ok: true, message: "Panel-Update wird durchgeführt" });
+  }
+  if (a === "nodes" && b === "update-all") {
+    return send(res, 200, { ok: true, message: "Alle Nodes werden aktualisiert" });
+  }
+  if (a === "nodes" && c === "update") {
+    return send(res, 200, { ok: true, message: "Node-Update wird durchgeführt" });
+  }
   if (a === "nodes" && c === "playit" && d === "claim") {
     // Die Bestätigung auf playit.gg gilt nach dem dritten Abfragen als erfolgt
     if (method === "POST") {

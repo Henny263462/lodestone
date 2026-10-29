@@ -22,7 +22,7 @@ import (
 	"github.com/lodestone-mc/lodestone/internal/panel/webui"
 )
 
-var version = "0.1.0"
+var version = "dev"
 
 func env(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {

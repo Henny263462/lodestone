@@ -48,8 +48,10 @@ jobs:
           REF="${{ github.ref }}"
           if [[ "$REF" == refs/tags/* ]]; then
             echo "tags=${IMAGE}:latest,${IMAGE}:${REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            echo "version=${REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
             echo "tags=${IMAGE}:latest,${IMAGE}:main,${IMAGE}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build & Push lodestone-${{ matrix.image }} Image
@@ -60,6 +62,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          build-args: VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 

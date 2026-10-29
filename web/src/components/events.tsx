@@ -20,6 +20,8 @@ export const eventLabels: Record<string, string> = {
   node_online: "Node wieder erreichbar",
   lowmemory: "Wenig Arbeitsspeicher",
   scale: "Skalierung",
+  update_available: "Update verfügbar",
+  update_started: "Update gestartet",
 };
 
 const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory"];

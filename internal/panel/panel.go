@@ -57,6 +57,10 @@ type Panel struct {
 	runningSchedules map[string]bool
 	warnedKeys       map[string]bool
 
+	releaseMu    sync.Mutex
+	releaseEntry *releaseCache
+	updateMu     sync.Mutex
+
 	viewMu sync.Mutex
 	views  map[string]viewEntry
 
@@ -141,6 +145,12 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/nodes/{id}/playit", p.authenticate(p.nodePlayit))
 	mux.HandleFunc("POST /api/nodes/{id}/playit/claim", p.authenticate(p.nodePlayitClaim))
 	mux.HandleFunc("GET /api/nodes/{id}/playit/claim", p.authenticate(p.nodePlayitClaim))
+	mux.HandleFunc("POST /api/nodes/{id}/update", p.authenticate(p.triggerNodeUpdate))
+	mux.HandleFunc("POST /api/nodes/update-all", p.authenticate(p.triggerAllNodesUpdate))
+	mux.HandleFunc("GET /api/updates", p.authenticate(p.getUpdates))
+	mux.HandleFunc("POST /api/updates/check", p.authenticate(p.checkUpdatesNow))
+	mux.HandleFunc("PUT /api/updates/settings", p.authenticate(p.putUpdateSettings))
+	mux.HandleFunc("POST /api/panel/update", p.authenticate(p.triggerPanelUpdate))
 	mux.HandleFunc("GET /api/modpacks/search", p.authenticate(p.modpackSearch))
 	mux.HandleFunc("GET /api/modpacks/{project}", p.authenticate(p.modpackVersions))
 	mux.HandleFunc("GET /api/software", p.authenticate(p.listSoftware))

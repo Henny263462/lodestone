@@ -13,6 +13,7 @@ Admin-Panel (/admin/)              nur Administratoren; Übersicht mit Kennzahle
   ├─ Benutzer (/users/)            Benutzerverwaltung (Zwei-Faktor, Sitzungen, Projekte je Benutzer)
   ├─ Projekte (/admin/projects/)   alle Projekte mit Eigentümer, Mitgliedern, Servern
   ├─ Nodes (/nodes/)               dieselbe Seite wie in der Hauptleiste
+  ├─ Updates (/admin/updates/)     Versionsstand von Panel und Nodes, Updates per Klick, Auto-Update
   └─ Protokoll (/audit/)
 Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen
 Status (/status/<kürzel>/)         öffentlich, ohne Anmeldung, ohne Shell
