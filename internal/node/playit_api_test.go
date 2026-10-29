@@ -16,13 +16,14 @@ const testAgentID = "11111111-2222-3333-4444-555555555555"
 
 // fakePlayit spielt die Schnittstelle von playit.gg.
 type fakePlayit struct {
-	mu       sync.Mutex
-	tunnels  []map[string]any
-	created  []map[string]any
-	deleted  []string
-	failWith string // Antwort mit status „fail“ beim Anlegen
-	pending  int    // so viele Listenabfragen lang bleibt ein neuer Tunnel „pending“
-	badKey   bool
+	mu        sync.Mutex
+	tunnels   []map[string]any
+	created   []map[string]any
+	deleted   []string
+	failWith  string // Antwort mit status „fail“ beim Anlegen
+	errorWith any    // Antwort mit status „error“ beim Anlegen
+	pending   int    // so viele Listenabfragen lang bleibt ein neuer Tunnel „pending“
+	badKey    bool
 }
 
 func (f *fakePlayit) handler(t *testing.T) http.Handler {
@@ -59,6 +60,10 @@ func (f *fakePlayit) handler(t *testing.T) http.Handler {
 			}
 			reply("success", map[string]any{"tunnels": list})
 		case "/tunnels/create":
+			if f.errorWith != nil {
+				reply("error", f.errorWith)
+				return
+			}
 			if f.failWith != "" {
 				reply("fail", f.failWith)
 				return
@@ -213,6 +218,41 @@ func TestPlayitErrorsAreExplained(t *testing.T) {
 	_, err = manager.PlayitTunnels(ctx)
 	if !errors.Is(err, errBadRequest) || strings.Contains(err.Error(), testSecret) {
 		t.Errorf("abgelehnter Schlüssel: %v", err)
+	}
+}
+
+func TestPlayitErrorResponsesAreTold(t *testing.T) {
+	fake := &fakePlayit{}
+	manager := newPlayitTestManager(t, fake)
+	ctx := context.Background()
+	request := PlayitTunnelRequest{Name: "ls-abc-voice", Kind: TunnelVoicechat, LocalPort: 24454}
+
+	for _, test := range []struct {
+		reply    any
+		upstream bool
+		contains string
+	}{
+		{map[string]any{"type": "internal", "message": map[string]string{"trace_id": "abc123"}}, true, "abc123"},
+		{map[string]any{"type": "validation", "message": "missing field `port_type`"}, true, "port_type"},
+		{map[string]any{"type": "path-not-found", "message": map[string]string{"path": "/x"}}, true, "Schnittstelle"},
+		{map[string]any{"type": "auth", "message": "DefaultAgentBlocked"}, false, "Standard-Agenten"},
+		{map[string]any{"type": "auth", "message": "AgentNotSelfManaged"}, false, "Standard-Agenten"},
+		{map[string]any{"type": "auth", "message": "SelfManagedAgentCanOnlyAffectSelf"}, false, "darf das nicht"},
+		{map[string]any{"type": "auth", "message": "EmailMustBeVerified"}, false, "Bestätige"},
+		{map[string]any{"type": "auth", "message": "InvalidAgentKey"}, false, "lehnt den Schlüssel ab"},
+	} {
+		fake.errorWith = test.reply
+		_, err := manager.CreatePlayitTunnel(ctx, request)
+		if err == nil || !strings.Contains(err.Error(), test.contains) {
+			t.Errorf("%v: Meldung %v enthält %q nicht", test.reply, err, test.contains)
+			continue
+		}
+		if errors.Is(err, errUpstream) != test.upstream || errors.Is(err, errBadRequest) == test.upstream {
+			t.Errorf("%v: falsche Art des Fehlers: %v", test.reply, err)
+		}
+		if strings.Contains(err.Error(), "interner Fehler") != (test.reply.(map[string]any)["type"] == "internal") {
+			t.Errorf("%v: nur echte interne Fehler heißen so: %v", test.reply, err)
+		}
 	}
 }
 
