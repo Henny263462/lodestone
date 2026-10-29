@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"regexp"
-	"strings"
 	"time"
 )
 
@@ -109,20 +108,39 @@ func (m *Manager) playitCall(ctx context.Context, secret, path string, body any)
 
 // playitCode holt den Namen aus einer Fehlerantwort („Name“ oder {"type":…,"message":"Name"}).
 func playitCode(data json.RawMessage) string {
+	_, code := playitErrorInfo(data)
+	return code
+}
+
+// playitErrorInfo zerlegt die Daten einer Fehlerantwort in Art („auth“, „validation“, „internal“ …) und Meldung.
+// Bei „internal“ ist die Meldung die Referenz (trace_id), die der Support von playit braucht.
+func playitErrorInfo(data json.RawMessage) (kind, message string) {
 	var text string
 	if json.Unmarshal(data, &text) == nil {
-		return text
+		return "", text
 	}
 	var object struct {
+		Type    string          `json:"type"`
 		Message json.RawMessage `json:"message"`
 	}
-	if json.Unmarshal(data, &object) == nil && len(object.Message) > 0 {
-		if json.Unmarshal(object.Message, &text) == nil {
-			return text
-		}
-		return strings.Trim(string(object.Message), `"{} `)
+	if json.Unmarshal(data, &object) != nil {
+		return "", ""
 	}
-	return ""
+	if json.Unmarshal(object.Message, &text) == nil {
+		return object.Type, text
+	}
+	var trace struct {
+		TraceID string `json:"trace_id"`
+	}
+	if json.Unmarshal(object.Message, &trace) == nil && trace.TraceID != "" {
+		return object.Type, trace.TraceID
+	}
+	return object.Type, ""
+}
+
+// playitDefaultAgent erklärt, dass der Schlüssel zu einem Standard-Agenten gehört, der keine Tunnel per Schnittstelle anlegen darf.
+func playitDefaultAgent() error {
+	return badRequest("der Schlüssel gehört zu einem Standard-Agenten, der keine Tunnel anlegen darf. Lege im playit-Dashboard einen eigenen Agenten an und hinterlege dessen Secret Key unter Nodes")
 }
 
 func playitFailure(data json.RawMessage) error {
@@ -136,6 +154,8 @@ func playitFailure(data json.RawMessage) error {
 		return badRequest("playit kennt diesen Agenten nicht. Hinterlege den Schlüssel unter Nodes neu")
 	case "AgentVersionTooOld":
 		return badRequest("der playit-Agent ist zu alt. Hinterlege den Schlüssel unter Nodes neu, damit er aktualisiert wird")
+	case "DefaultAgentNotSupported":
+		return playitDefaultAgent()
 	case "TunnelNotFound":
 		return badRequest("diesen Tunnel gibt es bei playit nicht (mehr)")
 	}
@@ -145,13 +165,43 @@ func playitFailure(data json.RawMessage) error {
 	return fmt.Errorf("%w: playit hat die Anfrage abgelehnt (%s). Prüfe im playit-Dashboard, ob das Tunnel-Limit erreicht ist", errUpstream, code)
 }
 
+// playitError übersetzt Antworten mit dem Status „error“. Nur ein echter interner Fehler von playit wird so benannt;
+// alles andere (Schlüssel, Rechte, Anfrage) bekommt eine eigene Meldung, damit man weiß, was zu tun ist.
 func playitError(data json.RawMessage) error {
-	switch code := playitCode(data); {
-	case strings.HasPrefix(code, "Invalid") && strings.Contains(code, "Key"), strings.HasPrefix(code, "Auth"), code == "InvalidSignature":
+	kind, message := playitErrorInfo(data)
+	switch kind {
+	case "auth":
+		switch message {
+		case "AgentNotSelfManaged", "DefaultAgentBlocked":
+			return playitDefaultAgent()
+		case "EmailMustBeVerified", "GuestAccountNotAllowed":
+			return badRequest("das playit-Konto ist noch nicht bestätigt. Bestätige deine E-Mail-Adresse bei playit.gg")
+		case "ScopeNotAllowed", "SelfManagedAgentCanOnlyAffectSelf", "AccountNotAuthorized", "AdminOnly", "NotAllowedWithReadOnly":
+			return badRequest("der playit-Schlüssel darf das nicht (%s). Lege unter Nodes den Secret Key des Agenten fest, dem die Tunnel gehören", message)
+		}
 		return badRequest("playit lehnt den Schlüssel ab. Lege unter Nodes einen gültigen Secret Key eines Agenten fest")
-	default:
-		return fmt.Errorf("%w: interner Fehler bei playit", errUpstream)
+	case "validation":
+		return fmt.Errorf("%w: playit versteht die Anfrage nicht (%s). Bitte melde das als Fehler in Lodestone", errUpstream, limitText(message))
+	case "path-not-found":
+		return fmt.Errorf("%w: diese Schnittstelle gibt es bei playit nicht (mehr). Bitte melde das als Fehler in Lodestone", errUpstream)
+	case "internal":
+		if message != "" {
+			return fmt.Errorf("%w: interner Fehler bei playit (Referenz %s). Versuche es später noch einmal", errUpstream, limitText(message))
+		}
+		return fmt.Errorf("%w: interner Fehler bei playit. Versuche es später noch einmal", errUpstream)
 	}
+	if kind == "" {
+		kind = "unbekannt"
+	}
+	return fmt.Errorf("%w: unerwartete Fehlerantwort (%s %s)", errUpstream, limitText(kind), limitText(message))
+}
+
+// limitText kürzt Texte aus fremden Antworten, bevor sie in einer Meldung landen.
+func limitText(text string) string {
+	if len(text) > 80 {
+		return text[:80] + "…"
+	}
+	return text
 }
 
 // playitSession liest den Schlüssel und holt die Kennung des Agenten.
