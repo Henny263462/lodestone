@@ -123,7 +123,9 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
     window.location.replace("/login/");
   }
 
-  const currentProject = pathname === "/project/" ? params.get("id") : null;
+  const segments = pathname.split("/").filter(Boolean);
+  const currentProject = segments[0] === "project" && segments[1] ? segments[1] : pathname === "/project/" ? params.get("id") : null;
+  const currentServer = segments[0] === "server" && segments[1] ? segments[1] : pathname === "/server/" ? params.get("id") : null;
 
   function link(href: string, label: string, Icon: Icon, selected: boolean, compact: boolean) {
     return (
@@ -179,10 +181,10 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
           {heading("Projekte")}
           {(projects ?? []).map((project) =>
             link(
-              `/project/?id=${project.id}`,
+              `/project/${project.id}/`,
               project.name,
               project.kind === "network" ? Network : Server,
-              currentProject === project.id || (pathname === "/server/" && project.servers.some((server) => server.id === params.get("id"))),
+              currentProject === project.id || (currentServer ? project.servers.some((server) => server.id === currentServer) : false),
               compact,
             ),
           )}
