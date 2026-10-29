@@ -19,12 +19,13 @@ if (!fs.existsSync(path.join(root, "index.html"))) {
 
 // ---------------------------------------------------------------- Beispieldaten
 
-const user = { id: "u1", username: "admin", isAdmin: true, disabled: false, createdAt: now() - 40 * 24 * HOUR };
+const user = { id: "u1", username: "admin", isAdmin: true, disabled: false, createdAt: now() - 40 * 24 * HOUR, totpEnabled: true, sessionCount: 2 };
 const users = [
   user,
-  { id: "u2", username: "anna", isAdmin: false, disabled: false, createdAt: now() - 12 * 24 * HOUR },
-  { id: "u3", username: "ben", isAdmin: false, disabled: false, createdAt: now() - 3 * 24 * HOUR },
+  { id: "u2", username: "anna", isAdmin: false, disabled: false, createdAt: now() - 12 * 24 * HOUR, totpEnabled: true, sessionCount: 1 },
+  { id: "u3", username: "ben", isAdmin: false, disabled: false, createdAt: now() - 3 * 24 * HOUR, totpEnabled: false, sessionCount: 0 },
 ];
+
 const nodes = [
   {
     id: "n1", name: "home", url: "http://node:8480", publicHost: "mc.example.org", online: true, version: "0.1.0", serverCount: 6,
@@ -269,7 +270,7 @@ const sessions = [
   { id: "s1", createdAt: now() - 2 * HOUR, expiresAt: now() + 29 * 24 * HOUR, userAgent: "Mozilla/5.0 (Windows NT 10.0) Chrome/130", ip: "192.168.1.20", current: true },
   { id: "s2", createdAt: now() - 4 * 24 * HOUR, expiresAt: now() + 26 * 24 * HOUR, userAgent: "Mozilla/5.0 (iPhone) Safari/604", ip: "203.0.113.7", current: false },
 ];
-let totpEnabled = false;
+let totpEnabled = true;
 const me = () => ({ ...user, totpEnabled, recoveryCodes: totpEnabled ? 8 : 0 });
 const playerLists = {
   whitelist: [{ uuid: "1", name: "Alex" }, { uuid: "2", name: "Luna" }, { uuid: "3", name: "Mika" }],
@@ -338,7 +339,119 @@ async function api(req, res, url) {
     Object.assign(hook, body);
     return send(res, 200, hook);
   }
-  if (a === "users") return send(res, method === "GET" ? 200 : 204, method === "GET" ? users : undefined);
+  if (a === "admin") {
+    if (b === "overview") {
+      const serverCount = projects.reduce((acc, p) => acc + (p.servers ? p.servers.length : 0), 0);
+      const memberCount = projects.reduce((acc, p) => acc + (p.members ? p.members.length : 0), 0);
+      const sessionCount = users.reduce((acc, u) => acc + (u.id === "u1" ? sessions.length : (u.sessionCount ?? 1)), 0);
+      return send(res, 200, {
+        users: users.length,
+        admins: users.filter((u) => u.isAdmin).length,
+        disabledUsers: users.filter((u) => u.disabled).length,
+        projects: projects.length,
+        servers: serverCount,
+        nodes: nodes.length,
+        members: memberCount,
+        sessions: sessionCount,
+      });
+    }
+    if (b === "users") {
+      if (!c) {
+        return send(
+          res,
+          200,
+          users.map((u) => {
+            const userProjects = projects.filter((p) => p.members?.some((m) => m.userId === u.id));
+            return {
+              id: u.id,
+              username: u.username,
+              isAdmin: !!u.isAdmin,
+              disabled: !!u.disabled,
+              createdAt: u.createdAt,
+              totpEnabled: u.id === "u1" ? !!totpEnabled : !!u.totpEnabled,
+              projectCount: userProjects.length,
+              sessionCount: u.id === "u1" ? sessions.length : (u.sessionCount ?? 1),
+            };
+          }),
+        );
+      }
+      const target = users.find((entry) => entry.id === c);
+      if (!target) return send(res, 404, { error: "nicht gefunden" });
+      if (d === "sessions" && method === "DELETE") {
+        if (target.id === "u1") sessions.splice(0, sessions.length);
+        target.sessionCount = 0;
+        return send(res, 204);
+      }
+      const userProjects = projects.flatMap((p) => {
+        const m = p.members?.find((member) => member.userId === target.id);
+        if (!m) return [];
+        return [{ id: p.id, name: p.name, kind: p.kind, role: m.role }];
+      });
+      return send(res, 200, {
+        user: {
+          id: target.id,
+          username: target.username,
+          isAdmin: !!target.isAdmin,
+          disabled: !!target.disabled,
+          createdAt: target.createdAt,
+          totpEnabled: target.id === "u1" ? !!totpEnabled : !!target.totpEnabled,
+          projectCount: userProjects.length,
+          sessionCount: target.id === "u1" ? sessions.length : (target.sessionCount ?? 1),
+        },
+        projects: userProjects,
+      });
+    }
+    if (b === "projects") {
+      return send(
+        res,
+        200,
+        projects.map((p) => {
+          const owner = users.find((u) => u.id === p.ownerId);
+          return {
+            id: p.id,
+            name: p.name,
+            kind: p.kind,
+            description: p.description || "",
+            createdAt: p.createdAt,
+            ownerId: p.ownerId,
+            ownerName: owner ? owner.username : "admin",
+            memberCount: p.members ? p.members.length : 0,
+            serverCount: p.servers ? p.servers.length : 0,
+          };
+        }),
+      );
+    }
+    return send(res, 404, { error: "nicht gefunden" });
+  }
+  if (a === "users") {
+    if (c === "totp" && method === "DELETE") {
+      const target = users.find((u) => u.id === b);
+      if (target) {
+        target.totpEnabled = false;
+        if (target.id === "u1") totpEnabled = false;
+      }
+      return send(res, 204);
+    }
+    if (c === "password" && method === "POST") {
+      return send(res, 204);
+    }
+    if (method === "POST") {
+      const newUser = { id: id(), username: body.username, isAdmin: !!body.isAdmin, disabled: false, createdAt: now(), totpEnabled: false, sessionCount: 0 };
+      users.push(newUser);
+      return send(res, 201, newUser);
+    }
+    if (method === "PATCH" && b) {
+      const target = users.find((u) => u.id === b);
+      if (target) Object.assign(target, body);
+      return send(res, 200, target);
+    }
+    if (method === "DELETE" && b) {
+      const idx = users.findIndex((u) => u.id === b);
+      if (idx !== -1) users.splice(idx, 1);
+      return send(res, 204);
+    }
+    return send(res, method === "GET" ? 200 : 204, method === "GET" ? users : undefined);
+  }
   if (a === "updates") {
     if (b === "check" && method === "POST") {
       updateStatus.lastChecked = now();
@@ -497,6 +610,13 @@ async function api(req, res, url) {
     if (c === "public-address") { server.publicAddress = body.address || undefined; return send(res, 200, server); }
     if (c === "tunnels") {
       server.tunnels ??= [];
+      if (method === "GET" && d === "options") {
+        return send(res, 200, {
+          premium: true,
+          regions: [{ id: "europe", name: "Europa" }, { id: "germany", name: "Deutschland" }, { id: "north-america", name: "Nordamerika" }, { id: "asia", name: "Asien" }],
+          domains: [{ id: "dddddddd-0000-0000-0000-000000000001", name: "play.beispiel.de", external: true, used: false }, { id: "dddddddd-0000-0000-0000-000000000002", name: "alt.beispiel.de", external: true, used: true }],
+        });
+      }
       if (method === "GET") {
         const udp = !!server.view.ports?.some((port) => port.protocol === "udp");
         return send(res, 200, { configured: playit.configured, tunnels: server.tunnels, available: { java: !!server.view.ports?.some((port) => port.protocol === "tcp"), voicechat: udp } });
@@ -508,6 +628,8 @@ async function api(req, res, url) {
           tunnel = body.kind === "voicechat"
             ? { kind: "voicechat", id: id(), address: "demo.gl.at.ply.gg:41234", state: "allocated" }
             : { kind: "java", id: id(), address: "demo-server.joinmc.link", state: "allocated" };
+          if (body.region) tunnel.region = { europe: "Europa", germany: "Deutschland", "north-america": "Nordamerika", asia: "Asien" }[body.region] ?? body.region;
+          if (body.domainId && body.kind === "java") tunnel.domain = tunnel.address = "play.beispiel.de";
           server.tunnels.push(tunnel);
         }
         if (tunnel.kind === "java") server.publicAddress = tunnel.address;
@@ -649,9 +771,9 @@ function staticFile(res, pathname) {
       return fs.createReadStream(file).pipe(res);
     }
   }
-  // SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/... und /status/<slug>/...
+  // SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/..., /status/<slug>/... und /admin/...
   const first = clean.split(/[\\/]/)[0];
-  if (first === "project" || first === "server" || first === "status") {
+  if (first === "project" || first === "server" || first === "status" || first === "admin") {
     const isTxt = clean.endsWith(".txt");
     const fallback = path.join(root, first, isTxt ? "index.txt" : "index.html");
     if (fs.existsSync(fallback) && fs.statSync(fallback).isFile()) {

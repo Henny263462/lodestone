@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Cpu, LayoutDashboard, LogOut, Menu, Network, PanelLeftClose, PanelLeftOpen, ScrollText, Search, Server, UserCog, Users, X } from "lucide-react";
+import { Cpu, LayoutDashboard, LogOut, Menu, Network, PanelLeftClose, PanelLeftOpen, Search, Server, ShieldCheck, UserCog, X } from "lucide-react";
 import { cx } from "@/components/ui/primitives";
 import { LodestoneLogo, PixelAvatar, Wordmark } from "@/components/ui/mc";
 import { Loading } from "@/components/ui/async";
@@ -81,6 +81,9 @@ function normalize(path: string): string {
 }
 
 const FOLD_KEY = "lodestone.sidebar.folded";
+
+// Alle Seiten des Admin-Panels; sie teilen sich eine zweite Seitenleiste, darum zählt jede als „Admin-Panel“.
+const ADMIN_PATHS = ["/admin/", "/users/", "/audit/"];
 
 function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = normalize(usePathname() ?? "/");
@@ -192,9 +195,10 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
 
           {heading("Verwaltung")}
           {link("/nodes/", "Nodes", Cpu, pathname === "/nodes/", compact)}
-          {user.isAdmin && link("/users/", "Benutzer", Users, pathname === "/users/", compact)}
-          {user.isAdmin && link("/audit/", "Protokoll", ScrollText, pathname === "/audit/", compact)}
           {link("/account/", "Konto", UserCog, pathname === "/account/", compact)}
+
+          {user.isAdmin && heading("Administration")}
+          {user.isAdmin && link("/admin/", "Admin-Panel", ShieldCheck, ADMIN_PATHS.some((path) => pathname.startsWith(path)), compact)}
         </nav>
 
         <div className="border-t border-white/[0.06] p-3">

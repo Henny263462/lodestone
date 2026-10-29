@@ -58,6 +58,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/playit", a.putPlayit)
 	mux.HandleFunc("POST /api/playit/claim", a.startPlayitClaim)
 	mux.HandleFunc("GET /api/playit/claim", a.pollPlayitClaim)
+	mux.HandleFunc("GET /api/playit/options", a.playitOptions)
 	mux.HandleFunc("GET /api/playit/tunnels", a.listPlayitTunnels)
 	mux.HandleFunc("POST /api/playit/tunnels", a.createPlayitTunnel)
 	mux.HandleFunc("DELETE /api/playit/tunnels/{id}", a.deletePlayitTunnel)

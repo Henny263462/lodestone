@@ -124,6 +124,13 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/users/{id}", p.authenticate(p.deleteUser))
 	mux.HandleFunc("POST /api/users/{id}/password", p.authenticate(p.resetPassword))
 
+	// Admin-Bereich
+	mux.HandleFunc("GET /api/admin/overview", p.authenticate(p.adminOverview))
+	mux.HandleFunc("GET /api/admin/users", p.authenticate(p.adminListUsers))
+	mux.HandleFunc("GET /api/admin/users/{id}", p.authenticate(p.adminGetUser))
+	mux.HandleFunc("DELETE /api/admin/users/{id}/sessions", p.authenticate(p.adminDeleteUserSessions))
+	mux.HandleFunc("GET /api/admin/projects", p.authenticate(p.adminListProjects))
+
 	// Nodes und Software
 	mux.HandleFunc("GET /api/nodes", p.authenticate(p.listNodes))
 	mux.HandleFunc("POST /api/nodes", p.authenticate(p.createNode))
@@ -178,6 +185,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/servers/{id}/public-address", p.authenticate(p.putPublicAddress))
 	mux.HandleFunc("PUT /api/servers/{id}/auto-restart", p.authenticate(p.putAutoRestart))
 	mux.HandleFunc("GET /api/servers/{id}/tunnels", p.authenticate(p.listTunnels))
+	mux.HandleFunc("GET /api/servers/{id}/tunnels/options", p.authenticate(p.tunnelOptions))
 	mux.HandleFunc("POST /api/servers/{id}/tunnels", p.authenticate(p.createTunnel))
 	mux.HandleFunc("DELETE /api/servers/{id}/tunnels/{kind}", p.authenticate(p.deleteTunnel))
 	mux.HandleFunc("GET /api/projects/{id}/events", p.authenticate(p.listEvents))

@@ -196,6 +196,17 @@ func (a *API) listPlayitTunnels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tunnels)
 }
 
+func (a *API) playitOptions(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	options, err := a.manager.PlayitOptions(ctx)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, options)
+}
+
 func (a *API) createPlayitTunnel(w http.ResponseWriter, r *http.Request) {
 	var request PlayitTunnelRequest
 	if err := decode(r, &request); err != nil {
