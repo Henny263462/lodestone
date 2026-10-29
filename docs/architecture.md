@@ -26,7 +26,7 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 
 - **Projekt**: Einzelserver oder Netzwerk; hat Mitglieder mit Rollen pro Projekt.
 - **Server** gehört zu einem Projekt und läuft auf einer Node. Er hat eine **Software** (Paper, Purpur, Folia, Fabric,
-  Vanilla, Velocity, später Forge/NeoForge), Version, Java-Version, Startzeile und Limits. Ein Server ist entweder
+  NeoForge, Vanilla, Velocity, später Forge), Version, Java-Version, Startzeile und Limits. Ein Server ist entweder
   *statisch* (behält seine Daten) oder Instanz einer *Gruppe*.
 - **Netzwerk** = ein oder mehrere Proxys + beliebig viele statische Server + optional Gruppen. Auch ein kleines
   Netzwerk nur aus statischen Servern ist möglich.
@@ -69,7 +69,7 @@ sie mit dem Panel verbindet. Datenbank hinter einer Schnittstelle, SQLite für k
 5. ✅ Netzwerk-Autoconfig (Try-Reihenfolge, Forced Hosts, statische Server, Voicechat)
 6. **Nächste Stufe:** Gruppen mit Scaling und Proxy-Plugin, Verbindung der Node nach außen, Netzwerke über mehrere
    Nodes, geplante Backups, Zwei-Faktor, Audit-Log
-7. Forge/NeoForge, Geyser/Floodgate und weitere Bausteine, Spieler-Verwaltung über Rechte (Torch optional)
+7. Forge, Geyser/Floodgate und weitere Bausteine, Spieler-Verwaltung über Rechte (Torch optional)
 
 ## Betrieb (Panel-Schleifen)
 
