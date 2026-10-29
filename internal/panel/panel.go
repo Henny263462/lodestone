@@ -57,6 +57,10 @@ type Panel struct {
 	runningSchedules map[string]bool
 	warnedKeys       map[string]bool
 
+	releaseMu    sync.Mutex
+	releaseEntry *releaseCache
+	updateMu     sync.Mutex
+
 	viewMu sync.Mutex
 	views  map[string]viewEntry
 

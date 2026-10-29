@@ -336,20 +336,77 @@ func TestReadMeminfo(t *testing.T) {
 
 func TestSystemUpdateEndpoints(t *testing.T) {
 	a := newTestAPI(t)
-	// Node Update
-	status, body := a.do("POST", "/api/system/update", map[string]string{"image": "test-node:latest"})
+	status, body := a.do("POST", "/api/system/update", map[string]string{"version": "0.3.0"})
 	if status != 200 || !strings.Contains(string(body), `"ok":true`) {
 		t.Fatalf("system/update: %d %s", status, body)
 	}
-	// Panel Update
-	status, body = a.do("POST", "/api/system/update-panel", map[string]string{"image": "test-panel:latest"})
+	status, body = a.do("POST", "/api/system/update-panel", map[string]string{"version": "v0.3.0-rc.1"})
 	if status != 200 || !strings.Contains(string(body), `"ok":true`) {
 		t.Fatalf("system/update-panel: %d %s", status, body)
 	}
-	// Ohne Auth
-	req, _ := http.NewRequest("POST", a.url+"/api/system/update", nil)
+	// Alles, was kein Release-Tag ist, wird abgelehnt (die Version landet im Namen eines Images).
+	for _, version := range []string{"", "latest", "0.3", "0.3.0/../x", "0.3.0 --privileged", "ghcr.io/evil/img:1.0.0"} {
+		if status, _ := a.do("POST", "/api/system/update", map[string]string{"version": version}); status != 400 {
+			t.Errorf("Version %q: %d, erwartet 400", version, status)
+		}
+	}
+	// Ein fremdes Image lässt sich nicht mehr mitschicken.
+	if status, _ := a.do("POST", "/api/system/update", map[string]string{"version": "0.3.0", "image": "evil:1"}); status != 400 {
+		t.Errorf("unbekanntes Feld image: %d, erwartet 400", status)
+	}
+	req, err := http.NewRequestWithContext(context.Background(), "POST", a.url+"/api/system/update", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode != 401 {
-		t.Fatalf("erwarte 401 ohne Token, got %v", resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("erwarte 401 ohne Token, got %d", resp.StatusCode)
+	}
+}
+
+func TestContainerNameHelpers(t *testing.T) {
+	if !hasContainerNamePrefix([]string{"/lodestone-node-updater-1f2e"}, updaterContainerPrefix) {
+		t.Error("Hilfscontainer wurde nicht erkannt")
+	}
+	if hasContainerNamePrefix([]string{"/lodestone-node-1"}, updaterContainerPrefix) {
+		t.Error("der Daemon selbst ist kein Hilfscontainer")
+	}
+	if !hasContainerName([]string{"/lodestone-panel-1"}, "panel") || hasContainerName([]string{"/panel-extra"}, "panel") {
+		t.Error("hasContainerName unterscheidet Compose-Namen falsch")
+	}
+}
+
+func TestDockerImageHelpers(t *testing.T) {
+	for ref, want := range map[string]string{
+		"ghcr.io/henny263462/lodestone-panel:latest": "ghcr.io/henny263462/lodestone-panel",
+		"ghcr.io/x/lodestone-node@sha256:abc":        "ghcr.io/x/lodestone-node",
+		"registry:5000/lodestone-node:v1.0.0":        "registry:5000/lodestone-node",
+		"lodestone-node":                             "lodestone-node",
+	} {
+		if got := imageRepo(ref); got != want {
+			t.Errorf("imageRepo(%q) = %q, erwartet %q", ref, got, want)
+		}
+	}
+	if got := releaseImage("ghcr.io/x/lodestone-node:latest", "0.3.0"); got != "ghcr.io/x/lodestone-node:v0.3.0" {
+		t.Errorf("releaseImage = %q", got)
+	}
+	if got := releaseImage("ghcr.io/x/lodestone-node:latest", "v0.3.0"); got != "ghcr.io/x/lodestone-node:v0.3.0" {
+		t.Errorf("releaseImage mit v = %q", got)
+	}
+	// Fremde Container, die zufällig „panel“ oder „node“ heißen (zum Beispiel Pelican), sind kein Ziel.
+	for ref, want := range map[string]bool{
+		"ghcr.io/pelican-dev/panel:latest":     false,
+		"node:22-alpine":                       false,
+		"ghcr.io/x/lodestone-panel:latest":     true,
+		"lodestone-panel":                      true,
+		"ghcr.io/x/not-lodestone-panel:latest": false,
+	} {
+		if got := isLodestoneImage(ref, panelImageName); got != want {
+			t.Errorf("isLodestoneImage(%q) = %v, erwartet %v", ref, got, want)
+		}
 	}
 }

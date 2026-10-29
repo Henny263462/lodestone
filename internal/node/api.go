@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -205,12 +206,30 @@ func (a *API) system(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (a *API) systemUpdate(w http.ResponseWriter, r *http.Request) {
+// updateVersionPattern erlaubt nur Release-Versionen wie „0.3.0“ oder „v0.3.0-rc.1“; sie landen im Tag eines Images.
+var updateVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$`)
+
+// updateVersion liest die Zielversion eines Updates aus dem Körper der Anfrage und prüft sie streng.
+func updateVersion(r *http.Request) (string, error) {
 	var body struct {
-		Image string `json:"image"`
+		Version string `json:"version"`
 	}
-	_ = decode(r, &body)
-	if err := a.rt.UpdateSelf(r.Context(), body.Image); err != nil {
+	if err := decode(r, &body); err != nil {
+		return "", err
+	}
+	if !updateVersionPattern.MatchString(body.Version) {
+		return "", badRequest("Version fehlt oder ist ungültig (erwartet zum Beispiel 0.3.0)")
+	}
+	return body.Version, nil
+}
+
+func (a *API) systemUpdate(w http.ResponseWriter, r *http.Request) {
+	version, err := updateVersion(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.rt.UpdateSelf(r.Context(), version); err != nil {
 		writeError(w, fmt.Errorf("Update des Node-Daemons fehlgeschlagen: %w", err))
 		return
 	}
@@ -218,11 +237,12 @@ func (a *API) systemUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) systemUpdatePanel(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Image string `json:"image"`
+	version, err := updateVersion(r)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
-	_ = decode(r, &body)
-	if err := a.rt.UpdatePanel(r.Context(), body.Image); err != nil {
+	if err := a.rt.UpdatePanel(r.Context(), version); err != nil {
 		writeError(w, fmt.Errorf("Update des Panels fehlgeschlagen: %w", err))
 		return
 	}

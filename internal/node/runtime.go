@@ -83,10 +83,10 @@ type Runtime interface {
 	List(ctx context.Context) ([]ContainerRef, error)
 	// Logs liefert die letzten Zeilen der Ausgabe eines Containers.
 	Logs(ctx context.Context, id string, lines int) (string, error)
-	// UpdateSelf stößt das Update des Node-Daemons selbst an (Image ziehen und Container ersetzen).
-	UpdateSelf(ctx context.Context, image string) error
-	// UpdatePanel stößt das Update des Panel-Containers auf diesem Docker-Host an.
-	UpdatePanel(ctx context.Context, image string) error
+	// UpdateSelf hebt den Node-Daemon auf das Release version (zum Beispiel „0.3.0“): Image ziehen, Container ersetzen.
+	UpdateSelf(ctx context.Context, version string) error
+	// UpdatePanel hebt den Panel-Container auf diesem Docker-Host auf das Release version.
+	UpdatePanel(ctx context.Context, version string) error
 }
 
 // Labels, mit denen der Daemon seine Container markiert.

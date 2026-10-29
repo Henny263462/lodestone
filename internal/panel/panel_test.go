@@ -37,20 +37,54 @@ type fakeNode struct {
 	tunnelReqs   []node.PlayitTunnelRequest
 	// tunnelNoAddress lässt neue Tunnel ohne Adresse zurück, so als hätte playit sie noch nicht vergeben.
 	tunnelNoAddress bool
+	// version ist die Version, die der Node meldet (leer: „test“); updates halten Update-Aufträge fest („node:0.3.0“).
+	version     string
+	updates     []string
+	updateFails bool
+}
+
+func (f *fakeNode) setVersion(version string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.version = version
+}
+
+func (f *fakeNode) updateLog() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.updates...)
+}
+
+// recordUpdate nimmt einen Update-Auftrag an (kind ist „node“ oder „panel“) oder lehnt ihn ab, wenn updateFails gesetzt ist.
+func (f *fakeNode) recordUpdate(w http.ResponseWriter, r *http.Request, kind string) {
+	var body struct {
+		Version string `json:"version"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.updateFails {
+		writeJSON(w, 500, map[string]string{"error": "Docker ist nicht erreichbar"})
+		return
+	}
+	f.updates = append(f.updates, kind+":"+body.Version)
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	fake := &fakeNode{servers: map[string]node.View{}, autoconfigs: map[string]node.Autoconfig{}, files: map[string]string{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, 200, map[string]any{"version": "test", "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
+		fake.mu.Lock()
+		version := fake.version
+		fake.mu.Unlock()
+		if version == "" {
+			version = "test"
+		}
+		writeJSON(w, 200, map[string]any{"version": version, "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
 	})
-	mux.HandleFunc("POST /api/system/update", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, 200, map[string]any{"ok": true})
-	})
-	mux.HandleFunc("POST /api/system/update-panel", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, 200, map[string]any{"ok": true})
-	})
+	mux.HandleFunc("POST /api/system/update", func(w http.ResponseWriter, r *http.Request) { fake.recordUpdate(w, r, "node") })
+	mux.HandleFunc("POST /api/system/update-panel", func(w http.ResponseWriter, r *http.Request) { fake.recordUpdate(w, r, "panel") })
 	mux.HandleFunc("GET /api/servers", func(w http.ResponseWriter, _ *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()

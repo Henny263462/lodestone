@@ -39,7 +39,9 @@ const nodes = [
 let updateStatus = {
   panelVersion: "0.1.0-demo",
   latestVersion: "0.2.0",
+  panelUpdateAvailable: true,
   updateAvailable: true,
+  checkFailed: false,
   releaseUrl: "https://github.com/lodestone-mc/lodestone/releases/tag/v0.2.0",
   releaseTitle: "Lodestone 0.2.0",
   releaseNotes: "Neu in diesem Release: Auto-Update für Panel und Nodes, verbesserte UI.",

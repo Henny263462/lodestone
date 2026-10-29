@@ -1,10 +1,7 @@
 package panel
 
 import (
-	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -219,65 +216,4 @@ func TestNeoForgePanelAddonsHelpers(t *testing.T) {
 	if got := gameVersionFor("neoforge", "21.4.161"); got != "1.21.4" {
 		t.Fatalf("gameVersionFor(neoforge, 21.4.161) = %q, erwartet 1.21.4", got)
 	}
-}
-
-func TestUpdateFeatures(t *testing.T) {
-	p, admin, _, _, _, _ := serverProject(t)
-	// Nicht-Admin darf nicht zugreifen
-	hash, _ := HashPassword("geheim1234")
-	user, err := p.store.CreateUser("normalo", hash, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	viewer := newClient(t, admin.base)
-	viewer.expect(200, "POST", "/api/auth/login", map[string]string{"username": "normalo", "password": "geheim1234"})
-	viewer.expect(403, "GET", "/api/updates", nil)
-	viewer.expect(403, "POST", "/api/updates/check", nil)
-	viewer.expect(403, "PUT", "/api/updates/settings", map[string]bool{"autoUpdate": true})
-	viewer.expect(403, "POST", "/api/panel/update", nil)
-	_ = user
-
-	// Mock Update-Server für GitHub Releases
-	releaseServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]any{
-			"tag_name":     "v0.3.0",
-			"name":         "Version 0.3.0",
-			"html_url":     "https://github.com/Henny263462/lodestone/releases/tag/v0.3.0",
-			"published_at": "2026-10-29T20:00:00Z",
-			"body":         "Tolles Update!",
-		})
-	}))
-	defer releaseServer.Close()
-	t.Setenv("LODESTONE_UPDATE_URL", releaseServer.URL)
-
-	releaseMu.Lock()
-	releaseEntry = nil
-	releaseMu.Unlock()
-
-	// Updates abfragen
-	var status UpdateStatus
-	_ = json.Unmarshal(admin.expect(200, "POST", "/api/updates/check", nil), &status)
-	if !status.UpdateAvailable || status.LatestVersion != "0.3.0" || len(status.Nodes) == 0 {
-		t.Fatalf("UpdateStatus unerwartet: %+v", status)
-	}
-
-	// Einstellungen ändern
-	admin.expect(200, "PUT", "/api/updates/settings", map[string]bool{"autoUpdate": true})
-	val, err := p.store.Setting("auto_update", "false")
-	if err != nil || val != "true" {
-		t.Fatalf("Setting auto_update = %q (err: %v)", val, err)
-	}
-
-	// Node Update auslösen
-	nodeID := status.Nodes[0].ID
-	admin.expect(200, "POST", "/api/nodes/"+nodeID+"/update", nil)
-
-	// Alle Nodes updaten
-	admin.expect(200, "POST", "/api/nodes/update-all", nil)
-
-	// Panel Update auslösen
-	admin.expect(200, "POST", "/api/panel/update", nil)
-
-	// Auto-Update Routine testen
-	p.checkAndAutoUpdate(context.Background())
 }

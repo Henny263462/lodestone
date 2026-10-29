@@ -56,7 +56,7 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   falsche Java-Version, Plugin- und Mod-Konflikte)
 - **Arbeitsspeicher-Planer:** Der Node prüft vor dem Start, ob genug RAM frei ist (Reserve einstellbar), und die
   Nodes-Seite zeigt zugesagt gegen tatsächlich belegt
-- **Auto-Updates:** Panel und Nodes können direkt über die Weboberfläche unter **Nodes** aktualisiert werden (mit Ein-Klick-Aktualisierung für das Panel oder alle Nodes). Optional aktualisiert das Panel sich und verbundene Nodes nachts automatisch, sobald ein neues GitHub-Release vorliegt
+- **Updates über das Panel:** Unter **Admin-Panel → Updates** sehen Administratoren den Versionsstand von Panel und Nodes und aktualisieren sie per Klick (Panel, einzelner Node oder alle Nodes). Optional prüft das Panel alle 6 Stunden auf ein neues GitHub-Release und installiert es selbst, erst die Nodes, zuletzt das Panel
 - **Konto-Sicherheit:** Zwei-Faktor-Anmeldung (TOTP mit QR-Code und Wiederherstellungscodes), **API-Schlüssel** für
   Skripte (`Authorization: Bearer lds_…`), Sitzungsliste mit Abmelden und ein **Protokoll** aller Änderungen
   (90 Tage, nur für Administratoren)
@@ -83,14 +83,21 @@ Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions
 - `ghcr.io/henny263462/lodestone-node:latest`
 
 ### Auto-Update über das Panel (empfohlen)
-Administratoren können unter **Nodes** den aktuellen Versionsstand von Panel und Nodes einsehen, neue Releases prüfen und Updates direkt per Klick starten. Außerdem lässt sich dort das automatische nächtliche Update aktivieren, das neue Versionen prüft und Container ohne Unterbrechung der laufenden Minecraft-Server austauscht.
+
+Administratoren sehen unter **Admin-Panel → Updates** den Versionsstand von Panel und Nodes, prüfen auf neue Releases und starten Updates per Klick. Dort lässt sich auch das automatische Update einschalten (standardmäßig aus): Das Panel prüft alle 6 Stunden auf ein neues GitHub-Release und tauscht die Container aus, ohne die laufenden Minecraft-Server zu unterbrechen. Auf der Nodes-Seite steht bei jedem veralteten Node ein eigener Knopf.
+
+So funktioniert es: Der Node (er hat Zugriff auf `docker.sock`) lädt das Image des Releases, zum Beispiel `ghcr.io/henny263462/lodestone-node:v0.3.0`, und ersetzt den Container mit derselben Konfiguration. Der alte Container bleibt unter anderem Namen erhalten, bis der neue läuft, und wird bei einem Fehler zurückgeholt. Das Panel wird von dem Node aktualisiert, auf dessen Maschine es als Docker-Container läuft; dabei ist es etwa 10 bis 30 Sekunden nicht erreichbar.
+
+Voraussetzungen: Die Images müssen aus einem **Release** stammen (Tag `vX.Y.Z`); nur dann tragen sie ihre Versionsnummer. Eigene Builds und die Images des Haupt-Zweigs (`latest` nach einem Push) melden sich als `dev` und gelten nie als veraltet. Beim Selbstbauen die Version mit `--build-arg VERSION=0.3.0` (Docker) bzw. `VERSION=0.3.0 sh scripts/package.sh` mitgeben.
 
 ### Automatische Updates per Watchtower (optional)
+
 In der Release-Compose-Datei (`docker-compose.release.yml`) liegt **Watchtower** bereit, ist aber standardmäßig **aus**
 (`--profile autoupdate` schaltet es ein). Es prüft stündlich auf neue Images. Watchtower von containrrr ist archiviert und
 läuft mit neuen Docker-Versionen (29+) nicht zuverlässig; das manuelle Update unten ist die sichere Wahl.
 
 ### Manuelles Update (1-Klick)
+
 ```bash
 curl -fsSL https://henny263462.github.io/lodestone/update.sh | sudo bash
 ```
@@ -154,6 +161,7 @@ Für schlanke Maschinen: `sh scripts/package.sh` baut Linux-Binaries nach `dist/
 | `LODESTONE_SECURE_COOKIES`, `LODESTONE_TRUST_PROXY` | hinter HTTPS-Proxy auf `true` |
 | `LODESTONE_TZ` | Zeitzone für Zeitpläne, z. B. `Europe/Berlin` (Standard: Zeitzone des Panels, sonst UTC) |
 | `LODESTONE_WEBHOOK_ALLOW_INTERNAL` | `true` erlaubt Webhooks an Adressen im internen Netz (Standard: gesperrt) |
+| `LODESTONE_UPDATE_URL` | Adresse, unter der das Panel nach dem neuesten Release fragt (Standard: GitHub-API dieses Projekts); nützlich für Forks und Tests |
 
 Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_PORT_RANGE` (z. B. `28000-28099`),
 `_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`

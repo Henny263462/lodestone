@@ -59,17 +59,17 @@ func (f *fakeRuntime) EnsureImage(_ context.Context, image string) error {
 	return nil
 }
 
-func (f *fakeRuntime) UpdateSelf(_ context.Context, image string) error {
+func (f *fakeRuntime) UpdateSelf(_ context.Context, version string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.pulled = append(f.pulled, "self:"+image)
+	f.pulled = append(f.pulled, "self:"+version)
 	return nil
 }
 
-func (f *fakeRuntime) UpdatePanel(_ context.Context, image string) error {
+func (f *fakeRuntime) UpdatePanel(_ context.Context, version string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.pulled = append(f.pulled, "panel:"+image)
+	f.pulled = append(f.pulled, "panel:"+version)
 	return nil
 }
 

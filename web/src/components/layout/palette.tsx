@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Cpu, FolderKanban, LayoutDashboard, Network, Search, Server, ShieldCheck, UserCog, Users, ScrollText, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Cpu, FolderKanban, LayoutDashboard, Network, Search, Server, ShieldCheck, UserCog, Users, ScrollText, type LucideIcon } from "lucide-react";
 import { cx } from "@/components/ui/primitives";
 import type { Project, User } from "@/lib/types";
 
@@ -35,6 +35,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
       list.push({ key: "admin", label: "Admin-Panel", hint: "Administration", href: "/admin/", icon: ShieldCheck });
       list.push({ key: "users", label: "Benutzer", hint: "Administration", href: "/users/", icon: Users });
       list.push({ key: "admin-projects", label: "Alle Projekte", hint: "Administration", href: "/admin/projects/", icon: FolderKanban });
+      list.push({ key: "admin-updates", label: "Updates", hint: "Administration", href: "/admin/updates/", icon: ArrowUpCircle });
       list.push({ key: "audit", label: "Protokoll", hint: "Administration", href: "/audit/", icon: ScrollText });
     }
     list.push({ key: "account", label: "Konto, Zwei-Faktor, API-Schlüssel", hint: "Seite", href: "/account/", icon: UserCog });

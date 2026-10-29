@@ -42,7 +42,11 @@ export interface NodeUpdateStatus {
 export interface UpdateStatus {
   panelVersion: string;
   latestVersion: string;
+  /** Nur das Panel ist veraltet; `updateAvailable` gilt für Panel oder irgendeinen Node. */
+  panelUpdateAvailable: boolean;
   updateAvailable: boolean;
+  /** Die neueste Version ließ sich nicht ermitteln: „kein Update“ heißt dann nur „unbekannt“. */
+  checkFailed: boolean;
   releaseUrl?: string;
   releaseTitle?: string;
   releaseNotes?: string;

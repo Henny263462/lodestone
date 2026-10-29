@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ArrowRight, Cpu, FolderKanban, ScrollText, Server, ShieldCheck, Users } from "lucide-react";
+import { Activity, ArrowRight, ArrowUpCircle, Cpu, FolderKanban, ScrollText, Server, ShieldCheck, Users } from "lucide-react";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { useUser } from "@/components/layout/shell";
 import { ErrorState, Loading } from "@/components/ui/async";
@@ -9,7 +9,7 @@ import { Badge, Card, CardHeader, EmptyState, PageHeader, StatCard } from "@/com
 import { useApi } from "@/lib/api";
 import { auditLabel } from "@/lib/audit";
 import { dateTime } from "@/lib/format";
-import type { AdminOverview, AuditEntry } from "@/lib/types";
+import type { AdminOverview, AuditEntry, UpdateStatus } from "@/lib/types";
 
 export default function AdminOverviewPage() {
   const user = useUser();
@@ -21,6 +21,8 @@ export default function AdminOverviewPage() {
     user.isAdmin ? "/audit?limit=8" : null,
     { refreshInterval: 15000 },
   );
+
+  const { data: updates } = useApi<UpdateStatus>(user.isAdmin ? "/updates" : null, { refreshInterval: 60000 });
 
   if (!user.isAdmin) {
     return <ErrorState error={new Error("Dafür braucht es einen Administrator.")} />;
@@ -64,6 +66,14 @@ export default function AdminOverviewPage() {
       icon: Cpu,
     },
     {
+      href: "/admin/updates/",
+      title: "Updates",
+      description: updates?.updateAvailable
+        ? `Version ${updates.latestVersion} ist verfügbar`
+        : "Versionsstand von Panel und Nodes prüfen und Updates einspielen",
+      icon: ArrowUpCircle,
+    },
+    {
       href: "/audit/",
       title: "Protokoll",
       description: "Audit-Log aller administrativen Aktionen und Sicherheitsereignisse durchsuchen",
@@ -78,6 +88,19 @@ export default function AdminOverviewPage() {
         title="Admin-Panel"
         description="Zentrale Übersicht über das System, Kennzahlen und letzte Aktivitäten."
       />
+
+      {updates?.updateAvailable && (
+        <Link
+          href="/admin/updates/"
+          className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-warn/25 bg-warn/10 px-3 py-2 text-xs text-warn transition duration-100 hover:bg-warn/20"
+        >
+          <span>Eine neue Lodestone-Version ({updates.latestVersion}) ist verfügbar.</span>
+          <span className="inline-flex items-center gap-1 font-medium">
+            Zu den Updates
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </Link>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard

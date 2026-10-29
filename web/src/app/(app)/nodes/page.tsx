@@ -1,15 +1,15 @@
 "use client";
 
-import { ArrowUpCircle, Cable, Cpu, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowUpCircle, Cable, Cpu, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, Dot, EmptyState, Meter, PageHeader, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Card, Dot, EmptyState, Meter, PageHeader } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
 import { PlayitClaimDialog } from "@/components/playit-claim";
 import { api, useApi } from "@/lib/api";
-import { ago, bytes } from "@/lib/format";
-import type { NodeInfo, PlayitStatus, UpdateStatus } from "@/lib/types";
+import { bytes } from "@/lib/format";
+import type { NodeInfo, PlayitStatus } from "@/lib/types";
 import { AdminSidebar } from "@/components/admin-sidebar";
 
 export default function NodesPage() {
@@ -38,7 +38,6 @@ export default function NodesPage() {
           )
         }
       />
-      {user.isAdmin && <UpdatesCard onMutateNodes={() => mutate()} />}
       {data.length === 0 ? (
         <Card>
           <EmptyState icon={<Cpu className="h-6 w-6" />} title="Noch kein Node" text={user.isAdmin ? "Starte den Node-Daemon auf einer Maschine und trage hier Adresse und Token ein." : "Ein Administrator muss einen Node einrichten."} />
@@ -66,7 +65,7 @@ export default function NodesPage() {
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                   <dt className="text-muted">Version</dt>
                   <dd className="flex items-center gap-1.5">
-                    <span>{node.version ? `v${node.version}` : "–"}</span>
+                    <span>{!node.version ? "–" : node.version === "dev" ? "dev" : `v${node.version}`}</span>
                     {node.updateAvailable && (
                       <Badge tone="warn">Update verfügbar</Badge>
                     )}
@@ -120,7 +119,7 @@ export default function NodesPage() {
         open={!!updatingNode}
         onClose={() => setUpdatingNode(null)}
         title={`Node „${updatingNode?.name}“ aktualisieren?`}
-        text="Der Node-Daemon wird auf das neueste Docker-Image aktualisiert. Laufende Minecraft-Server auf diesem Node laufen ungestört weiter."
+        text="Der Node-Daemon wird auf das Image der neuen Version gehoben und neu gestartet. Laufende Minecraft-Server auf diesem Node laufen ungestört weiter."
         confirm="Aktualisieren"
         onConfirm={async () => {
           if (!updatingNode) return;
@@ -346,141 +345,5 @@ function NodeDialog({ node, onClose, onDone }: { node: NodeInfo | "new" | null; 
         <p className="mt-1 text-xs text-muted">Wird für die Beitritts-Adresse und die Voicechat-Konfiguration verwendet.</p>
       </div>
     </Dialog>
-  );
-}
-
-function UpdatesCard({ onMutateNodes }: { onMutateNodes: () => void }) {
-  const toast = useToast();
-  const { data, mutate } = useApi<UpdateStatus>("/updates", { refreshInterval: 15000 });
-  const [checking, setChecking] = useState(false);
-  const [toggling, setToggling] = useState(false);
-  const [updatingPanel, setUpdatingPanel] = useState(false);
-  const [updatingAllNodes, setUpdatingAllNodes] = useState(false);
-
-  if (!data) return null;
-
-  const nodeUpdatesCount = data.nodes?.filter((n) => n.updateAvailable).length ?? 0;
-
-  return (
-    <>
-      <Card className="mb-6">
-        <CardHeader
-          title="Updates"
-          description="Versionsstand von Panel und Nodes verwalten und automatische Aktualisierungen konfigurieren."
-          action={
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted">Zuletzt geprüft: {ago(data.lastChecked)}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                loading={checking}
-                onClick={async () => {
-                  setChecking(true);
-                  await toast.run(() => api.post("/updates/check"), "Nach Updates gesucht");
-                  setChecking(false);
-                  mutate();
-                  onMutateNodes();
-                }}
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Prüfen
-              </Button>
-            </div>
-          }
-        />
-        <div className="space-y-4 p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">Lodestone Panel</span>
-                <span className="font-mono text-xs text-muted">v{data.panelVersion}</span>
-                {data.updateAvailable ? (
-                  <Badge tone="warn">Update auf v{data.latestVersion} verfügbar</Badge>
-                ) : (
-                  <Badge tone="good">Aktuell</Badge>
-                )}
-              </div>
-              {data.updateAvailable && (
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-                  {data.releaseTitle && <span>{data.releaseTitle}</span>}
-                  {data.releaseUrl && (
-                    <a
-                      className="inline-flex items-center gap-1 text-accent hover:underline"
-                      href={data.releaseUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Release Notes
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {data.updateAvailable && (
-                <Button variant="primary" size="sm" onClick={() => setUpdatingPanel(true)}>
-                  <ArrowUpCircle className="h-4 w-4" />
-                  Panel aktualisieren
-                </Button>
-              )}
-              {nodeUpdatesCount > 0 && (
-                <Button variant="secondary" size="sm" onClick={() => setUpdatingAllNodes(true)}>
-                  <ArrowUpCircle className="h-4 w-4" />
-                  Alle Nodes aktualisieren ({nodeUpdatesCount})
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
-            <div>
-              <p className="text-xs font-medium text-ink">Automatische Updates</p>
-              <p className="text-[11px] text-muted">
-                Sucht im Hintergrund regelmäßig nach Updates und installiert diese automatisch.
-              </p>
-            </div>
-            <Switch
-              checked={data.autoUpdate}
-              disabled={toggling}
-              onChange={async (value) => {
-                setToggling(true);
-                const ok = await toast.run(
-                  () => api.put("/updates/settings", { autoUpdate: value }),
-                  value ? "Automatische Updates aktiviert" : "Automatische Updates deaktiviert",
-                );
-                setToggling(false);
-                if (ok) mutate();
-              }}
-            />
-          </div>
-        </div>
-      </Card>
-
-      <ConfirmDialog
-        open={updatingPanel}
-        onClose={() => setUpdatingPanel(false)}
-        title="Panel auf neuere Version aktualisieren?"
-        text="Der Panel-Container wird gestoppt, das neue Image heruntergeladen und das Panel neu gestartet. Das dauert etwa 10 bis 30 Sekunden. Laufende Minecraft-Server bleiben unberührt."
-        confirm="Jetzt aktualisieren"
-        onConfirm={async () => {
-          await toast.run(() => api.post("/panel/update"), "Panel-Update gestartet");
-          mutate();
-        }}
-      />
-
-      <ConfirmDialog
-        open={updatingAllNodes}
-        onClose={() => setUpdatingAllNodes(false)}
-        title={`Alle ${nodeUpdatesCount} Nodes aktualisieren?`}
-        text="Die Node-Daemons werden nacheinander mit dem neuesten Docker-Image neu gestartet. Laufende Minecraft-Server auf den Nodes laufen ungestört weiter."
-        confirm="Alle aktualisieren"
-        onConfirm={async () => {
-          await toast.run(() => api.post("/nodes/update-all"), "Updates für alle Nodes gestartet");
-          mutate();
-          onMutateNodes();
-        }}
-      />
-    </>
   );
 }
