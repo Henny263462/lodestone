@@ -208,6 +208,15 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 		fake.mu.Unlock()
 		w.WriteHeader(204)
 	})
+	mux.HandleFunc("POST /api/playit/claim", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 201, node.PlayitClaim{State: node.ClaimWaiting, URL: "https://playit.gg/claim/0123456789"})
+	})
+	mux.HandleFunc("GET /api/playit/claim", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		fake.playitSecret = "vom-node-getauschter-schluessel"
+		fake.mu.Unlock()
+		writeJSON(w, 200, node.PlayitClaim{State: node.ClaimAccepted})
+	})
 	mux.HandleFunc("GET /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()

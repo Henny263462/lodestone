@@ -46,6 +46,10 @@ type playitState struct {
 	// apiBase und pollEvery stehen nur zum Überschreiben in Tests da (leer bzw. 0 = Standard).
 	apiBase   string
 	pollEvery time.Duration
+
+	// claimMu schützt claimCode, den Code der gerade laufenden Verbindung mit playit (playit_claim.go).
+	claimMu   sync.Mutex
+	claimCode string
 }
 
 func (m *Manager) playitPath() string { return filepath.Join(m.cfg.DataDir, "playit.json") }

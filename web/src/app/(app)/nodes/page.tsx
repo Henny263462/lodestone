@@ -6,6 +6,7 @@ import { Badge, Button, Card, Dot, EmptyState, Meter, PageHeader } from "@/compo
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
+import { PlayitClaimDialog } from "@/components/playit-claim";
 import { api, useApi } from "@/lib/api";
 import { bytes } from "@/lib/format";
 import type { NodeInfo, PlayitStatus } from "@/lib/types";
@@ -154,6 +155,7 @@ function PlayitCard({ node }: { node: NodeInfo }) {
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
   return (
     <div className="mt-4 border-t border-white/[0.06] pt-3">
@@ -164,8 +166,11 @@ function PlayitCard({ node }: { node: NodeInfo }) {
           {data?.configured ? <Badge tone={data.running ? "good" : "warn"}>{data.running ? "Verbunden" : "Gestoppt"}</Badge> : <Badge>Nicht eingerichtet</Badge>}
         </span>
         <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setClaiming(true)}>
+            {data?.configured ? "Neu verbinden" : "Mit playit verbinden"}
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-            {data?.configured ? "Schlüssel ändern" : "Einrichten"}
+            Schlüssel eintragen
           </Button>
           {data?.configured && (
             <Button size="sm" variant="ghost" onClick={() => setRemoving(true)}>
@@ -176,11 +181,21 @@ function PlayitCard({ node }: { node: NodeInfo }) {
       </div>
       {data?.error && <p className="mt-2 text-xs text-bad">{data.error}</p>}
       {data?.configured && data.logs.length > 0 && <pre className="mt-2 max-h-28 overflow-auto rounded-md bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-muted">{data.logs.slice(-12).join("\n")}</pre>}
+      <PlayitClaimDialog
+        nodeId={node.id}
+        open={claiming}
+        onClose={() => setClaiming(false)}
+        onDone={() => {
+          setClaiming(false);
+          toast.success("Mit playit verbunden");
+          mutate();
+        }}
+      />
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title="playit.gg einrichten"
-        description="Spieler verbinden sich über eine playit-Adresse, du brauchst keine Portfreigabe im Router."
+        title="Schlüssel eintragen"
+        description="Ein Schlüssel aus dem playit-Dashboard darf nur lesen. Mit ihm läuft der Agent, aber Lodestone kann damit keine Tunnel anlegen. Nimm dafür „Mit playit verbinden“."
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -215,7 +230,7 @@ function PlayitCard({ node }: { node: NodeInfo }) {
             an und lege einen neuen Agenten an (Typ „Docker“).
           </li>
           <li>Kopiere den Geheimschlüssel (SECRET_KEY) hierher.</li>
-          <li>Tunnel musst du nicht selbst anlegen: Beim Server unter Einstellungen → playit-Tunnel legt Lodestone sie für Minecraft Java und Voicechat an.</li>
+          <li>Die Tunnel legst du dann im playit-Dashboard selbst an.</li>
         </ol>
         <div>
           <label className="label">Schlüssel</label>

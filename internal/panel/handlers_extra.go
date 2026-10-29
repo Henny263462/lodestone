@@ -392,3 +392,29 @@ func (p *Panel) nodePlayit(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
+
+// nodePlayitClaim verbindet den Node mit playit: POST beginnt (Antwort mit dem Link zum Bestätigen), GET fragt den Stand ab.
+// Der Schlüssel, den playit dabei vergibt, geht nie über das Panel; der Node speichert ihn selbst.
+func (p *Panel) nodePlayitClaim(w http.ResponseWriter, r *http.Request) {
+	if err := requireAdmin(r); err != nil {
+		writeError(w, err)
+		return
+	}
+	client, _, err := p.client(r.PathValue("id"))
+	if err != nil {
+		writeError(w, errNotFound)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	defer cancel()
+	var claim node.PlayitClaim
+	status := http.StatusOK
+	if r.Method == http.MethodPost {
+		status = http.StatusCreated
+	}
+	if err := client.Do(ctx, r.Method, "/api/playit/claim", nil, &claim); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, status, claim)
+}

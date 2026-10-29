@@ -75,7 +75,9 @@ func (m *Manager) playitCall(ctx context.Context, secret, path string, body any)
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Agent-Key "+secret)
+	if secret != "" { // die Verbindung mit playit (playit_claim.go) läuft noch ohne Schlüssel
+		request.Header.Set("Authorization", "Agent-Key "+secret)
+	}
 	client := &http.Client{
 		Timeout:       20 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -158,6 +160,12 @@ func playitFailure(data json.RawMessage) error {
 		return playitDefaultAgent()
 	case "TunnelNotFound":
 		return badRequest("diesen Tunnel gibt es bei playit nicht (mehr)")
+	case "CodeExpired", "CodeNotFound", "InvalidCode", "NotSetup":
+		return errClaimExpired
+	case "UserRejected":
+		return errClaimRejected
+	case "NotAccepted":
+		return errClaimPending
 	}
 	if code == "" || len(code) > 60 {
 		code = "unbekannt"
@@ -176,7 +184,9 @@ func playitError(data json.RawMessage) error {
 			return playitDefaultAgent()
 		case "EmailMustBeVerified", "GuestAccountNotAllowed":
 			return badRequest("das playit-Konto ist noch nicht bestätigt. Bestätige deine E-Mail-Adresse bei playit.gg")
-		case "ScopeNotAllowed", "SelfManagedAgentCanOnlyAffectSelf", "AccountNotAuthorized", "AdminOnly", "NotAllowedWithReadOnly":
+		case "NotAllowedWithReadOnly":
+			return badRequest("dieser playit-Schlüssel darf Tunnel nur lesen, nicht anlegen (so sind Schlüssel aus dem playit-Dashboard). Klicke unter Nodes auf „Mit playit verbinden“, dann bekommt der Node einen Schlüssel, der Tunnel anlegen darf")
+		case "ScopeNotAllowed", "SelfManagedAgentCanOnlyAffectSelf", "AccountNotAuthorized", "AdminOnly":
 			return badRequest("der playit-Schlüssel darf das nicht (%s). Lege unter Nodes den Secret Key des Agenten fest, dem die Tunnel gehören", message)
 		}
 		return badRequest("playit lehnt den Schlüssel ab. Lege unter Nodes einen gültigen Secret Key eines Agenten fest")
