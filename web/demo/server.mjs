@@ -278,6 +278,7 @@ const playerLists = {
   bannedIps: [{ ip: "198.51.100.23", reason: "Spam" }],
 };
 let playit = { configured: false, running: false, image: "ghcr.io/playit-cloud/playit-agent:0.15", logs: [] };
+let claimPolls = null; // Abfragen seit dem Start der Verbindung mit playit (null = keine läuft)
 
 const synced = { applied: ["Proxy", "Lobby-1", "Lobby-2", "Survival"], pending: [], failed: [] };
 
@@ -357,6 +358,18 @@ async function api(req, res, url) {
   }
   if (a === "nodes" && c === "update") {
     return send(res, 200, { ok: true, message: "Node-Update wird durchgeführt" });
+  }
+  if (a === "nodes" && c === "playit" && d === "claim") {
+    // Die Bestätigung auf playit.gg gilt nach dem dritten Abfragen als erfolgt
+    if (method === "POST") {
+      claimPolls = 0;
+      return send(res, 201, { state: "waiting", url: "https://playit.gg/claim/0123456789" });
+    }
+    if (claimPolls === null) return send(res, 200, { state: "none" });
+    if (++claimPolls < 3) return send(res, 200, { state: "waiting", url: "https://playit.gg/claim/0123456789" });
+    claimPolls = null;
+    playit = { configured: true, running: true, image: playit.image, logs: ["[playit] agent started", "[playit] tunnel ready: survival.playit.gg"] };
+    return send(res, 200, { state: "accepted" });
   }
   if (a === "nodes" && c === "playit") {
     if (method === "PUT") playit = { configured: true, running: true, image: playit.image, logs: ["[playit] agent started", "[playit] tunnel ready: survival.playit.gg"] };

@@ -28,7 +28,8 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   Quellcode** und lässt die **Version wechseln**
 - **Modpacks:** Beim Anlegen eines Servers ein **Modrinth-Modpack** (Fabric, `.mrpack`) suchen und Version wählen. Mods
   und Konfiguration werden mit Prüfsummen geladen, der Fortschritt steht im Server
-- **playit.gg:** Der Node startet den playit-Agenten (Schlüssel unter **Nodes** eintragen). Tunnel legt Lodestone selbst an:
+- **playit.gg:** Der Node startet den playit-Agenten. Unter **Nodes** auf *Mit playit verbinden* klicken und einmal auf playit.gg
+  bestätigen (ein Schlüssel aus dem playit-Dashboard darf nur lesen und kann keine Tunnel anlegen). Tunnel legt Lodestone selbst an:
   beim Server unter *Einstellungen → playit-Tunnel* ein Klick für **Minecraft Java** (TCP) und **Voicechat** (UDP). Die Adresse
   wird beim Server eingetragen, bei Voicechat auch als `voice_host`. Keine Portfreigabe im Router nötig
 - **Backups** (tar.gz, bei laufendem Server mit `save-off`), Wiederherstellen (sicher, nur bei ausgeschaltetem Server),

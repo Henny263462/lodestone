@@ -157,6 +157,12 @@ export interface PlayitStatus {
   since?: number;
 }
 
+/** Stand der Verbindung eines Nodes mit playit (den Schlüssel bekommt der Browser nie). */
+export interface PlayitClaim {
+  state: "none" | "waiting" | "accepted" | "rejected" | "expired";
+  url?: string;
+}
+
 export type TunnelKind = "java" | "voicechat";
 
 export interface Tunnel {

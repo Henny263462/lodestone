@@ -132,6 +132,8 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("GET /api/nodes/{id}/playit", p.authenticate(p.nodePlayit))
 	mux.HandleFunc("PUT /api/nodes/{id}/playit", p.authenticate(p.nodePlayit))
 	mux.HandleFunc("DELETE /api/nodes/{id}/playit", p.authenticate(p.nodePlayit))
+	mux.HandleFunc("POST /api/nodes/{id}/playit/claim", p.authenticate(p.nodePlayitClaim))
+	mux.HandleFunc("GET /api/nodes/{id}/playit/claim", p.authenticate(p.nodePlayitClaim))
 	mux.HandleFunc("POST /api/nodes/{id}/update", p.authenticate(p.triggerNodeUpdate))
 	mux.HandleFunc("POST /api/nodes/update-all", p.authenticate(p.triggerAllNodesUpdate))
 	mux.HandleFunc("GET /api/updates", p.authenticate(p.getUpdates))

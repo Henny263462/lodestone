@@ -13,7 +13,7 @@ Browser ──HTTP──▶ Panel (cmd/lodestone-panel, internal/panel) ──HT
 | Paket | Aufgabe | Darf nicht |
 | --- | --- | --- |
 | `internal/panel` | Benutzer, Rechte, Projekte, Netzwerke, Gruppen, Zeitpläne, Ereignisse, Weboberfläche; spricht **nur über `NodeClient`** mit Nodes | Docker oder Server-Dateien direkt anfassen |
-| `internal/node` | Docker-Container, Server-Dateien (`os.Root`), Backups, Modpacks, playit (Agent + Tunnel über die playit-Schnittstelle, `playit_api.go`), Speicherprüfung; kennt weder Benutzer noch Projekte | auf die Panel-Datenbank zugreifen, Rechte entscheiden |
+| `internal/node` | Docker-Container, Server-Dateien (`os.Root`), Backups, Modpacks, playit (Agent, Tunnel über die playit-Schnittstelle in `playit_api.go`, Verbindung per Claim in `playit_claim.go`), Speicherprüfung; kennt weder Benutzer noch Projekte | auf die Panel-Datenbank zugreifen, Rechte entscheiden |
 | `internal/software` | Software-Katalog, Versionslisten, Prüfsummen, Java-Wahl | von `panel` oder `node` importieren |
 | `cmd/*` | Start, Umgebungsvariablen, Verdrahtung | Fachlogik |
 
