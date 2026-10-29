@@ -57,7 +57,8 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [ ] **Welten (M).** Welt hoch- und herunterladen, zurücksetzen, wechseln; Chunky-Vorberechnung mit einem Klick; BlueMap oder Dynmap über das Panel erreichbar.
 - [ ] **Öffentliche Statusseite (M).** Pro Projekt: online/offline, Spielerzahl, MOTD, einbettbar (Widget) – plus Hilfe für **Domain und SRV-Eintrag** (Cloudflare-DNS-Anbindung: `mc.deine-domain.de` automatisch). 
   - *Teilweise erledigt:* Seite, Einbettung und JSON-Schnittstelle. Offen: Domain- und SRV-Hilfe / DNS-Anbindung.
-- [ ] **playit weiterdenken (M).** Tunnel-Status im Panel anzeigen, Tunnel automatisch anlegen, falls playit eine API dafür anbietet (heute nur im Dashboard möglich), und eine Tunnel-Schnittstelle für Alternativen (Tailscale, frp).
+- [ ] **playit weiterdenken (M).** Eine Tunnel-Schnittstelle für Alternativen (Tailscale, frp).
+  - *Erledigt:* Tunnel für Minecraft Java und Voicechat werden über die playit-Schnittstelle automatisch angelegt, übernommen und gelöscht (Server → Einstellungen → playit-Tunnel). Offen: ein Lauf gegen ein echtes playit-Konto (bisher nur gegen eine gespielte Schnittstelle getestet), Bedrock/Geyser-Tunnel (UDP) und der eigene Tunnel-Typ „MC: Simple Voice Chat“ des Dashboards, falls die Schnittstelle ihn anbietet (heute: gewöhnlicher UDP-Tunnel).
 - [ ] **Leistungsanalyse (M).** TPS-Verlauf, spark-Berichte verlinken, Festplattenverbrauch pro Server, Netzwerkverkehr als Diagramm, JVM-Voreinstellungen (Aikar-Flags) mit Erklärung.
 - [ ] **Proxy-Extras (M).** Geyser/Floodgate (Bedrock-Spieler) mit einem Klick, ViaVersion, Wartungsmodus für das ganze Netzwerk (MOTD, Whitelist), MOTD-Editor mit Vorschau. 
   - *Teilweise erledigt:* MOTD-Editor mit Vorschau. Offen: Geyser/Floodgate, ViaVersion, Wartungsmodus.

@@ -89,6 +89,7 @@ export interface Server {
   address?: string;
   voiceAddress?: string;
   publicAddress?: string;
+  publicVoiceAddress?: string;
   modpack?: ModpackInfo;
   autoRestart: boolean;
   view: NodeView | null;
@@ -132,6 +133,22 @@ export interface PlayitStatus {
   logs: string[];
   error?: string;
   since?: number;
+}
+
+export type TunnelKind = "java" | "voicechat";
+
+export interface Tunnel {
+  kind: TunnelKind;
+  id: string;
+  address: string;
+  state: "allocated" | "pending" | "disabled";
+}
+
+export interface TunnelList {
+  configured: boolean;
+  tunnels: Tunnel[];
+  available: { java: boolean; voicechat: boolean };
+  problem?: string;
 }
 
 export interface AddonDetail {

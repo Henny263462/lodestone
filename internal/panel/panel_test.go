@@ -3,6 +3,7 @@ package panel
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -32,6 +33,10 @@ type fakeNode struct {
 	removed      []string
 	modpacks     []node.ModpackRequest
 	playitSecret string
+	tunnels      []node.PlayitTunnel
+	tunnelReqs   []node.PlayitTunnelRequest
+	// tunnelNoAddress lässt neue Tunnel ohne Adresse zurück, so als hätte playit sie noch nicht vergeben.
+	tunnelNoAddress bool
 }
 
 func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
@@ -201,6 +206,37 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 		fake.mu.Lock()
 		fake.playitSecret = ""
 		fake.mu.Unlock()
+		w.WriteHeader(204)
+	})
+	mux.HandleFunc("GET /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		writeJSON(w, 200, append([]node.PlayitTunnel{}, fake.tunnels...))
+	})
+	mux.HandleFunc("POST /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
+		var request node.PlayitTunnelRequest
+		_ = json.NewDecoder(r.Body).Decode(&request)
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		fake.tunnelReqs = append(fake.tunnelReqs, request)
+		tunnel := node.PlayitTunnel{ID: fmt.Sprintf("00000000-0000-0000-0000-%012d", len(fake.tunnelReqs)), Name: request.Name, Address: "abc.gl.at.ply.gg:4711", State: "allocated"}
+		if request.Kind == node.TunnelJava {
+			tunnel.Address = "mein-server.joinmc.link"
+		}
+		if fake.tunnelNoAddress {
+			tunnel.Address, tunnel.State = "", "pending"
+		}
+		fake.tunnels = append(fake.tunnels, tunnel)
+		writeJSON(w, 201, tunnel)
+	})
+	mux.HandleFunc("DELETE /api/playit/tunnels/{id}", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		for i, tunnel := range fake.tunnels {
+			if tunnel.ID == r.PathValue("id") {
+				fake.tunnels = append(fake.tunnels[:i], fake.tunnels[i+1:]...)
+			}
+		}
 		w.WriteHeader(204)
 	})
 	mux.HandleFunc("PUT /api/servers/{id}/autoconfig", func(w http.ResponseWriter, r *http.Request) {

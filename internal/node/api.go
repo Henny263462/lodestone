@@ -54,6 +54,9 @@ func (a *API) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, a.manager.PlayitStatus(r.Context()))
 	})
 	mux.HandleFunc("PUT /api/playit", a.putPlayit)
+	mux.HandleFunc("GET /api/playit/tunnels", a.listPlayitTunnels)
+	mux.HandleFunc("POST /api/playit/tunnels", a.createPlayitTunnel)
+	mux.HandleFunc("DELETE /api/playit/tunnels/{id}", a.deletePlayitTunnel)
 	mux.HandleFunc("DELETE /api/playit", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.manager.RemovePlayit(r.Context()); err != nil {
 			writeError(w, err)
@@ -118,8 +121,10 @@ func writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound), errors.Is(err, fs.ErrNotExist), errors.Is(err, software.ErrNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, ErrBadState), errors.Is(err, ErrConflict), errors.Is(err, fs.ErrExist):
+	case errors.Is(err, ErrBadState), errors.Is(err, ErrConflict), errors.Is(err, ErrTunnelExists), errors.Is(err, fs.ErrExist):
 		status = http.StatusConflict
+	case errors.Is(err, errUpstream):
+		status = http.StatusBadGateway
 	case errors.Is(err, ErrOutside):
 		status = http.StatusForbidden
 	case errors.Is(err, errBadRequest):

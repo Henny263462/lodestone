@@ -491,7 +491,7 @@ func (p *Panel) syncNetwork(ctx context.Context, projectID string) (SyncResult, 
 	dtos := p.serverDTOs(ctx, rows)
 	net := make([]NetServer, len(rows))
 	for i, dto := range dtos {
-		net[i] = NetServer{Row: dto.ServerRow, PublicHost: dto.PublicHost, InternalPort: 25565}
+		net[i] = NetServer{Row: dto.ServerRow, PublicHost: dto.PublicHost, InternalPort: 25565, VoiceAddress: dto.PublicVoiceAddress}
 		if dto.View != nil {
 			for _, mapping := range dto.View.Ports {
 				if mapping.Protocol != "udp" {

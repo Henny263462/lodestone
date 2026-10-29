@@ -215,8 +215,7 @@ function PlayitCard({ node }: { node: NodeInfo }) {
             an und lege einen neuen Agenten an (Typ „Docker“).
           </li>
           <li>Kopiere den Geheimschlüssel (SECRET_KEY) hierher.</li>
-          <li>Lege im playit-Dashboard einen Minecraft-Java-Tunnel an, der auf den Port des Servers auf dieser Maschine zeigt.</li>
-          <li>Trage die Tunnel-Adresse beim Server unter Einstellungen → Öffentliche Adresse ein.</li>
+          <li>Tunnel musst du nicht selbst anlegen: Beim Server unter Einstellungen → playit-Tunnel legt Lodestone sie für Minecraft Java und Voicechat an.</li>
         </ol>
         <div>
           <label className="label">Schlüssel</label>
