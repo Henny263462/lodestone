@@ -45,13 +45,15 @@ jobs:
         id: meta
         run: |
           IMAGE="ghcr.io/${{ env.OWNER }}/lodestone-${{ matrix.image }}"
+          SHORT="${GITHUB_SHA::7}"
           REF="${{ github.ref }}"
           if [[ "$REF" == refs/tags/* ]]; then
             echo "tags=${IMAGE}:latest,${IMAGE}:${REF#refs/tags/}" >> "$GITHUB_OUTPUT"
             echo "version=${REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
-            echo "tags=${IMAGE}:main,${IMAGE}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
-            echo "version=dev" >> "$GITHUB_OUTPUT"
+            # Dev-Builds tragen ihren Commit in der Version; das Panel vergleicht sie und kann darauf wechseln
+            echo "tags=${IMAGE}:main,${IMAGE}:dev-${SHORT},${IMAGE}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "version=dev-${SHORT}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build & Push lodestone-${{ matrix.image }} Image

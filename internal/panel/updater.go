@@ -30,6 +30,8 @@ type UpdateStatus struct {
 	// PanelUpdateAvailable gilt nur für das Panel; UpdateAvailable ist wahr, wenn Panel oder irgendein Node veraltet ist.
 	PanelUpdateAvailable bool `json:"panelUpdateAvailable"`
 	UpdateAvailable      bool `json:"updateAvailable"`
+	// Channel ist der eingestellte Update-Kanal: "stable" (Releases) oder "dev" (neuester gebauter Stand von main).
+	Channel string `json:"channel"`
 	// CheckFailed ist wahr, wenn die neueste Version nicht ermittelt werden konnte; „kein Update“ heißt dann nur „unbekannt“.
 	CheckFailed  bool               `json:"checkFailed"`
 	ReleaseURL   string             `json:"releaseUrl,omitempty"`
@@ -52,6 +54,7 @@ type NodeUpdateStatus struct {
 
 // releaseCache merkt sich das zuletzt gefundene Release (eine Stunde lang).
 type releaseCache struct {
+	channel string    // der Kanal, für den die Abfrage gilt; nach einem Wechsel ist der Eintrag wertlos
 	at      time.Time // letzte erfolgreiche Abfrage
 	tried   time.Time // letzter Versuch, auch ein gescheiterter
 	release ReleaseInfo
@@ -81,20 +84,73 @@ func isNewer(latest, current string) bool {
 	return software.CompareVersions(latest, current) > 0
 }
 
-// checkRelease liefert das neueste Release. Der Netzaufruf läuft ohne Sperre, damit er andere Anfragen nicht aufhält;
-// scheitert er, gilt der letzte bekannte Stand.
+const (
+	channelStable = "stable"
+	channelDev    = "dev"
+)
+
+// isDevBuild meldet, ob version ein Entwicklungsstand ist: "dev" (selbst gebaut) oder "dev-<Commit>" (Build von main).
+func isDevBuild(version string) bool {
+	return version == "dev" || strings.HasPrefix(version, "dev-")
+}
+
+// needsUpdate sagt, ob current auf target gehoben werden soll. Im Dev-Kanal zählt jeder andere Stand, im stabilen Kanal ein
+// neueres Release oder das Zurückwechseln von einem Dev-Build. Ein selbst gebautes "dev" gilt nur dann als wechselbar, wenn
+// der Kanal ausdrücklich gewählt wurde; sonst bleibt es unberührt (so war es vor den Kanälen).
+func needsUpdate(channel string, explicit bool, target, current string) bool {
+	target, current = cleanVersion(target), cleanVersion(current)
+	if target == "" || current == "" {
+		return false
+	}
+	if current == "dev" && !explicit {
+		return false
+	}
+	if channel == channelDev {
+		return current != target
+	}
+	if isDevBuild(current) {
+		return true
+	}
+	return isNewer(target, current)
+}
+
+// updateChannel liefert den eingestellten Kanal und ob er ausdrücklich gewählt wurde. Ohne Wahl folgt er der laufenden
+// Version: Wer einen Dev-Build betreibt, bleibt im Dev-Kanal.
+func (p *Panel) updateChannel() (channel string, explicit bool) {
+	switch value, _ := p.store.Setting("update_channel", ""); value {
+	case channelStable, channelDev:
+		return value, true
+	}
+	if isDevBuild(p.cfg.Version) {
+		return channelDev, false
+	}
+	return channelStable, false
+}
+
+// needsUpdate sagt, ob current auf target gehoben werden soll, gemessen am eingestellten Kanal.
+func (p *Panel) needsUpdate(target, current string) bool {
+	channel, explicit := p.updateChannel()
+	return needsUpdate(channel, explicit, target, current)
+}
+
+// checkRelease liefert die neueste Version des eingestellten Kanals. Der Netzaufruf läuft ohne Sperre, damit er andere
+// Anfragen nicht aufhält; scheitert er, gilt der letzte bekannte Stand desselben Kanals.
 func (p *Panel) checkRelease(ctx context.Context, force bool) (ReleaseInfo, error) {
+	channel, _ := p.updateChannel()
 	p.releaseMu.Lock()
 	cached := p.releaseEntry
 	p.releaseMu.Unlock()
+	if cached != nil && cached.channel != channel {
+		cached = nil
+	}
 	if !force && cached != nil && (time.Since(cached.at) < releaseCacheTTL || time.Since(cached.tried) < releaseRetryAfter) {
 		return cached.release, nil
 	}
-	info, err := p.fetchRelease(ctx)
+	info, err := p.fetchRelease(ctx, channel)
 	if err != nil {
 		if cached != nil {
 			p.releaseMu.Lock()
-			p.releaseEntry = &releaseCache{at: cached.at, tried: time.Now(), release: cached.release}
+			p.releaseEntry = &releaseCache{channel: channel, at: cached.at, tried: time.Now(), release: cached.release}
 			p.releaseMu.Unlock()
 			return cached.release, nil
 		}
@@ -102,26 +158,99 @@ func (p *Panel) checkRelease(ctx context.Context, force bool) (ReleaseInfo, erro
 	}
 	now := time.Now()
 	p.releaseMu.Lock()
-	p.releaseEntry = &releaseCache{at: now, tried: now, release: info}
+	p.releaseEntry = &releaseCache{channel: channel, at: now, tried: now, release: info}
 	p.releaseMu.Unlock()
 	return info, nil
 }
 
-// fetchRelease fragt GitHub nach dem neuesten Release (Adresse überschreibbar mit LODESTONE_UPDATE_URL).
-func (p *Panel) fetchRelease(ctx context.Context) (ReleaseInfo, error) {
+// githubGet fragt die GitHub-Schnittstelle ab; der Aufrufer schließt die Antwort.
+func githubGet(ctx context.Context, endpoint string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Lodestone-Panel")
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	client := &http.Client{Timeout: 6 * time.Second}
+	return client.Do(req)
+}
+
+// fetchRelease fragt GitHub nach der neuesten Version des Kanals.
+func (p *Panel) fetchRelease(ctx context.Context, channel string) (ReleaseInfo, error) {
+	if channel == channelDev {
+		return p.fetchDevBuild(ctx)
+	}
+	return p.fetchStableRelease(ctx)
+}
+
+// devBuildEndpoint fragt den letzten erfolgreichen Lauf des Workflows „Docker Autobuild & Release“ auf main ab. Erfolgreich
+// heißt: Panel- und Node-Image mit dem Tag dev-<Commit> liegen in der Registry.
+const devBuildEndpoint = "https://api.github.com/repos/Henny263462/lodestone/actions/workflows/release.yml/runs?branch=main&event=push&status=success&per_page=1"
+
+// fetchDevBuild liefert den neuesten gebauten Stand von main (Adresse überschreibbar mit LODESTONE_DEV_UPDATE_URL).
+func (p *Panel) fetchDevBuild(ctx context.Context) (ReleaseInfo, error) {
+	endpoint := os.Getenv("LODESTONE_DEV_UPDATE_URL")
+	if endpoint == "" {
+		endpoint = devBuildEndpoint
+	}
+	resp, err := githubGet(ctx, endpoint)
+	if err != nil {
+		return ReleaseInfo{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return ReleaseInfo{}, fmt.Errorf("GitHub antwortet mit %d", resp.StatusCode)
+	}
+	var runs struct {
+		WorkflowRuns []struct {
+			HeadSHA    string `json:"head_sha"`
+			UpdatedAt  string `json:"updated_at"`
+			HeadCommit struct {
+				Message string `json:"message"`
+			} `json:"head_commit"`
+		} `json:"workflow_runs"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&runs); err != nil {
+		return ReleaseInfo{}, err
+	}
+	if len(runs.WorkflowRuns) == 0 {
+		return ReleaseInfo{}, nil // noch kein gebauter Stand: es gibt nichts, wohin man wechseln könnte
+	}
+	run := runs.WorkflowRuns[0]
+	if !isCommitHash(run.HeadSHA) {
+		return ReleaseInfo{}, fmt.Errorf("GitHub nennt keinen gültigen Commit: %q", run.HeadSHA)
+	}
+	message := strings.TrimSpace(run.HeadCommit.Message)
+	title, _, _ := strings.Cut(message, "\n")
+	return ReleaseInfo{
+		Version:     "dev-" + run.HeadSHA[:7],
+		Title:       title,
+		HTMLURL:     "https://github.com/Henny263462/lodestone/commit/" + run.HeadSHA,
+		PublishedAt: run.UpdatedAt,
+		Body:        message,
+	}, nil
+}
+
+// isCommitHash prüft, ob s ein vollständiger Git-Hash aus Kleinbuchstaben und Ziffern ist; er landet im Tag eines Images.
+func isCommitHash(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// fetchStableRelease fragt GitHub nach dem neuesten Release (Adresse überschreibbar mit LODESTONE_UPDATE_URL).
+func (p *Panel) fetchStableRelease(ctx context.Context) (ReleaseInfo, error) {
 	endpoint := os.Getenv("LODESTONE_UPDATE_URL")
 	if endpoint == "" {
 		endpoint = "https://api.github.com/repos/Henny263462/lodestone/releases/latest"
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return ReleaseInfo{}, err
-	}
-	req.Header.Set("User-Agent", "Lodestone-Panel")
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{Timeout: 6 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := githubGet(ctx, endpoint)
 	if err != nil {
 		return ReleaseInfo{}, err
 	}
@@ -156,9 +285,10 @@ func (p *Panel) fetchRelease(ctx context.Context) (ReleaseInfo, error) {
 
 // latestVersion ist die zuletzt bekannte neueste Version (leer, wenn noch nie geprüft wurde).
 func (p *Panel) latestVersion() string {
+	channel, _ := p.updateChannel()
 	p.releaseMu.Lock()
 	defer p.releaseMu.Unlock()
-	if p.releaseEntry == nil {
+	if p.releaseEntry == nil || p.releaseEntry.channel != channel {
 		return ""
 	}
 	return p.releaseEntry.release.Version
@@ -191,13 +321,15 @@ func (p *Panel) getUpdateStatus(ctx context.Context, force bool) UpdateStatus {
 		status.PublishedAt = rel.PublishedAt
 	}
 	status.AutoUpdate = p.autoUpdateEnabled()
-	status.PanelUpdateAvailable = isNewer(status.LatestVersion, p.cfg.Version)
+	channel, explicit := p.updateChannel()
+	status.Channel = channel
+	status.PanelUpdateAvailable = needsUpdate(channel, explicit, status.LatestVersion, p.cfg.Version)
 	status.UpdateAvailable = status.PanelUpdateAvailable
 
 	nodes, _ := p.store.ListNodes()
 	for _, n := range nodes {
 		version, online := p.nodeVersion(ctx, n)
-		outdated := online && isNewer(status.LatestVersion, version)
+		outdated := online && needsUpdate(channel, explicit, status.LatestVersion, version)
 		status.Nodes = append(status.Nodes, NodeUpdateStatus{ID: n.ID, Name: n.Name, Version: version, UpdateAvailable: outdated, Online: online})
 		if outdated {
 			status.UpdateAvailable = true
@@ -396,28 +528,50 @@ func (p *Panel) checkUpdatesNow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p.getUpdateStatus(r.Context(), true))
 }
 
-// putUpdateSettings schaltet das automatische Update ein oder aus (nur Administratoren).
+// putUpdateSettings ändert das automatische Update und den Update-Kanal; jedes Feld ist optional (nur Administratoren).
 func (p *Panel) putUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if err := requireAdmin(r); err != nil {
 		writeError(w, err)
 		return
 	}
 	var body struct {
-		AutoUpdate bool `json:"autoUpdate"`
+		AutoUpdate *bool   `json:"autoUpdate"`
+		Channel    *string `json:"channel"`
 	}
 	if err := decode(r, &body); err != nil {
 		writeError(w, err)
 		return
 	}
-	value := "false"
-	if body.AutoUpdate {
-		value = "true"
-	}
-	if err := p.store.SetSetting("auto_update", value); err != nil {
-		writeError(w, err)
+	if body.AutoUpdate == nil && body.Channel == nil {
+		writeError(w, fail(http.StatusBadRequest, "Gib autoUpdate oder channel an."))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"autoUpdate": body.AutoUpdate})
+	if body.Channel != nil && *body.Channel != channelStable && *body.Channel != channelDev {
+		writeError(w, fail(http.StatusBadRequest, "Der Update-Kanal muss „stable“ oder „dev“ sein."))
+		return
+	}
+	if body.AutoUpdate != nil {
+		value := "false"
+		if *body.AutoUpdate {
+			value = "true"
+		}
+		if err := p.store.SetSetting("auto_update", value); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+	if body.Channel != nil {
+		if err := p.store.SetSetting("update_channel", *body.Channel); err != nil {
+			writeError(w, err)
+			return
+		}
+		// Die gemerkte Version gehört zum alten Kanal
+		p.releaseMu.Lock()
+		p.releaseEntry = nil
+		p.releaseMu.Unlock()
+	}
+	channel, _ := p.updateChannel()
+	writeJSON(w, http.StatusOK, map[string]any{"autoUpdate": p.autoUpdateEnabled(), "channel": channel})
 }
 
 // triggerPanelUpdate startet das Panel-Update, wenn ein neueres Release vorliegt (nur Administratoren).
@@ -431,7 +585,7 @@ func (p *Panel) triggerPanelUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if !isNewer(version, p.cfg.Version) {
+	if !p.needsUpdate(version, p.cfg.Version) {
 		writeError(w, fail(http.StatusConflict, "Das Panel ist schon auf dem neuesten Stand."))
 		return
 	}
@@ -469,7 +623,7 @@ func (p *Panel) triggerNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fail(http.StatusBadGateway, "Der Node ist nicht erreichbar. Prüfe, ob er läuft."))
 		return
 	}
-	if !isNewer(version, current) {
+	if !p.needsUpdate(version, current) {
 		writeError(w, fail(http.StatusConflict, "Der Node ist schon auf dem neuesten Stand."))
 		return
 	}

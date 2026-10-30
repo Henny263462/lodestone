@@ -45,6 +45,8 @@ export interface UpdateStatus {
   /** Nur das Panel ist veraltet; `updateAvailable` gilt für Panel oder irgendeinen Node. */
   panelUpdateAvailable: boolean;
   updateAvailable: boolean;
+  /** Update-Kanal: `stable` bietet Releases an, `dev` den neuesten gebauten Stand von main. */
+  channel: "stable" | "dev";
   /** Die neueste Version ließ sich nicht ermitteln: „kein Update“ heißt dann nur „unbekannt“. */
   checkFailed: boolean;
   releaseUrl?: string;

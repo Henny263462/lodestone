@@ -5,16 +5,24 @@ import { useState } from "react";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { useUser } from "@/components/layout/shell";
 import { ErrorState, Loading } from "@/components/ui/async";
-import { Badge, Button, Card, CardHeader, Dot, EmptyState, PageHeader, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Dot, EmptyState, PageHeader, Switch, Tabs } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
 import { ago } from "@/lib/format";
 import type { NodeUpdateStatus, UpdateStatus } from "@/lib/types";
 
-/** „0.2.0“ wird „v0.2.0“; Entwicklungsstände heißen „dev“. */
+const isDev = (version?: string) => !!version && version.startsWith("dev");
+
+/** „0.2.0“ wird „v0.2.0“; Entwicklungsstände („dev“, „dev-1a2b3c4“) bleiben, wie sie sind. */
 function versionLabel(version?: string): string {
   if (!version) return "–";
-  return version === "dev" ? "dev" : `v${version}`;
+  return isDev(version) ? version : `v${version}`;
+}
+
+/** „Update auf …“, oder „Wechsel auf …“, wenn dabei zwischen Dev-Build und Release gewechselt wird. */
+function updateLabel(data: UpdateStatus, current: string): string {
+  const target = versionLabel(data.latestVersion);
+  return isDev(current) !== isDev(data.latestVersion) ? `Wechsel auf ${target} verfügbar` : `Update auf ${target} verfügbar`;
 }
 
 export default function AdminUpdatesPage() {
@@ -26,6 +34,8 @@ export default function AdminUpdatesPage() {
   const [updatingPanel, setUpdatingPanel] = useState(false);
   const [updatingNode, setUpdatingNode] = useState<NodeUpdateStatus | null>(null);
   const [updatingAll, setUpdatingAll] = useState(false);
+  const [switchingChannel, setSwitchingChannel] = useState(false);
+  const [savingChannel, setSavingChannel] = useState(false);
 
   if (!user.isAdmin) {
     return <ErrorState error={new Error("Dafür braucht es einen Administrator.")} />;
@@ -49,6 +59,13 @@ export default function AdminUpdatesPage() {
 
   const outdatedNodes = data.nodes.filter((node) => node.updateAvailable);
   const panelOutdated = data.panelUpdateAvailable;
+
+  async function chooseChannel(channel: "stable" | "dev") {
+    setSavingChannel(true);
+    await toast.run(() => api.put("/updates/settings", { channel }), channel === "dev" ? "Dev-Kanal gewählt" : "Stabiler Kanal gewählt");
+    setSavingChannel(false);
+    mutate();
+  }
 
   return (
     <>
@@ -84,6 +101,29 @@ export default function AdminUpdatesPage() {
 
       <div className="space-y-5">
         <Card>
+          <CardHeader title="Update-Kanal" description="Welche Versionen dir das Panel anbietet. Die Wahl gilt für Panel und Nodes und wirkt sofort." />
+          <div className="space-y-3 px-5 py-4">
+            <Tabs
+              value={data.channel}
+              onChange={(next) => {
+                if (savingChannel || next === data.channel) return;
+                if (next === "dev") setSwitchingChannel(true);
+                else chooseChannel(next);
+              }}
+              items={[
+                { id: "stable", label: "Stabil" },
+                { id: "dev", label: "Dev" },
+              ]}
+            />
+            <p className="text-sm text-muted">
+              {data.channel === "dev"
+                ? "Dev: Du bekommst immer den neuesten gebauten Stand von main, also den letzten Commit. Neue Funktionen kommen früher, aber es können Fehler drin sein."
+                : "Stabil: Du bekommst nur veröffentlichte Releases wie v0.3.0. Das ist die richtige Wahl für den Alltag."}
+            </p>
+          </div>
+        </Card>
+
+        <Card>
           <CardHeader
             title="Lodestone-Panel"
             description="Das Panel startet beim Update neu und ist dabei etwa 10 bis 30 Sekunden nicht erreichbar."
@@ -98,11 +138,11 @@ export default function AdminUpdatesPage() {
           />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-4">
             <span className="font-mono text-sm">{versionLabel(data.panelVersion)}</span>
-            {panelOutdated ? <Badge tone="warn">Update auf {versionLabel(data.latestVersion)} verfügbar</Badge> : data.checkFailed ? <Badge>Unbekannt</Badge> : <Badge tone="good">Aktuell</Badge>}
+            {panelOutdated ? <Badge tone="warn">{updateLabel(data, data.panelVersion)}</Badge> : data.checkFailed ? <Badge>Unbekannt</Badge> : <Badge tone="good">Aktuell</Badge>}
             {panelOutdated && data.releaseTitle && <span className="text-xs text-muted">{data.releaseTitle}</span>}
             {panelOutdated && data.releaseUrl && (
               <a className="inline-flex items-center gap-1 text-xs text-accent hover:underline" href={data.releaseUrl} target="_blank" rel="noreferrer">
-                Release-Notizen
+                {data.channel === "dev" ? "Commit ansehen" : "Release-Notizen"}
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -133,7 +173,7 @@ export default function AdminUpdatesPage() {
                     {node.name}
                   </span>
                   <span className="w-20 font-mono text-xs text-muted">{versionLabel(node.version)}</span>
-                  {!node.online ? <Badge tone="bad">Nicht erreichbar</Badge> : node.updateAvailable ? <Badge tone="warn">Update auf {versionLabel(data.latestVersion)} verfügbar</Badge> : <Badge tone="good">Aktuell</Badge>}
+                  {!node.online ? <Badge tone="bad">Nicht erreichbar</Badge> : node.updateAvailable ? <Badge tone="warn">{updateLabel(data, node.version)}</Badge> : <Badge tone="good">Aktuell</Badge>}
                   <span className="w-28 text-right">
                     {node.updateAvailable && (
                       <Button variant="secondary" size="sm" onClick={() => setUpdatingNode(node)}>
@@ -152,8 +192,8 @@ export default function AdminUpdatesPage() {
           <CardHeader title="Automatische Updates" description="Der Schalter wirkt sofort und braucht kein Speichern." />
           <div className="flex items-center justify-between gap-4 px-5 py-4">
             <p className="text-sm text-muted">
-              Das Panel prüft alle 6 Stunden auf neue Releases und installiert sie selbst: erst die Nodes, zuletzt das Panel. Du bekommst in jedem Projekt einen
-              Hinweis im Verlauf.
+              Das Panel prüft alle 6 Stunden auf neue Versionen des gewählten Kanals und installiert sie selbst: erst die Nodes, zuletzt das Panel. Im Dev-Kanal
+              heißt das: jeder neue Commit auf main. Du bekommst in jedem Projekt einen Hinweis im Verlauf.
             </p>
             <Switch
               checked={data.autoUpdate}
@@ -172,6 +212,14 @@ export default function AdminUpdatesPage() {
         </Card>
       </div>
 
+      <ConfirmDialog
+        open={switchingChannel}
+        onClose={() => setSwitchingChannel(false)}
+        title="Zum Dev-Kanal wechseln?"
+        text="Das Panel bietet dir dann den neuesten gebauten Stand von main an, auch wenn er noch nicht als Release getestet ist. Es wird nichts sofort geändert, die Aktualisierung startest du selbst. Ist das automatische Update an, installiert das Panel neue Dev-Builds von allein."
+        confirm="Dev-Kanal wählen"
+        onConfirm={() => chooseChannel("dev")}
+      />
       <ConfirmDialog
         open={updatingPanel}
         onClose={() => setUpdatingPanel(false)}

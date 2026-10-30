@@ -344,8 +344,13 @@ func TestSystemUpdateEndpoints(t *testing.T) {
 	if status != 200 || !strings.Contains(string(body), `"ok":true`) {
 		t.Fatalf("system/update-panel: %d %s", status, body)
 	}
-	// Alles, was kein Release-Tag ist, wird abgelehnt (die Version landet im Namen eines Images).
-	for _, version := range []string{"", "latest", "0.3", "0.3.0/../x", "0.3.0 --privileged", "ghcr.io/evil/img:1.0.0"} {
+	status, body = a.do("POST", "/api/system/update", map[string]string{"version": "dev-1a2b3c4"})
+	if status != 200 || !strings.Contains(string(body), `"ok":true`) {
+		t.Fatalf("system/update auf einen Dev-Build: %d %s", status, body)
+	}
+	// Alles, was kein Release-Tag oder Dev-Build ist, wird abgelehnt (die Version landet im Namen eines Images).
+	for _, version := range []string{"", "latest", "main", "0.3", "0.3.0/../x", "0.3.0 --privileged", "ghcr.io/evil/img:1.0.0",
+		"dev", "dev-", "dev-1a2b3c", "dev-1A2B3C4", "dev-1a2b3c4/../x", "dev-1a2b3c4 --privileged", "dev-" + strings.Repeat("a", 41)} {
 		if status, _ := a.do("POST", "/api/system/update", map[string]string{"version": version}); status != 400 {
 			t.Errorf("Version %q: %d, erwartet 400", version, status)
 		}
@@ -396,6 +401,9 @@ func TestDockerImageHelpers(t *testing.T) {
 	}
 	if got := releaseImage("ghcr.io/x/lodestone-node:latest", "v0.3.0"); got != "ghcr.io/x/lodestone-node:v0.3.0" {
 		t.Errorf("releaseImage mit v = %q", got)
+	}
+	if got := releaseImage("ghcr.io/x/lodestone-node:v0.3.0", "dev-1a2b3c4"); got != "ghcr.io/x/lodestone-node:dev-1a2b3c4" {
+		t.Errorf("releaseImage für Dev-Build = %q", got)
 	}
 	// Fremde Container, die zufällig „panel“ oder „node“ heißen (zum Beispiel Pelican), sind kein Ziel.
 	for ref, want := range map[string]bool{

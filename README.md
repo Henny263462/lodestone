@@ -78,7 +78,7 @@ Das Skript prüft/installiert Docker und Docker Compose, ermittelt die `DOCKER_G
 
 ## Updates & Automatisierung
 
-Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions gebaut und auf der **GitHub Container Registry (ghcr.io)** bereitgestellt. `latest` und die Versions-Tags (`v0.3.0`) gibt es nur für Releases; Pushes auf `main` erscheinen als `main` und unter dem Commit-Hash:
+Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions gebaut und auf der **GitHub Container Registry (ghcr.io)** bereitgestellt. `latest` und die Versions-Tags (`v0.3.0`) gibt es nur für Releases (**stabil**). Pushes auf `main` erscheinen als **Dev-Build** mit den Tags `dev-<Commit>` (sieben Zeichen, z. B. `dev-1a2b3c4`), `main` und dem vollen Commit-Hash; er meldet sich mit genau dieser Version:
 - `ghcr.io/henny263462/lodestone-panel:latest`
 - `ghcr.io/henny263462/lodestone-node:latest`
 
@@ -86,9 +86,11 @@ Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions
 
 Administratoren sehen unter **Admin-Panel → Updates** den Versionsstand von Panel und Nodes, prüfen auf neue Releases und starten Updates per Klick. Dort lässt sich auch das automatische Update einschalten (standardmäßig aus): Das Panel prüft alle 6 Stunden auf ein neues GitHub-Release und tauscht die Container aus, ohne die laufenden Minecraft-Server zu unterbrechen. Auf der Nodes-Seite steht bei jedem veralteten Node ein eigener Knopf.
 
-So funktioniert es: Der Node (er hat Zugriff auf `docker.sock`) lädt das Image des Releases, zum Beispiel `ghcr.io/henny263462/lodestone-node:v0.3.0`, und ersetzt den Container mit derselben Konfiguration. Der alte Container bleibt unter anderem Namen erhalten, bis der neue läuft, und wird bei einem Fehler zurückgeholt. Das Panel wird von dem Node aktualisiert, auf dessen Maschine es als Docker-Container läuft; dabei ist es etwa 10 bis 30 Sekunden nicht erreichbar.
+**Update-Kanal:** Unter Admin-Panel → Updates wählst du zwischen **Stabil** (nur veröffentlichte Releases) und **Dev** (immer der neueste *erfolgreich gebaute* Stand von `main`, also der letzte Commit). Der Wechsel gilt für Panel und Nodes, wirkt sofort auf das, was angeboten wird, und ändert nichts, bis du auf „Aktualisieren“ klickst (oder das automatische Update an ist). Ohne Wahl bleibt ein Dev-Build im Dev-Kanal und ein Release im stabilen. Das Panel fragt im Dev-Kanal den letzten grünen Lauf des Workflows *Docker Autobuild & Release* auf `main` bei GitHub ab; so wird nie ein Image angeboten, das noch gebaut wird.
 
-Voraussetzungen: Die Images müssen aus einem **Release** stammen (Tag `vX.Y.Z`); nur dann tragen sie ihre Versionsnummer. Eigene Builds und die Images des Haupt-Zweigs (`:main` nach einem Push) melden sich als `dev` und gelten nie als veraltet. Beim Selbstbauen die Version mit `--build-arg VERSION=0.3.0` (Docker) bzw. `VERSION=0.3.0 sh scripts/package.sh` mitgeben.
+So funktioniert es: Der Node (er hat Zugriff auf `docker.sock`) lädt das Image der Zielversion, zum Beispiel `ghcr.io/henny263462/lodestone-node:v0.3.0` oder `…:dev-1a2b3c4`, und ersetzt den Container mit derselben Konfiguration. Der alte Container bleibt unter anderem Namen erhalten, bis der neue läuft, und wird bei einem Fehler zurückgeholt. Das Panel wird von dem Node aktualisiert, auf dessen Maschine es als Docker-Container läuft; dabei ist es etwa 10 bis 30 Sekunden nicht erreichbar.
+
+Voraussetzungen: Die Images müssen aus dem Workflow stammen (Release-Tag `vX.Y.Z` oder Push auf `main`); nur dann tragen sie ihre Versionsnummer. Eigene Builds melden sich als `dev` und gelten im Standardkanal nie als veraltet; erst wenn du den Kanal ausdrücklich wählst, bietet das Panel auch ihnen einen Wechsel an. Die Nodes müssen den Kanalwechsel selbst können: Ein Node mit einer Version vor 0.3.1 lehnt `dev-…`-Versionen ab und muss einmal von Hand auf eine neuere Version gehoben werden. Beim Selbstbauen die Version mit `--build-arg VERSION=0.3.0` (Docker) bzw. `VERSION=0.3.0 sh scripts/package.sh` mitgeben.
 
 ### Automatische Updates per Watchtower (optional)
 
@@ -162,6 +164,7 @@ Für schlanke Maschinen: `sh scripts/package.sh` baut Linux-Binaries nach `dist/
 | `LODESTONE_TZ` | Zeitzone für Zeitpläne, z. B. `Europe/Berlin` (Standard: Zeitzone des Panels, sonst UTC) |
 | `LODESTONE_WEBHOOK_ALLOW_INTERNAL` | `true` erlaubt Webhooks an Adressen im internen Netz (Standard: gesperrt) |
 | `LODESTONE_UPDATE_URL` | Adresse, unter der das Panel nach dem neuesten Release fragt (Standard: GitHub-API dieses Projekts); nützlich für Forks und Tests |
+| `LODESTONE_DEV_UPDATE_URL` | Dasselbe für den Dev-Kanal: Adresse der Workflow-Läufe auf `main` (Standard: GitHub-API dieses Projekts) |
 
 Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_PORT_RANGE` (z. B. `28000-28099`),
 `_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`

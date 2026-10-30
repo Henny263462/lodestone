@@ -338,9 +338,13 @@ func isLodestoneImage(ref, name string) bool {
 	return repo == name || strings.HasSuffix(repo, "/"+name)
 }
 
-// releaseImage setzt den Release-Tag („v0.3.0“) auf die Image-Angabe des laufenden Containers. So kommt das neue Image
-// aus derselben Registry wie das alte, und von außen lässt sich kein fremdes Image einschleusen.
+// releaseImage setzt den Tag der Zielversion („v0.3.0“ bei Releases, „dev-1a2b3c4“ bei Dev-Builds) auf die Image-Angabe des
+// laufenden Containers. So kommt das neue Image aus derselben Registry wie das alte, und von außen lässt sich kein fremdes
+// Image einschleusen.
 func releaseImage(current, version string) string {
+	if strings.HasPrefix(version, "dev-") {
+		return imageRepo(current) + ":" + version
+	}
 	return imageRepo(current) + ":v" + strings.TrimPrefix(version, "v")
 }
 

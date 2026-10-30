@@ -206,8 +206,9 @@ func (a *API) system(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// updateVersionPattern erlaubt nur Release-Versionen wie „0.3.0“ oder „v0.3.0-rc.1“; sie landen im Tag eines Images.
-var updateVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$`)
+// updateVersionPattern erlaubt nur Release-Versionen wie „0.3.0“ oder „v0.3.0-rc.1“ und Dev-Builds wie „dev-1a2b3c4“; sie
+// landen im Tag eines Images.
+var updateVersionPattern = regexp.MustCompile(`^(v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?|dev-[0-9a-f]{7,40})$`)
 
 // updateVersion liest die Zielversion eines Updates aus dem Körper der Anfrage und prüft sie streng.
 func updateVersion(r *http.Request) (string, error) {
@@ -218,7 +219,7 @@ func updateVersion(r *http.Request) (string, error) {
 		return "", err
 	}
 	if !updateVersionPattern.MatchString(body.Version) {
-		return "", badRequest("Version fehlt oder ist ungültig (erwartet zum Beispiel 0.3.0)")
+		return "", badRequest("Version fehlt oder ist ungültig (erwartet zum Beispiel 0.3.0 oder dev-1a2b3c4)")
 	}
 	return body.Version, nil
 }

@@ -37,6 +37,7 @@ const nodes = [
 ];
 
 let updateStatus = {
+  channel: "stable",
   panelVersion: "0.1.0-demo",
   latestVersion: "0.2.0",
   panelUpdateAvailable: true,
@@ -460,8 +461,16 @@ async function api(req, res, url) {
       return send(res, 200, updateStatus);
     }
     if (b === "settings" && method === "PUT") {
-      updateStatus.autoUpdate = !!body.autoUpdate;
-      return send(res, 200, { autoUpdate: updateStatus.autoUpdate });
+      if (body.channel !== undefined && body.channel !== "stable" && body.channel !== "dev") return send(res, 400, { error: "Der Update-Kanal muss „stable“ oder „dev“ sein." });
+      if (body.autoUpdate !== undefined) updateStatus.autoUpdate = !!body.autoUpdate;
+      if (body.channel) {
+        updateStatus.channel = body.channel;
+        const dev = body.channel === "dev";
+        updateStatus.latestVersion = dev ? "dev-1a2b3c4" : "0.2.0";
+        updateStatus.releaseTitle = dev ? "Spielerliste im Dashboard" : "Lodestone 0.2.0";
+        updateStatus.releaseUrl = dev ? "https://github.com/lodestone-mc/lodestone/commit/1a2b3c4" : "https://github.com/lodestone-mc/lodestone/releases/tag/v0.2.0";
+      }
+      return send(res, 200, { autoUpdate: updateStatus.autoUpdate, channel: updateStatus.channel });
     }
     return send(res, 200, updateStatus);
   }

@@ -61,7 +61,7 @@ func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			result[i].Online, result[i].System, result[i].Version, result[i].MemoryAvailable = true, system.Docker, system.Version, system.MemoryAvailable
-			result[i].UpdateAvailable = isNewer(p.latestVersion(), system.Version)
+			result[i].UpdateAvailable = p.needsUpdate(p.latestVersion(), system.Version)
 			if views, err := p.nodeViews(ctx, n.ID); err == nil {
 				for _, view := range views {
 					if activeState(view.State) {
