@@ -45,7 +45,7 @@ func Slugify(name string) string {
 // IsPaperFamily sagt, ob die Software ihre Proxy-Einstellung in config/paper-global.yml hat.
 func IsPaperFamily(id software.ID) bool {
 	switch id {
-	case "paper", "purpur", "folia":
+	case "paper", "purpur", "folia", "leaf":
 		return true
 	}
 	return false

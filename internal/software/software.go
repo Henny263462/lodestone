@@ -1,4 +1,4 @@
-// Package software kennt die unterstützten Server-Arten (Paper, Velocity, Fabric ...), findet ihre Versionen und
+// Package software kennt die unterstützten Server-Arten (Paper, Velocity, Fabric, Forge ...), findet ihre Versionen und
 // Download-Adressen und bestimmt die passende Java-Version.
 package software
 
@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,8 +32,10 @@ const (
 	Folia    ID = "folia"
 	Purpur   ID = "purpur"
 	Vanilla  ID = "vanilla"
+	Leaf     ID = "leaf"
 	Fabric   ID = "fabric"
 	NeoForge ID = "neoforge"
+	Forge    ID = "forge"
 	Velocity ID = "velocity"
 )
 
@@ -69,14 +72,18 @@ type Info struct {
 }
 
 const javaStartup = "exec java -Xms{{MEMORY}}M -Xmx{{MEMORY}}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+DisableExplicitGC -Dterminal.jline=false -Dterminal.ansi=true -jar {{JAR}}"
-const neoForgeStartup = "if [ ! -f run.sh ]; then java -jar {{JAR}} --installServer && if [ -f run.sh ]; then sed -i 's/^java/exec java/' run.sh 2>/dev/null || true; fi; fi; echo '-Xms{{MEMORY}}M -Xmx{{MEMORY}}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+DisableExplicitGC -Dterminal.jline=false -Dterminal.ansi=true' > user_jvm_args.txt; exec sh run.sh nogui"
+
+// installerStartup startet Forge und NeoForge: Beim ersten Start läuft der Installer, danach run.sh mit den Speicherwerten.
+const installerStartup = "if [ ! -f run.sh ]; then java -jar {{JAR}} --installServer && if [ -f run.sh ]; then sed -i 's/^java/exec java/' run.sh 2>/dev/null || true; fi; fi; echo '-Xms{{MEMORY}}M -Xmx{{MEMORY}}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+DisableExplicitGC -Dterminal.jline=false -Dterminal.ansi=true' > user_jvm_args.txt; exec sh run.sh nogui"
 
 var catalog = []Info{
 	{ID: Paper, Name: "Paper", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Purpur, Name: "Purpur", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Folia, Name: "Folia", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
+	{ID: Leaf, Name: "Leaf", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Fabric, Name: "Fabric", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: NeoForge, Name: "NeoForge", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: neoForgeStartup, StopCommand: "stop", ReadyPattern: `Done \(`},
+	{ID: NeoForge, Name: "NeoForge", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: installerStartup, StopCommand: "stop", ReadyPattern: `Done \(`},
+	{ID: Forge, Name: "Forge", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: installerStartup, StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Vanilla, Name: "Vanilla", Kind: KindServer, Extensions: ExtNone, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Velocity, Name: "Velocity", Kind: KindProxy, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup, StopCommand: "end", ReadyPattern: `Done \(|Listening on`},
 }
@@ -114,6 +121,9 @@ type Resolver struct {
 	FabricMeta     string
 	PurpurBase     string
 	NeoForgeMaven  string
+	LeafBase       string
+	ForgePromos    string
+	ForgeMaven     string
 }
 
 // NewResolver nutzt die öffentlichen Adressen der Anbieter.
@@ -125,6 +135,9 @@ func NewResolver() *Resolver {
 		FabricMeta:     "https://meta.fabricmc.net",
 		PurpurBase:     "https://api.purpurmc.org",
 		NeoForgeMaven:  "https://maven.neoforged.net/releases/net/neoforged/neoforge",
+		LeafBase:       "https://api.leafmc.one",
+		ForgePromos:    "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json",
+		ForgeMaven:     "https://maven.minecraftforge.net/net/minecraftforge/forge",
 	}
 }
 
@@ -225,6 +238,25 @@ func (r *Resolver) Versions(ctx context.Context, id ID, prerelease bool) ([]stri
 		}
 		versions = project.Versions
 		sort.Slice(versions, func(i, j int) bool { return CompareVersions(versions[i], versions[j]) > 0 })
+	case Leaf:
+		var project struct {
+			Versions []string `json:"versions"`
+		}
+		if err := r.getJSON(ctx, r.LeafBase+"/v2/projects/leaf", &project); err != nil {
+			return nil, err
+		}
+		versions = project.Versions
+		sort.Slice(versions, func(i, j int) bool { return CompareVersions(versions[i], versions[j]) > 0 })
+	case Forge:
+		promos, err := r.forgePromos(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for mc := range promos {
+			versions = append(versions, mc)
+		}
+		sort.Slice(versions, func(i, j int) bool { return CompareVersions(versions[i], versions[j]) > 0 })
+		return versions, nil
 	case Vanilla:
 		manifest, err := r.manifest(ctx)
 		if err != nil {
@@ -404,6 +436,54 @@ func (r *Resolver) Resolve(ctx context.Context, id ID, version string) (Artifact
 			return Artifact{}, fmt.Errorf("für %s %s gibt es keinen Download", id, version)
 		}
 		return Artifact{URL: download.URL, FileName: download.Name, SHA256: download.Checksums.SHA256}, nil
+	case Leaf:
+		var builds struct {
+			Builds []int `json:"builds"`
+		}
+		base := fmt.Sprintf("%s/v2/projects/leaf/versions/%s", r.LeafBase, url.PathEscape(version))
+		if err := r.getJSON(ctx, base, &builds); err != nil {
+			return Artifact{}, err
+		}
+		if len(builds.Builds) == 0 {
+			return Artifact{}, ErrNotFound
+		}
+		latest := slices.Max(builds.Builds)
+		var build struct {
+			Downloads struct {
+				Primary struct {
+					Name   string `json:"name"`
+					SHA256 string `json:"sha256"`
+				} `json:"primary"`
+			} `json:"downloads"`
+		}
+		if err := r.getJSON(ctx, fmt.Sprintf("%s/builds/%d", base, latest), &build); err != nil {
+			return Artifact{}, err
+		}
+		name := build.Downloads.Primary.Name
+		if name == "" || strings.ContainsAny(name, "/\\") {
+			return Artifact{}, fmt.Errorf("für Leaf %s gibt es keinen Download", version)
+		}
+		return Artifact{URL: fmt.Sprintf("%s/builds/%d/downloads/%s", base, latest, url.PathEscape(name)), FileName: name, SHA256: build.Downloads.Primary.SHA256}, nil
+	case Forge:
+		promos, err := r.forgePromos(ctx)
+		if err != nil {
+			return Artifact{}, err
+		}
+		forge, ok := promos[version]
+		if !ok {
+			return Artifact{}, ErrNotFound
+		}
+		full := version + "-" + forge
+		address := fmt.Sprintf("%s/%s/forge-%s-installer.jar", r.ForgeMaven, url.PathEscape(full), url.PathEscape(full))
+		artifact := Artifact{URL: address, FileName: fmt.Sprintf("forge-%s-installer.jar", full)}
+		sum, err := r.getText(ctx, address+".sha256")
+		if err != nil {
+			return Artifact{}, fmt.Errorf("Prüfsumme für Forge %s nicht abrufbar: %w", full, err)
+		}
+		if fields := strings.Fields(sum); len(fields) > 0 {
+			artifact.SHA256 = fields[0]
+		}
+		return artifact, nil
 	case Purpur:
 		return Artifact{URL: fmt.Sprintf("%s/v2/purpur/%s/latest/download", r.PurpurBase, url.PathEscape(version)), FileName: "purpur-" + version + ".jar"}, nil
 	case Vanilla:
@@ -479,6 +559,34 @@ func (r *Resolver) Resolve(ctx context.Context, id ID, version string) (Artifact
 		return artifact, nil
 	}
 	return Artifact{}, fmt.Errorf("unbekannte Software: %s", id)
+}
+
+// forgeMinMinecraft ist die älteste Minecraft-Version, die Lodestone mit Forge startet. Ab 1.18 legt der Installer
+// run.sh und user_jvm_args.txt an; ältere Forge-Server starten anders.
+const forgeMinMinecraft = "1.18"
+
+// forgePromos liefert zu jeder unterstützten Minecraft-Version die Forge-Version: die empfohlene, sonst die neueste.
+func (r *Resolver) forgePromos(ctx context.Context) (map[string]string, error) {
+	var list struct {
+		Promos map[string]string `json:"promos"`
+	}
+	if err := r.getJSON(ctx, r.ForgePromos, &list); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for key, forge := range list.Promos {
+		mc, kind, ok := strings.Cut(key, "-")
+		if !ok || (kind != "latest" && kind != "recommended") || forge == "" || len(numericParts(mc)) < 2 || strings.ContainsAny(mc, "_- ") {
+			continue
+		}
+		if CompareVersions(mc, forgeMinMinecraft) < 0 {
+			continue
+		}
+		if _, have := out[mc]; !have || kind == "recommended" {
+			out[mc] = forge
+		}
+	}
+	return out, nil
 }
 
 type versionEntry struct {

@@ -313,7 +313,7 @@ function NetworkTab({ project, canManage, refresh }: { project: Project; canMana
           }
         />
         {entries.length === 0 ? (
-          <EmptyState icon={<ServerIcon className="h-6 w-6" />} title="Noch keine Server" text="Füge Server hinzu (Paper, Purpur, Folia oder Fabric) – sie werden dem Proxy automatisch bekannt gemacht." />
+          <EmptyState icon={<ServerIcon className="h-6 w-6" />} title="Noch keine Server" text="Füge Server hinzu (Paper, Purpur, Folia, Leaf oder Fabric) – sie werden dem Proxy automatisch bekannt gemacht." />
         ) : (
           <div className="divide-y divide-white/[0.05]">
             {entries.map((entry, index) => (

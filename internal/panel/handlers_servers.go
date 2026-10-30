@@ -128,7 +128,7 @@ func (p *Panel) createServer(w http.ResponseWriter, r *http.Request) {
 				spec.Ports = []node.PortMapping{{Container: voicePort, Protocol: "udp"}}
 			}
 		default:
-			writeError(w, fail(http.StatusBadRequest, info.Name+" kann nicht hinter Velocity laufen (Paper, Purpur, Folia und Fabric gehen)"))
+			writeError(w, fail(http.StatusBadRequest, info.Name+" kann nicht hinter Velocity laufen (Paper, Purpur, Folia, Leaf und Fabric gehen)"))
 			return
 		}
 	}
@@ -586,7 +586,7 @@ func (p *Panel) installRequirements(ctx context.Context, row ServerRow) error {
 // setVoicechat schaltet Voicechat für einen Server ein oder aus (UDP-Port, Plugin/Mod). Der Server muss dafür aus sein.
 func (p *Panel) setVoicechat(ctx context.Context, row ServerRow, enable bool) error {
 	if !(IsPaperFamily(software.ID(row.Software)) || row.Software == "fabric") {
-		return fail(http.StatusBadRequest, "Voicechat gibt es nur für Paper, Purpur, Folia und Fabric")
+		return fail(http.StatusBadRequest, "Voicechat gibt es nur für Paper, Purpur, Folia, Leaf und Fabric")
 	}
 	client, _, err := p.client(row.NodeID)
 	if err != nil {

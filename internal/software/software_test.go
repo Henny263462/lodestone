@@ -53,6 +53,34 @@ func fakeProviders(t *testing.T) (*Resolver, *httptest.Server) {
 <version>26.4.0-alpha.1</version>
 </versions></versioning></metadata>`)
 	})
+	mux.HandleFunc("/leaf/v2/projects/leaf", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"versions":["1.21.4","1.21.11","26.2","1.21.8-rc1"]}`)
+	})
+	mux.HandleFunc("/leaf/v2/projects/leaf/versions/1.21.4", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"builds":[412,500,499]}`)
+	})
+	mux.HandleFunc("/leaf/v2/projects/leaf/versions/1.21.4/builds/500", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintf(w, `{"build":500,"downloads":{"primary":{"name":"leaf-1.21.4-500.jar","sha256":"%s"}}}`, hex.EncodeToString(sum[:]))
+	})
+	mux.HandleFunc("/leaf/v2/projects/leaf/versions/1.21.4/builds/500/downloads/leaf-1.21.4-500.jar", func(w http.ResponseWriter, _ *http.Request) { w.Write(jar) })
+	mux.HandleFunc("/leaf/v2/projects/leaf/versions/1.21.11", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"builds":[]}`)
+	})
+	mux.HandleFunc("/forge/promotions_slim.json", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"promos":{"1.7.10-latest":"10.13.4.1614","1.16.5-recommended":"36.2.42","1.18.2-latest":"40.3.12","1.20.1-latest":"47.4.1",
+"1.20.1-recommended":"47.4.0","1.21.4-latest":"54.1.22","1.21.5-latest":"","1.21.6_pre1-latest":"1.0","1.21.7-other":"1.0"}}`)
+	})
+	mux.HandleFunc("/forge/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".sha256") {
+			fmt.Fprint(w, hex.EncodeToString(sum[:])+"\n")
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "-installer.jar") {
+			w.Write(jar)
+			return
+		}
+		http.NotFound(w, r)
+	})
 	mux.HandleFunc("/neoforge/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".sha256") {
 			fmt.Fprint(w, hex.EncodeToString(sum[:]))
@@ -65,10 +93,10 @@ func fakeProviders(t *testing.T) (*Resolver, *httptest.Server) {
 		http.NotFound(w, r)
 	})
 
-
 	server = httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	return &Resolver{HTTP: server.Client(), FillBase: server.URL, MojangManifest: server.URL + "/mojang/manifest", FabricMeta: server.URL + "/fabric", PurpurBase: server.URL + "/purpur", NeoForgeMaven: server.URL + "/neoforge"}, server
+	return &Resolver{HTTP: server.Client(), FillBase: server.URL, MojangManifest: server.URL + "/mojang/manifest", FabricMeta: server.URL + "/fabric", PurpurBase: server.URL + "/purpur", NeoForgeMaven: server.URL + "/neoforge",
+		LeafBase: server.URL + "/leaf", ForgePromos: server.URL + "/forge/promotions_slim.json", ForgeMaven: server.URL + "/forge"}, server
 }
 
 func TestPaperVersionsSortedWithoutPrereleases(t *testing.T) {
@@ -192,7 +220,6 @@ func TestVelocityJavaAndOrder(t *testing.T) {
 	}
 }
 
-
 func TestNeoForgeVersionsAndResolve(t *testing.T) {
 	resolver, server := fakeProviders(t)
 	ctx := context.Background()
@@ -280,5 +307,93 @@ func TestNeoForgeJavaMajor(t *testing.T) {
 	}
 	if got := resolver.JavaMajor(ctx, NeoForge, "26.3.0.99"); got != 25 {
 		t.Errorf("NeoForge 26.3.0.99: Java %d, erwartet 25", got)
+	}
+}
+
+func TestNewResolverKnowsEveryProvider(t *testing.T) {
+	r := NewResolver()
+	for name, address := range map[string]string{"Fill": r.FillBase, "Mojang": r.MojangManifest, "Fabric": r.FabricMeta, "Purpur": r.PurpurBase,
+		"NeoForge": r.NeoForgeMaven, "Leaf": r.LeafBase, "Forge-Liste": r.ForgePromos, "Forge-Maven": r.ForgeMaven} {
+		if !strings.HasPrefix(address, "https://") {
+			t.Errorf("Adresse für %s fehlt oder ist nicht https: %q", name, address)
+		}
+	}
+}
+
+func TestLeafVersionsAndResolve(t *testing.T) {
+	resolver, server := fakeProviders(t)
+	ctx := context.Background()
+	versions, err := resolver.Versions(ctx, Leaf, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(versions) != "[26.2 1.21.11 1.21.4]" {
+		t.Fatalf("Leaf-Versionen = %v", versions)
+	}
+	artifact, err := resolver.Resolve(ctx, Leaf, "1.21.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := server.URL + "/leaf/v2/projects/leaf/versions/1.21.4/builds/500/downloads/leaf-1.21.4-500.jar"
+	if artifact.URL != want || artifact.FileName != "leaf-1.21.4-500.jar" || artifact.SHA256 == "" {
+		t.Fatalf("Artifact = %+v, erwartet URL %s mit der höchsten Build-Nummer", artifact, want)
+	}
+	if err := resolver.Download(ctx, artifact, filepath.Join(t.TempDir(), "server.jar")); err != nil {
+		t.Fatalf("Download mit Prüfsumme fehlgeschlagen: %v", err)
+	}
+	if _, err := resolver.Resolve(ctx, Leaf, "1.21.11"); err != ErrNotFound {
+		t.Fatalf("eine Version ohne Build muss ErrNotFound liefern, erhalten %v", err)
+	}
+	if _, err := resolver.Resolve(ctx, Leaf, "9.9"); err != ErrNotFound {
+		t.Fatalf("eine unbekannte Version muss ErrNotFound liefern, erhalten %v", err)
+	}
+}
+
+func TestForgeVersionsAndResolve(t *testing.T) {
+	resolver, server := fakeProviders(t)
+	ctx := context.Background()
+	versions, err := resolver.Versions(ctx, Forge, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 1.7.10 und 1.16.5 sind zu alt, Kaputtes (leere Version, Vorabversion, fremde Art) fällt weg
+	if fmt.Sprint(versions) != "[1.21.4 1.20.1 1.18.2]" {
+		t.Fatalf("Forge-Versionen = %v", versions)
+	}
+	artifact, err := resolver.Resolve(ctx, Forge, "1.20.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// die empfohlene Version gewinnt gegen die neueste
+	want := server.URL + "/forge/1.20.1-47.4.0/forge-1.20.1-47.4.0-installer.jar"
+	if artifact.URL != want || artifact.FileName != "forge-1.20.1-47.4.0-installer.jar" || artifact.SHA256 == "" {
+		t.Fatalf("Artifact = %+v, erwartet URL %s", artifact, want)
+	}
+	if err := resolver.Download(ctx, artifact, filepath.Join(t.TempDir(), "server.jar")); err != nil {
+		t.Fatalf("Download mit Prüfsumme fehlgeschlagen: %v", err)
+	}
+	latest, err := resolver.Resolve(ctx, Forge, "1.21.4")
+	if err != nil || latest.FileName != "forge-1.21.4-54.1.22-installer.jar" {
+		t.Fatalf("ohne empfohlene Version zählt die neueste: %+v, %v", latest, err)
+	}
+	if _, err := resolver.Resolve(ctx, Forge, "1.16.5"); err != ErrNotFound {
+		t.Fatalf("zu alte Version muss ErrNotFound liefern, erhalten %v", err)
+	}
+}
+
+func TestInstallerSoftwareStartsThroughRunScript(t *testing.T) {
+	for _, id := range []ID{Forge, NeoForge} {
+		info, ok := Lookup(id)
+		if !ok || info.Kind != KindServer || info.Extensions != ExtMods {
+			t.Fatalf("%s muss ein Server mit Mods sein: %+v", id, info)
+		}
+		for _, part := range []string{"--installServer", "run.sh", "user_jvm_args.txt", "{{JAR}}", "{{MEMORY}}"} {
+			if !strings.Contains(info.Startup, part) {
+				t.Errorf("Startzeile von %s enthält %q nicht", id, part)
+			}
+		}
+	}
+	if leaf, ok := Lookup(Leaf); !ok || leaf.Extensions != ExtPlugins || !strings.Contains(leaf.Startup, "-jar {{JAR}}") {
+		t.Fatalf("Leaf muss wie Paper starten: %+v", leaf)
 	}
 }

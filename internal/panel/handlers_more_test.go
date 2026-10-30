@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/lodestone-mc/lodestone/internal/node"
+	"github.com/lodestone-mc/lodestone/internal/software"
 )
 
 func TestPlayerCommandIsBuiltSafely(t *testing.T) {
@@ -215,5 +216,32 @@ func TestNeoForgePanelAddonsHelpers(t *testing.T) {
 	}
 	if got := gameVersionFor("neoforge", "21.4.161"); got != "1.21.4" {
 		t.Fatalf("gameVersionFor(neoforge, 21.4.161) = %q, erwartet 1.21.4", got)
+	}
+}
+
+func TestForgeAndLeafPanelHelpers(t *testing.T) {
+	if loaders := loadersFor("forge"); len(loaders) != 1 || loaders[0] != "forge" {
+		t.Fatalf("loadersFor(forge) = %v, erwartet [forge]", loaders)
+	}
+	if got := addonDir("forge"); got != "mods" {
+		t.Fatalf("addonDir(forge) = %q, erwartet mods", got)
+	}
+	if got := gameVersionFor("forge", "1.21.4"); got != "1.21.4" {
+		t.Fatalf("gameVersionFor(forge, 1.21.4) = %q", got)
+	}
+	if got := loadersFor("leaf"); len(got) == 0 || got[0] != "paper" {
+		t.Fatalf("Leaf nutzt Paper-Plugins: %v", got)
+	}
+	if got := addonDir("leaf"); got != "plugins" {
+		t.Fatalf("addonDir(leaf) = %q, erwartet plugins", got)
+	}
+	// Leaf ist ein Paper-Fork und läuft hinter Velocity; Forge und NeoForge nicht
+	if !IsPaperFamily("leaf") || !CanBeBackend("leaf") {
+		t.Fatal("Leaf muss wie Paper hinter Velocity laufen können")
+	}
+	for _, id := range []software.ID{"forge", "neoforge"} {
+		if CanBeBackend(id) {
+			t.Fatalf("%s darf nicht als Server hinter Velocity angeboten werden", id)
+		}
 	}
 }

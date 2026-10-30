@@ -17,7 +17,7 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 
 - **Projekte:** ein einzelner Server oder ein **Netzwerk** (Velocity + Server dahinter). Mitglieder mit Rollen
   *Betrachter, Operator, Admin, Eigentümer* pro Projekt; globale Administratoren sehen alles
-- **Server-Arten:** Paper, Purpur, Folia, Fabric, NeoForge, Vanilla, Velocity – Version, Download mit Prüfsumme und Java-Version
+- **Server-Arten:** Paper, Purpur, Folia, Leaf, Fabric, NeoForge, Forge, Vanilla, Velocity – Version, Download mit Prüfsumme und Java-Version
   werden automatisch bestimmt
 - **Konsole live** (Websocket, mit Verlauf und ANSI-Farben), Start/Stopp/Neustart/Kill, CPU-/RAM-Anzeige
 - **Dateien** mit Editor und Syntax-Highlight (JSON, YAML, TOML, XML, Properties, Markdown …), Upload per Drag & Drop,
@@ -39,7 +39,7 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Spieler** online (Serverlisten-Abfrage), Server-Einstellungen, Versionswechsel ohne Datenverlust
 - **Netzwerk-Autoconfig:** Beim Hinzufügen schreibt das Panel alles selbst – Velocity *modern forwarding* samt
   Secret, Serverliste, **Beitrittsreihenfolge (Try) mit Reihenfolge und Schalter pro Server**, **Forced Hosts**,
-  `online-mode=false` und Forwarding bei Paper/Purpur/Folia, FabricProxy-Lite bei Fabric (wird installiert)
+  `online-mode=false` und Forwarding bei Paper/Purpur/Folia/Leaf, FabricProxy-Lite bei Fabric (wird installiert)
 - **Simple Voice Chat** pro Server einschaltbar: Plugin bzw. Mod wird installiert, der UDP-Port veröffentlicht und
   `voice_host` gesetzt
 - Server hinter dem Proxy sind **nicht** nach außen veröffentlicht, nur der Proxy (und der Voicechat-UDP-Port)
