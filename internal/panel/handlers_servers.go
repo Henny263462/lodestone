@@ -128,7 +128,7 @@ func (p *Panel) createServer(w http.ResponseWriter, r *http.Request) {
 				spec.Ports = []node.PortMapping{{Container: voicePort, Protocol: "udp"}}
 			}
 		default:
-			writeError(w, fail(http.StatusBadRequest, info.Name+" kann nicht hinter Velocity laufen (Paper, Purpur, Folia, Leaf und Fabric gehen)"))
+			writeError(w, fail(http.StatusBadRequest, info.Name+" kann nicht hinter Velocity laufen (Paper, Purpur, Folia, Leaf, Fabric und NeoForge gehen)"))
 			return
 		}
 	}
@@ -567,12 +567,13 @@ func (p *Panel) afterNetworkChange(projectID, serverID string) {
 	}
 }
 
-// installRequirements lädt FabricProxy-Lite (Fabric) und Simple Voice Chat (wenn gewünscht).
+// installRequirements lädt den Proxy-Mod (FabricProxy-Lite bei Fabric, Proxy Compatible Forge bei NeoForge) und Simple Voice
+// Chat (wenn gewünscht).
 func (p *Panel) installRequirements(ctx context.Context, row ServerRow) error {
 	var errs []error
-	if row.Role == RoleBackend && row.Software == "fabric" {
-		if _, err := p.installFromModrinth(ctx, row, "fabricproxy-lite", "", true); err != nil && !errors.Is(err, errAlreadyInstalled) {
-			errs = append(errs, fmt.Errorf("FabricProxy-Lite: %w", err))
+	if mod := ProxyMod(software.ID(row.Software)); row.Role == RoleBackend && mod != "" {
+		if _, err := p.installFromModrinth(ctx, row, mod, "", true); err != nil && !errors.Is(err, errAlreadyInstalled) {
+			errs = append(errs, fmt.Errorf("%s: %w", mod, err))
 		}
 	}
 	if row.Voicechat || row.Role == RoleProxy && p.projectVoicechat(row.ProjectID) {
@@ -585,8 +586,8 @@ func (p *Panel) installRequirements(ctx context.Context, row ServerRow) error {
 
 // setVoicechat schaltet Voicechat für einen Server ein oder aus (UDP-Port, Plugin/Mod). Der Server muss dafür aus sein.
 func (p *Panel) setVoicechat(ctx context.Context, row ServerRow, enable bool) error {
-	if !(IsPaperFamily(software.ID(row.Software)) || row.Software == "fabric") {
-		return fail(http.StatusBadRequest, "Voicechat gibt es nur für Paper, Purpur, Folia, Leaf und Fabric")
+	if VoiceConfigFile(software.ID(row.Software)) == "" {
+		return fail(http.StatusBadRequest, "Voicechat gibt es nur für Paper, Purpur, Folia, Leaf, Fabric und NeoForge")
 	}
 	client, _, err := p.client(row.NodeID)
 	if err != nil {

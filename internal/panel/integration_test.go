@@ -22,6 +22,7 @@ func fakeModrinth(t *testing.T) *Modrinth {
 		"v-other":   {"id": "v-other", "project_id": "pack2", "name": "Anderes", "version_number": "9", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"fabric"}, "files": []any{file("other.mrpack")}},
 		"mod-v1":    {"id": "mod-v1", "project_id": "mod1", "name": "Cool 1", "version_number": "1.0.0", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"paper"}, "files": []any{file("cool-1.0.0.jar")}, "date_published": "2025-01-01T00:00:00Z"},
 		"mod-v2":    {"id": "mod-v2", "project_id": "mod1", "name": "Cool 2", "version_number": "2.0.0", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"paper"}, "files": []any{file("cool-2.0.0.jar")}, "date_published": "2026-01-01T00:00:00Z"},
+		"pcf-v1":    {"id": "pcf-v1", "project_id": "pcf", "name": "Proxy Compatible Forge 1.3.1", "version_number": "1.3.1", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"forge", "neoforge"}, "files": []any{file("proxy-compatible-forge-1.3.1.jar")}, "date_published": "2026-08-31T00:00:00Z"},
 		"mod-alien": {"id": "mod-alien", "project_id": "mod2", "name": "Fremd", "version_number": "1", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"paper"}, "files": []any{file("alien.jar")}},
 	}
 	projects := map[string]map[string]any{
@@ -29,8 +30,9 @@ func fakeModrinth(t *testing.T) *Modrinth {
 		"pack2": {"id": "pack2", "slug": "other", "title": "Other Pack", "project_type": "modpack"},
 		"mod1":  {"id": "mod1", "slug": "cool-mod", "title": "Cool Mod", "description": "Macht Dinge", "project_type": "mod", "downloads": 1000, "source_url": "https://github.com/x/cool", "issues_url": "https://github.com/x/cool/issues", "license": map[string]string{"id": "MIT", "name": "MIT-Lizenz"}},
 		"mod2":  {"id": "mod2", "slug": "alien", "title": "Alien", "project_type": "mod"},
+		"pcf":   {"id": "pcf", "slug": "proxy-compatible-forge", "title": "Proxy Compatible Forge", "project_type": "mod"},
 	}
-	byProject := map[string][]string{"pack1": {"v1", "v-forge"}, "mod1": {"mod-v2", "mod-v1"}}
+	byProject := map[string][]string{"pack1": {"v1", "v-forge"}, "mod1": {"mod-v2", "mod-v1"}, "pcf": {"pcf-v1"}}
 
 	mux := http.NewServeMux()
 	reply := func(w http.ResponseWriter, value any) { writeJSON(w, 200, value) }

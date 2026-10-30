@@ -39,7 +39,7 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Spieler** online (Serverlisten-Abfrage), Server-Einstellungen, Versionswechsel ohne Datenverlust
 - **Netzwerk-Autoconfig:** Beim Hinzufügen schreibt das Panel alles selbst – Velocity *modern forwarding* samt
   Secret, Serverliste, **Beitrittsreihenfolge (Try) mit Reihenfolge und Schalter pro Server**, **Forced Hosts**,
-  `online-mode=false` und Forwarding bei Paper/Purpur/Folia/Leaf, FabricProxy-Lite bei Fabric (wird installiert)
+  `online-mode=false` und Forwarding bei Paper/Purpur/Folia/Leaf, Proxy Compatible Forge bei NeoForge (wird installiert), FabricProxy-Lite bei Fabric (wird installiert)
 - **Simple Voice Chat** pro Server einschaltbar: Plugin bzw. Mod wird installiert, der UDP-Port veröffentlicht und
   `voice_host` gesetzt
 - Server hinter dem Proxy sind **nicht** nach außen veröffentlicht, nur der Proxy (und der Voicechat-UDP-Port)

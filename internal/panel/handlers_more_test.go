@@ -2,8 +2,10 @@ package panel
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lodestone-mc/lodestone/internal/node"
 	"github.com/lodestone-mc/lodestone/internal/software"
@@ -235,13 +237,81 @@ func TestForgeAndLeafPanelHelpers(t *testing.T) {
 	if got := addonDir("leaf"); got != "plugins" {
 		t.Fatalf("addonDir(leaf) = %q, erwartet plugins", got)
 	}
-	// Leaf ist ein Paper-Fork und läuft hinter Velocity; Forge und NeoForge nicht
+	// Leaf ist ein Paper-Fork und läuft hinter Velocity; Forge nicht (es fehlt der Weiterleitungs-Mod)
 	if !IsPaperFamily("leaf") || !CanBeBackend("leaf") {
 		t.Fatal("Leaf muss wie Paper hinter Velocity laufen können")
 	}
-	for _, id := range []software.ID{"forge", "neoforge"} {
-		if CanBeBackend(id) {
-			t.Fatalf("%s darf nicht als Server hinter Velocity angeboten werden", id)
+	if CanBeBackend("forge") || CanBeBackend("vanilla") || CanBeBackend("velocity") {
+		t.Fatal("Forge, Vanilla und Velocity dürfen nicht als Server hinter Velocity angeboten werden")
+	}
+}
+
+func TestNeoForgeCanBeBackendThroughProxyMod(t *testing.T) {
+	if !CanBeBackend("neoforge") || ProxyMod("neoforge") != "proxy-compatible-forge" || ProxyMod("fabric") != "fabricproxy-lite" {
+		t.Fatalf("Proxy-Mods: neoforge=%q fabric=%q", ProxyMod("neoforge"), ProxyMod("fabric"))
+	}
+	if ProxyMod("paper") != "" || ProxyMod("forge") != "" {
+		t.Fatal("Paper braucht keinen Mod, und für Forge gibt es keinen")
+	}
+	for id, want := range map[software.ID]string{
+		"paper":    "plugins/voicechat/voicechat-server.properties",
+		"leaf":     "plugins/voicechat/voicechat-server.properties",
+		"fabric":   "config/voicechat/voicechat-server.properties",
+		"neoforge": "config/voicechat/voicechat-server.properties",
+		"forge":    "",
+		"vanilla":  "",
+	} {
+		if got := VoiceConfigFile(id); got != want {
+			t.Errorf("VoiceConfigFile(%s) = %q, erwartet %q", id, got, want)
 		}
+	}
+}
+
+func TestNeoForgeServerInNetworkGetsProxyModAndConfig(t *testing.T) {
+	p, web, fake, nodeID := setupPanel(t)
+	p.modrinth = fakeModrinth(t)
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Netz", "kind": "network"}), &project)
+	servers := "/api/projects/" + project.ID + "/servers"
+	admin.expect(201, "POST", servers, serverRequest{Name: "Proxy", NodeID: nodeID, Software: "velocity", Version: "3.4.0"})
+	var mods ServerDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", servers, serverRequest{Name: "Mods", NodeID: nodeID, Software: "neoforge", Version: "1.21.4", EULA: true}), &mods)
+	if mods.Role != RoleBackend || mods.Software != "neoforge" {
+		t.Fatalf("NeoForge gehört als Backend ins Netzwerk: %+v", mods)
+	}
+	// Forge hat keinen Weiterleitungs-Mod und bleibt draußen
+	admin.expect(400, "POST", servers, serverRequest{Name: "Forge", NodeID: nodeID, Software: "forge", Version: "1.21.4", EULA: true})
+
+	// Hinter dem Proxy ist der Server nicht veröffentlicht
+	fake.mu.Lock()
+	if view := fake.servers[mods.ID]; !view.NoPublish {
+		t.Errorf("NeoForge hinter dem Proxy darf nicht veröffentlicht sein: %+v", view.Spec)
+	}
+	fake.mu.Unlock()
+
+	// Der Mod wird im Hintergrund geladen (in den mods-Ordner), die Einstellungen kommen beim Abgleich des Netzwerks
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		fake.mu.Lock()
+		pulled := append([]string{}, fake.pulled...)
+		config, configured := fake.autoconfigs[mods.ID]
+		fake.mu.Unlock()
+		if slices.Contains(pulled, "mods/proxy-compatible-forge-1.3.1.jar") && configured {
+			edit := editFor(t, config, "config/proxy-compatible-forge.toml")
+			if !edit.Create || edit.Format != "toml" ||
+				setValue(t, edit, "forwarding", "enabled") != true || setValue(t, edit, "forwarding", "mode") != "MODERN" || setValue(t, edit, "forwarding", "secret") == "" {
+				t.Fatalf("proxy-compatible-forge.toml = %+v", edit)
+			}
+			if got := setValue(t, editFor(t, config, "server.properties"), "online-mode"); got != false {
+				t.Errorf("online-mode = %v", got)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Mod oder Einstellungen fehlen: geladen=%v, Einstellungen=%v", pulled, configured)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }

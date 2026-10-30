@@ -325,13 +325,8 @@ func (p *Panel) applyVoiceAddress(row ServerRow, project Project, kind string) {
 
 // writeStandaloneVoiceHost trägt voice_host bei einem Server ein, der in keinem Netzwerk liegt.
 func (p *Panel) writeStandaloneVoiceHost(ctx context.Context, row ServerRow) error {
-	var file string
-	switch {
-	case IsPaperFamily(software.ID(row.Software)):
-		file = "plugins/voicechat/voicechat-server.properties"
-	case row.Software == "fabric":
-		file = "config/voicechat/voicechat-server.properties"
-	default:
+	file := VoiceConfigFile(software.ID(row.Software))
+	if file == "" {
 		return nil
 	}
 	n, err := p.store.NodeByID(row.NodeID)

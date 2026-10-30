@@ -11,7 +11,7 @@ import { megabytes } from "@/lib/format";
 import { roleRank, type Group, type Project, type SoftwareInfo } from "@/lib/types";
 
 const memoryOptions = [512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192];
-const backendSoftware = ["paper", "purpur", "folia", "leaf", "fabric"];
+const backendSoftware = ["paper", "purpur", "folia", "leaf", "fabric", "neoforge"];
 
 export function GroupsTab({ project, refresh }: { project: Project; refresh: () => void }) {
   const toast = useToast();

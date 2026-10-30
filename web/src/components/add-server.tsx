@@ -29,7 +29,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
   const options = useMemo(() => {
     const all = software ?? [];
     if (project.kind === "server") return all;
-    return all.filter((item) => (item.id === "velocity" ? !hasProxy : ["paper", "purpur", "folia", "leaf", "fabric"].includes(item.id)));
+    return all.filter((item) => (item.id === "velocity" ? !hasProxy : ["paper", "purpur", "folia", "leaf", "fabric", "neoforge"].includes(item.id)));
   }, [software, project.kind, hasProxy]);
 
   const [name, setName] = useState("");
@@ -81,7 +81,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
 
   const info = options.find((item) => item.id === softwareId);
   const needsEula = info?.kind === "server";
-  const canVoice = project.kind === "network" && ["paper", "purpur", "folia", "leaf", "fabric"].includes(softwareId);
+  const canVoice = project.kind === "network" && ["paper", "purpur", "folia", "leaf", "fabric", "neoforge"].includes(softwareId);
 
   function applyTemplate(template: (typeof templates)[number]) {
     if (!options.some((item) => item.id === template.software)) return;
@@ -276,7 +276,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
           </select>
         </div>
       </div>
-      {project.kind === "network" && <p className="text-xs text-muted">NeoForge und Forge gibt es nur für einzelne Server: Sie können nicht hinter dem Proxy laufen.</p>}
+      {project.kind === "network" && <p className="text-xs text-muted">Fabric und NeoForge bekommen die Proxy-Anbindung über einen Mod, den Lodestone mitinstalliert. Forge gibt es nur für einzelne Server.</p>}
       {fixedNode && <p className="text-xs text-muted">Ein Netzwerk liegt komplett auf einem Node, damit sich die Server im Docker-Netz finden.</p>}
       {canVoice && mode !== "modpack" && (
         <div className="flex items-center justify-between rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">

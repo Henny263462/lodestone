@@ -190,7 +190,7 @@ func (p *Panel) createGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, ok := software.Lookup(software.ID(body.Software)); !ok || !CanBeBackend(software.ID(body.Software)) {
-		writeError(w, fail(http.StatusBadRequest, "Gruppen gibt es für Paper, Purpur, Folia, Leaf und Fabric"))
+		writeError(w, fail(http.StatusBadRequest, "Gruppen gibt es für Paper, Purpur, Folia, Leaf, Fabric und NeoForge"))
 		return
 	}
 	if strings.TrimSpace(body.Version) == "" || !body.EULA {

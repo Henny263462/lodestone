@@ -42,6 +42,7 @@ Beim Hinzufügen eines Servers zu einem Netzwerk schreibt das Panel alles selbst
   Drag & Drop), Forced-Hosts
 - Paper/Purpur/Folia/Leaf: Velocity-Forwarding mit Secret, `online-mode=false`, Port
 - Fabric: Proxy-Mod (z. B. FabricProxy-Lite) samt Config
+- NeoForge: Proxy Compatible Forge (`config/proxy-compatible-forge.toml`), wird wie bei Fabric installiert und konfiguriert
 - **Gruppen:** Instanzen melden sich im laufenden Proxy an und beim Stoppen wieder ab (Proxy-Plugin, ähnlich
   Comparator), ohne Neustart. Das Plugin kann auch die Lobby nach Auslastung verteilen, denn Velocity probiert die
   Try-Liste nur der Reihe nach.

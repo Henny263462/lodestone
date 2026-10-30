@@ -51,8 +51,32 @@ func IsPaperFamily(id software.ID) bool {
 	return false
 }
 
-// CanBeBackend sagt, ob ein Server hinter Velocity laufen kann (er muss "modern forwarding" verstehen).
-func CanBeBackend(id software.ID) bool { return IsPaperFamily(id) || id == "fabric" }
+// CanBeBackend sagt, ob ein Server hinter Velocity laufen kann (er muss "modern forwarding" verstehen). Fabric und NeoForge
+// bekommen das über einen Mod, den Lodestone installiert (siehe ProxyMod).
+func CanBeBackend(id software.ID) bool { return IsPaperFamily(id) || ProxyMod(id) != "" }
+
+// ProxyMod nennt das Modrinth-Projekt, das einen Mod-Server "modern forwarding" von Velocity beibringt ("" = nicht nötig
+// oder nicht möglich).
+func ProxyMod(id software.ID) string {
+	switch id {
+	case "fabric":
+		return "fabricproxy-lite"
+	case "neoforge":
+		return "proxy-compatible-forge"
+	}
+	return ""
+}
+
+// VoiceConfigFile ist die Einstellungsdatei von Simple Voice Chat bei dieser Software ("" = Voicechat nicht unterstützt).
+func VoiceConfigFile(id software.ID) string {
+	switch {
+	case IsPaperFamily(id):
+		return "plugins/voicechat/voicechat-server.properties"
+	case id == "fabric", id == "neoforge":
+		return "config/voicechat/voicechat-server.properties"
+	}
+	return ""
+}
 
 // NetServer sind die Angaben, die die Rezepte über einen Server des Netzwerks brauchen.
 type NetServer struct {
@@ -181,7 +205,7 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 		Format: "properties",
 		Set:    []node.SetOp{{Path: []string{"online-mode"}, Value: false}},
 	}}
-	var voiceFile string
+	voiceFile := VoiceConfigFile(software.ID(server.Row.Software))
 	switch {
 	case IsPaperFamily(software.ID(server.Row.Software)):
 		edits = append(edits, node.Edit{
@@ -193,7 +217,6 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 				{Path: []string{"proxies", "velocity", "secret"}, Value: secret},
 			},
 		})
-		voiceFile = "plugins/voicechat/voicechat-server.properties"
 	case server.Row.Software == "fabric":
 		edits = append(edits, node.Edit{
 			File:   "config/FabricProxy-Lite.toml",
@@ -207,7 +230,18 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 				{Path: []string{"secret"}, Value: secret},
 			},
 		})
-		voiceFile = "config/voicechat/voicechat-server.properties"
+	case server.Row.Software == "neoforge":
+		// Proxy Compatible Forge liest die Datei beim Start; alle drei Werte stehen drin, damit nichts vom Standard abhängt
+		edits = append(edits, node.Edit{
+			File:   "config/proxy-compatible-forge.toml",
+			Format: "toml",
+			Create: true,
+			Set: []node.SetOp{
+				{Path: []string{"forwarding", "enabled"}, Value: true},
+				{Path: []string{"forwarding", "mode"}, Value: "MODERN"},
+				{Path: []string{"forwarding", "secret"}, Value: secret},
+			},
+		})
 	default:
 		return node.Autoconfig{}, false
 	}
