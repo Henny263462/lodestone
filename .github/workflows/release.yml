@@ -50,7 +50,7 @@ jobs:
             echo "tags=${IMAGE}:latest,${IMAGE}:${REF#refs/tags/}" >> "$GITHUB_OUTPUT"
             echo "version=${REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
-            echo "tags=${IMAGE}:latest,${IMAGE}:main,${IMAGE}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "tags=${IMAGE}:main,${IMAGE}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
             echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
 

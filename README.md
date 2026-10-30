@@ -78,7 +78,7 @@ Das Skript prüft/installiert Docker und Docker Compose, ermittelt die `DOCKER_G
 
 ## Updates & Automatisierung
 
-Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions gebaut und auf der **GitHub Container Registry (ghcr.io)** bereitgestellt:
+Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions gebaut und auf der **GitHub Container Registry (ghcr.io)** bereitgestellt. `latest` und die Versions-Tags (`v0.3.0`) gibt es nur für Releases; Pushes auf `main` erscheinen als `main` und unter dem Commit-Hash:
 - `ghcr.io/henny263462/lodestone-panel:latest`
 - `ghcr.io/henny263462/lodestone-node:latest`
 
@@ -88,7 +88,7 @@ Administratoren sehen unter **Admin-Panel → Updates** den Versionsstand von Pa
 
 So funktioniert es: Der Node (er hat Zugriff auf `docker.sock`) lädt das Image des Releases, zum Beispiel `ghcr.io/henny263462/lodestone-node:v0.3.0`, und ersetzt den Container mit derselben Konfiguration. Der alte Container bleibt unter anderem Namen erhalten, bis der neue läuft, und wird bei einem Fehler zurückgeholt. Das Panel wird von dem Node aktualisiert, auf dessen Maschine es als Docker-Container läuft; dabei ist es etwa 10 bis 30 Sekunden nicht erreichbar.
 
-Voraussetzungen: Die Images müssen aus einem **Release** stammen (Tag `vX.Y.Z`); nur dann tragen sie ihre Versionsnummer. Eigene Builds und die Images des Haupt-Zweigs (`latest` nach einem Push) melden sich als `dev` und gelten nie als veraltet. Beim Selbstbauen die Version mit `--build-arg VERSION=0.3.0` (Docker) bzw. `VERSION=0.3.0 sh scripts/package.sh` mitgeben.
+Voraussetzungen: Die Images müssen aus einem **Release** stammen (Tag `vX.Y.Z`); nur dann tragen sie ihre Versionsnummer. Eigene Builds und die Images des Haupt-Zweigs (`:main` nach einem Push) melden sich als `dev` und gelten nie als veraltet. Beim Selbstbauen die Version mit `--build-arg VERSION=0.3.0` (Docker) bzw. `VERSION=0.3.0 sh scripts/package.sh` mitgeben.
 
 ### Automatische Updates per Watchtower (optional)
 
