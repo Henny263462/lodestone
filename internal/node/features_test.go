@@ -3,6 +3,7 @@ package node
 import (
 	"archive/tar"
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -10,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -319,8 +321,13 @@ func fakeStatusServer(t *testing.T, payload string) string {
 			go func() {
 				defer conn.Close()
 				_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
-				buffer := make([]byte, 512)
-				_, _ = conn.Read(buffer) // Handshake und Statusanfrage
+				reader := bufio.NewReader(conn)
+				if l1, err := readVarInt(reader); err == nil && l1 > 0 {
+					_, _ = io.CopyN(io.Discard, reader, int64(l1))
+				}
+				if l2, err := readVarInt(reader); err == nil && l2 > 0 {
+					_, _ = io.CopyN(io.Discard, reader, int64(l2))
+				}
 				body := &bytesWriter{}
 				writeVarInt(body, len(payload))
 				body.data = append(body.data, payload...)

@@ -47,12 +47,12 @@ func handlerFor(root fs.FS) http.Handler {
 			serve(w, r, root, candidate)
 			return
 		}
-		// SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/... und /status/<slug>/...
+		// SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/..., /status/<slug>/... und /nodes/<id>/...
 		first := name
 		if idx := strings.IndexByte(name, '/'); idx != -1 {
 			first = name[:idx]
 		}
-		if first == "project" || first == "server" || first == "status" {
+		if first == "project" || first == "server" || first == "status" || first == "nodes" {
 			target := path.Join(first, "index.html")
 			if strings.HasSuffix(name, ".txt") {
 				target = path.Join(first, "index.txt")
