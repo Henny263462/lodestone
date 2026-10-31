@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, Network, Plus, Server as ServerIcon, Trash2, UserPlus } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
-import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Switch, Tabs } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Select, Switch, Tabs } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { AddServerDialog } from "@/components/add-server";
@@ -422,18 +422,13 @@ function MembersTab({ project, refresh }: { project: Project; refresh: () => voi
               {member.username}
               {member.userId === user.id && <span className="ml-2 text-xs text-muted">(du)</span>}
             </p>
-            <select
-              className="field w-40"
+            <Select
+              className="w-40"
               value={member.role}
               disabled={!canManage || roleRank[member.role] > roleRank[project.myRole]}
-              onChange={(event) => setRole(member, event.target.value as Role)}
-            >
-              {(Object.keys(roleLabel) as Role[]).map((role) => (
-                <option key={role} value={role} disabled={roleRank[role] > roleRank[project.myRole]}>
-                  {roleLabel[role]}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setRole(member, value as Role)}
+              options={(Object.keys(roleLabel) as Role[]).map((role) => ({ value: role, label: roleLabel[role], disabled: roleRank[role] > roleRank[project.myRole] }))}
+            />
             {(canManage || member.userId === user.id) && (
               <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(member)} aria-label="Entfernen" title={member.userId === user.id ? "Projekt verlassen" : "Entfernen"}>
                 <Trash2 className="h-3.5 w-3.5" />
@@ -498,25 +493,20 @@ function AddMemberDialog({ project, open, onClose, onDone }: { project: Project;
     >
       <div>
         <label className="label">Benutzer</label>
-        <select className="field" value={userId} onChange={(event) => setUserId(event.target.value)}>
-          <option value="">Auswählen …</option>
-          {choices.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.username}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={userId}
+          onChange={setUserId}
+          options={[{ value: "", label: "Auswählen …" }, ...choices.map((candidate) => ({ value: candidate.id, label: candidate.username }))]}
+        />
         {users && choices.length === 0 && <p className="mt-1.5 text-xs text-muted">Alle Benutzer sind schon Mitglied. Neue Benutzer legt ein Administrator unter „Benutzer“ an.</p>}
       </div>
       <div>
         <label className="label">Rolle</label>
-        <select className="field" value={role} onChange={(event) => setRole(event.target.value as Role)}>
-          {(Object.keys(roleLabel) as Role[]).map((value) => (
-            <option key={value} value={value} disabled={roleRank[value] > roleRank[project.myRole]}>
-              {roleLabel[value]}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={role}
+          onChange={(value) => setRole(value as Role)}
+          options={(Object.keys(roleLabel) as Role[]).map((value) => ({ value, label: roleLabel[value], disabled: roleRank[value] > roleRank[project.myRole] }))}
+        />
       </div>
     </Dialog>
   );

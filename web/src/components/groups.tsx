@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { Layers, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, Checkbox, EmptyState, Meter, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Card, Checkbox, EmptyState, Meter, Select, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
+import { MemoryInput } from "@/components/memory-input";
 import { StateBadge } from "@/components/status";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
 import { roleRank, type Group, type Project, type SoftwareInfo } from "@/lib/types";
 
-const memoryOptions = [512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192];
 const backendSoftware = ["paper", "purpur", "folia", "leaf", "fabric", "neoforge"];
 
 export function GroupsTab({ project, refresh }: { project: Project; refresh: () => void }) {
@@ -238,37 +238,29 @@ function GroupDialog({ project, group, onClose, onDone }: { project: Project; gr
         </div>
         <div>
           <label className="label">Software</label>
-          <select className="field" value={softwareId} onChange={(event) => setSoftwareId(event.target.value)} disabled={!!existing}>
-            {options.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={softwareId}
+            onChange={setSoftwareId}
+            disabled={!!existing}
+            options={options.map((item) => ({ value: item.id, label: item.name }))}
+          />
         </div>
         <div>
           <label className="label">Version</label>
           {existing ? (
             <input className="field" value={version} onChange={(event) => setVersion(event.target.value)} />
           ) : (
-            <select className="field" value={effectiveVersion} onChange={(event) => setVersion(event.target.value)} disabled={!versions}>
-              {(versions ?? []).slice(0, 60).map((entry) => (
-                <option key={entry} value={entry}>
-                  {entry}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={effectiveVersion}
+              onChange={setVersion}
+              disabled={!versions}
+              options={(versions ?? []).slice(0, 60).map((entry) => ({ value: entry, label: entry }))}
+            />
           )}
         </div>
         <div>
           <label className="label">Arbeitsspeicher je Instanz</label>
-          <select className="field" value={memory} onChange={(event) => setMemory(Number(event.target.value))}>
-            {[...new Set([...memoryOptions, memory])].sort((a, b) => a - b).map((value) => (
-              <option key={value} value={value}>
-                {megabytes(value)}
-              </option>
-            ))}
-          </select>
+          <MemoryInput value={memory} onChange={setMemory} max={65536} />
         </div>
         <div>
           <label className="label">Spieler pro Instanz</label>

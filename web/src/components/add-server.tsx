@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileArchive, Package } from "lucide-react";
-import { Button, Checkbox, SearchInput, Switch, Tabs } from "@/components/ui/primitives";
+import { Button, Checkbox, SearchInput, Select, Switch, Tabs } from "@/components/ui/primitives";
 import { Dialog, useToast } from "@/components/ui/feedback";
+import { MemoryInput } from "@/components/memory-input";
 import { api, upload, useApi } from "@/lib/api";
 import { compact, megabytes } from "@/lib/format";
 import type { ModpackVersion, ModrinthHit, NodeInfo, Project, Server, SoftwareInfo } from "@/lib/types";
-
-const memoryOptions = [256, 512, 1024, 2048, 3072, 4096, 6144, 8192, 12288, 16384];
 
 /** Vorlagen setzen Name, Software und Speicher, damit man für die üblichen Fälle nichts nachdenken muss. */
 const templates = [
@@ -194,13 +193,15 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
               {pack.icon_url ? <img src={pack.icon_url} alt="" className="h-10 w-10 rounded-lg object-cover" /> : <Package className="h-6 w-6 text-muted" />}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{pack.title}</p>
-                <select className="field mt-1 py-1 text-xs" value={chosenPackVersion?.id ?? ""} onChange={(event) => setPackVersion(event.target.value)} disabled={!packInfo}>
-                  {(packInfo?.versions ?? []).slice(0, 50).map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.versionNumber} · MC {entry.gameVersions[0]}
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  size="sm"
+                  className="mt-1"
+                  value={chosenPackVersion?.id ?? ""}
+                  onChange={setPackVersion}
+                  disabled={!packInfo}
+                  aria-label="Modpack-Version"
+                  options={(packInfo?.versions ?? []).slice(0, 50).map((entry) => ({ value: entry.id, label: `${entry.versionNumber} · MC ${entry.gameVersions[0]}` }))}
+                />
               </div>
               <Button size="sm" variant="ghost" onClick={() => { setPack(null); setPackVersion(""); }}>
                 Ändern
@@ -234,46 +235,31 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
           <>
             <div>
               <label className="label">Software</label>
-              <select className="field" value={softwareId} onChange={(event) => setSoftwareId(event.target.value)}>
-                {options.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={softwareId} onChange={setSoftwareId} options={options.map((item) => ({ value: item.id, label: item.name }))} />
             </div>
             <div>
               <label className="label">Version</label>
-              <select className="field" value={effectiveVersion} onChange={(event) => setVersion(event.target.value)} disabled={!versions}>
-                {(versions ?? []).slice(0, 80).map((entry) => (
-                  <option key={entry} value={entry}>
-                    {entry}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={effectiveVersion}
+                onChange={setVersion}
+                disabled={!versions}
+                options={(versions ?? []).slice(0, 80).map((entry) => ({ value: entry, label: entry }))}
+              />
             </div>
           </>
         )}
         <div>
           <label className="label">Arbeitsspeicher</label>
-          <select className="field" value={memory} onChange={(event) => setMemory(Number(event.target.value))}>
-            {memoryOptions.map((value) => (
-              <option key={value} value={value}>
-                {megabytes(value)}
-              </option>
-            ))}
-          </select>
+          <MemoryInput value={memory} onChange={setMemory} min={mode === "modpack" ? 4096 : 256} />
         </div>
         <div>
           <label className="label">Node</label>
-          <select className="field" value={nodeId} onChange={(event) => setNodeId(event.target.value)} disabled={!!fixedNode}>
-            {(nodes ?? []).map((node) => (
-              <option key={node.id} value={node.id}>
-                {node.name}
-                {node.online ? "" : " (offline)"}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={nodeId}
+            onChange={setNodeId}
+            disabled={!!fixedNode}
+            options={(nodes ?? []).map((node) => ({ value: node.id, label: node.online ? node.name : `${node.name} (offline)` }))}
+          />
         </div>
       </div>
       {project.kind === "network" && <p className="text-xs text-muted">Fabric und NeoForge bekommen die Proxy-Anbindung über einen Mod, den Lodestone mitinstalliert. Forge gibt es nur für einzelne Server.</p>}
