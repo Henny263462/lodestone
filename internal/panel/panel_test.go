@@ -3,6 +3,7 @@ package panel
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -32,14 +33,58 @@ type fakeNode struct {
 	removed      []string
 	modpacks     []node.ModpackRequest
 	playitSecret string
+	tunnels      []node.PlayitTunnel
+	tunnelReqs   []node.PlayitTunnelRequest
+	// tunnelNoAddress lässt neue Tunnel ohne Adresse zurück, so als hätte playit sie noch nicht vergeben.
+	tunnelNoAddress bool
+	// version ist die Version, die der Node meldet (leer: „test“); updates halten Update-Aufträge fest („node:0.3.0“).
+	version     string
+	updates     []string
+	updateFails bool
+}
+
+func (f *fakeNode) setVersion(version string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.version = version
+}
+
+func (f *fakeNode) updateLog() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.updates...)
+}
+
+// recordUpdate nimmt einen Update-Auftrag an (kind ist „node“ oder „panel“) oder lehnt ihn ab, wenn updateFails gesetzt ist.
+func (f *fakeNode) recordUpdate(w http.ResponseWriter, r *http.Request, kind string) {
+	var body struct {
+		Version string `json:"version"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.updateFails {
+		writeJSON(w, 500, map[string]string{"error": "Docker ist nicht erreichbar"})
+		return
+	}
+	f.updates = append(f.updates, kind+":"+body.Version)
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	fake := &fakeNode{servers: map[string]node.View{}, autoconfigs: map[string]node.Autoconfig{}, files: map[string]string{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, 200, map[string]any{"version": "test", "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
+		fake.mu.Lock()
+		version := fake.version
+		fake.mu.Unlock()
+		if version == "" {
+			version = "test"
+		}
+		writeJSON(w, 200, map[string]any{"version": version, "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
 	})
+	mux.HandleFunc("POST /api/system/update", func(w http.ResponseWriter, r *http.Request) { fake.recordUpdate(w, r, "node") })
+	mux.HandleFunc("POST /api/system/update-panel", func(w http.ResponseWriter, r *http.Request) { fake.recordUpdate(w, r, "panel") })
 	mux.HandleFunc("GET /api/servers", func(w http.ResponseWriter, _ *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
@@ -201,6 +246,56 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 		fake.mu.Lock()
 		fake.playitSecret = ""
 		fake.mu.Unlock()
+		w.WriteHeader(204)
+	})
+	mux.HandleFunc("POST /api/playit/claim", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 201, node.PlayitClaim{State: node.ClaimWaiting, URL: "https://playit.gg/claim/0123456789"})
+	})
+	mux.HandleFunc("GET /api/playit/claim", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		fake.playitSecret = "vom-node-getauschter-schluessel"
+		fake.mu.Unlock()
+		writeJSON(w, 200, node.PlayitClaim{State: node.ClaimAccepted})
+	})
+	mux.HandleFunc("GET /api/playit/options", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, node.PlayitOptions{
+			Premium: true,
+			Regions: []node.PlayitRegion{{ID: "europe", Name: "Europa"}},
+			Domains: []node.PlayitDomain{{ID: "dddddddd-0000-0000-0000-000000000001", Name: "play.example.org"}},
+		})
+	})
+	mux.HandleFunc("GET /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		writeJSON(w, 200, append([]node.PlayitTunnel{}, fake.tunnels...))
+	})
+	mux.HandleFunc("POST /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
+		var request node.PlayitTunnelRequest
+		_ = json.NewDecoder(r.Body).Decode(&request)
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		fake.tunnelReqs = append(fake.tunnelReqs, request)
+		tunnel := node.PlayitTunnel{ID: fmt.Sprintf("00000000-0000-0000-0000-%012d", len(fake.tunnelReqs)), Name: request.Name, Address: "abc.gl.at.ply.gg:4711", State: "allocated", Region: request.Region}
+		if request.Kind == node.TunnelJava {
+			tunnel.Address = "mein-server.joinmc.link"
+		}
+		if request.DomainID != "" {
+			tunnel.Domain, tunnel.Address = "play.example.org", "play.example.org"
+		}
+		if fake.tunnelNoAddress {
+			tunnel.Address, tunnel.State = "", "pending"
+		}
+		fake.tunnels = append(fake.tunnels, tunnel)
+		writeJSON(w, 201, tunnel)
+	})
+	mux.HandleFunc("DELETE /api/playit/tunnels/{id}", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		for i, tunnel := range fake.tunnels {
+			if tunnel.ID == r.PathValue("id") {
+				fake.tunnels = append(fake.tunnels[:i], fake.tunnels[i+1:]...)
+			}
+		}
 		w.WriteHeader(204)
 	})
 	mux.HandleFunc("PUT /api/servers/{id}/autoconfig", func(w http.ResponseWriter, r *http.Request) {
@@ -478,4 +573,54 @@ func TestNetworkLifecycle(t *testing.T) {
 		t.Errorf("auf dem Node bleiben Server: %v", fake.servers)
 	}
 	fake.mu.Unlock()
+}
+
+func TestNodeDetailAndPlayitOverview(t *testing.T) {
+	_, web, fake, nodeID := setupPanel(t)
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Mein Projekt", "kind": "server"}), &project)
+	admin.expect(201, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{Name: "Survival", NodeID: nodeID, Software: "paper", Version: "1.21.4", EULA: true})
+
+	// GET /api/nodes
+	var nodes []nodeDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/nodes", nil), &nodes)
+	if len(nodes) != 1 || nodes[0].PingMs == nil {
+		t.Fatalf("Nodes-Liste unerwartet: %+v", nodes)
+	}
+
+	// GET /api/nodes/{id}
+	var detail nodeDetailDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/nodes/"+nodeID, nil), &detail)
+	if detail.ID != nodeID || len(detail.Servers) != 1 || detail.Servers[0].Name != "Survival" {
+		t.Fatalf("Node-Detail unerwartet: %+v", detail)
+	}
+	if detail.Projects[project.ID] != "Mein Projekt" {
+		t.Fatalf("Projektname fehlt im Node-Detail: %+v", detail.Projects)
+	}
+	if detail.PingMs == nil {
+		t.Fatalf("PingMs fehlt im Node-Detail")
+	}
+
+	// GET /api/nodes/{unknown}
+	admin.expect(404, "GET", "/api/nodes/non-existent-id", nil)
+
+	// GET /api/playit/overview
+	fake.mu.Lock()
+	fake.playitSecret = "test-secret"
+	fake.tunnels = []node.PlayitTunnel{
+		{ID: "tun-1", Name: "ls-" + detail.Servers[0].ID + "-java", Address: "test.joinmc.link:25565", State: "allocated"},
+	}
+	fake.mu.Unlock()
+
+	var playit PlayitOverviewDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/playit/overview", nil), &playit)
+	if len(playit.Nodes) != 1 || !playit.Nodes[0].Online || !playit.Nodes[0].Status.Configured {
+		t.Fatalf("Playit Nodes Übersicht unerwartet: %+v", playit.Nodes)
+	}
+	if len(playit.Tunnels) != 1 || playit.Tunnels[0].ServerName != "Survival" || playit.Tunnels[0].Tunnel.Kind != "java" {
+		t.Fatalf("Playit Tunnels Übersicht unerwartet: %+v", playit.Tunnels)
+	}
 }

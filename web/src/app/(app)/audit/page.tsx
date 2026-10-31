@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { auditLabel } from "@/lib/audit";
 import { dateTime } from "@/lib/format";
 import type { AuditEntry } from "@/lib/types";
+import { AdminSidebar } from "@/components/admin-sidebar";
 
 const PAGE = 100;
 
@@ -54,6 +55,7 @@ export default function AuditPage() {
 
   return (
     <>
+      {user.isAdmin && <AdminSidebar />}
       <PageHeader title="Protokoll" description="Wer hat wann was geändert. Einträge werden 90 Tage aufbewahrt." />
       <SearchInput value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Nach Benutzername filtern" className="mb-5 max-w-sm" />
       <Card>

@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +48,8 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, map[string]bool{"ok": true}) })
 
 	mux.HandleFunc("GET /api/system", a.system)
+	mux.HandleFunc("POST /api/system/update", a.systemUpdate)
+	mux.HandleFunc("POST /api/system/update-panel", a.systemUpdatePanel)
 	mux.HandleFunc("GET /api/software", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, software.Catalog()) })
 	mux.HandleFunc("GET /api/software/{id}/versions", a.softwareVersions)
 
@@ -54,6 +57,12 @@ func (a *API) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, a.manager.PlayitStatus(r.Context()))
 	})
 	mux.HandleFunc("PUT /api/playit", a.putPlayit)
+	mux.HandleFunc("POST /api/playit/claim", a.startPlayitClaim)
+	mux.HandleFunc("GET /api/playit/claim", a.pollPlayitClaim)
+	mux.HandleFunc("GET /api/playit/options", a.playitOptions)
+	mux.HandleFunc("GET /api/playit/tunnels", a.listPlayitTunnels)
+	mux.HandleFunc("POST /api/playit/tunnels", a.createPlayitTunnel)
+	mux.HandleFunc("DELETE /api/playit/tunnels/{id}", a.deletePlayitTunnel)
 	mux.HandleFunc("DELETE /api/playit", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.manager.RemovePlayit(r.Context()); err != nil {
 			writeError(w, err)
@@ -118,8 +127,10 @@ func writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound), errors.Is(err, fs.ErrNotExist), errors.Is(err, software.ErrNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, ErrBadState), errors.Is(err, ErrConflict), errors.Is(err, fs.ErrExist):
+	case errors.Is(err, ErrBadState), errors.Is(err, ErrConflict), errors.Is(err, ErrTunnelExists), errors.Is(err, fs.ErrExist):
 		status = http.StatusConflict
+	case errors.Is(err, errUpstream):
+		status = http.StatusBadGateway
 	case errors.Is(err, ErrOutside):
 		status = http.StatusForbidden
 	case errors.Is(err, errBadRequest):
@@ -193,6 +204,50 @@ func (a *API) system(w http.ResponseWriter, r *http.Request) {
 		result["docker"] = info
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// updateVersionPattern erlaubt nur Release-Versionen wie „0.3.0“ oder „v0.3.0-rc.1“ und Dev-Builds wie „dev-1a2b3c4“; sie
+// landen im Tag eines Images.
+var updateVersionPattern = regexp.MustCompile(`^(v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?|dev-[0-9a-f]{7,40})$`)
+
+// updateVersion liest die Zielversion eines Updates aus dem Körper der Anfrage und prüft sie streng.
+func updateVersion(r *http.Request) (string, error) {
+	var body struct {
+		Version string `json:"version"`
+	}
+	if err := decode(r, &body); err != nil {
+		return "", err
+	}
+	if !updateVersionPattern.MatchString(body.Version) {
+		return "", badRequest("Version fehlt oder ist ungültig (erwartet zum Beispiel 0.3.0 oder dev-1a2b3c4)")
+	}
+	return body.Version, nil
+}
+
+func (a *API) systemUpdate(w http.ResponseWriter, r *http.Request) {
+	version, err := updateVersion(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.rt.UpdateSelf(r.Context(), version); err != nil {
+		writeError(w, fmt.Errorf("Update des Node-Daemons fehlgeschlagen: %w", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Node-Update wurde gestartet. Der Daemon wird neu gestartet."})
+}
+
+func (a *API) systemUpdatePanel(w http.ResponseWriter, r *http.Request) {
+	version, err := updateVersion(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := a.rt.UpdatePanel(r.Context(), version); err != nil {
+		writeError(w, fmt.Errorf("Update des Panels fehlgeschlagen: %w", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Panel-Update wurde gestartet."})
 }
 
 func (a *API) softwareVersions(w http.ResponseWriter, r *http.Request) {

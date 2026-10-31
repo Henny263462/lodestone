@@ -19,20 +19,41 @@ if (!fs.existsSync(path.join(root, "index.html"))) {
 
 // ---------------------------------------------------------------- Beispieldaten
 
-const user = { id: "u1", username: "admin", isAdmin: true, disabled: false, createdAt: now() - 40 * 24 * HOUR };
+const user = { id: "u1", username: "admin", isAdmin: true, disabled: false, createdAt: now() - 40 * 24 * HOUR, totpEnabled: true, sessionCount: 2 };
 const users = [
   user,
-  { id: "u2", username: "anna", isAdmin: false, disabled: false, createdAt: now() - 12 * 24 * HOUR },
-  { id: "u3", username: "ben", isAdmin: false, disabled: false, createdAt: now() - 3 * 24 * HOUR },
+  { id: "u2", username: "anna", isAdmin: false, disabled: false, createdAt: now() - 12 * 24 * HOUR, totpEnabled: true, sessionCount: 1 },
+  { id: "u3", username: "ben", isAdmin: false, disabled: false, createdAt: now() - 3 * 24 * HOUR, totpEnabled: false, sessionCount: 0 },
 ];
+
 const nodes = [
   {
     id: "n1", name: "home", url: "http://node:8480", publicHost: "mc.example.org", online: true, version: "0.1.0", serverCount: 6,
+    updateAvailable: true,
     system: { dockerVersion: "29.6.2", os: "Ubuntu 24.04.4 LTS", architecture: "x86_64", cpus: 8, memoryBytes: 16 * 1024 ** 3 },
     memoryAvailable: 5.2 * 1024 ** 3, memoryCommitted: 9.5 * 1024 ** 3,
   },
   { id: "n2", name: "hetzner-1", url: "https://node.example.com:8480", publicHost: "mc2.example.org", online: false, serverCount: 0, error: "der Node ist nicht erreichbar (hetzner-1): connection refused" },
 ];
+
+let updateStatus = {
+  channel: "stable",
+  panelVersion: "0.1.0-demo",
+  latestVersion: "0.2.0",
+  panelUpdateAvailable: true,
+  updateAvailable: true,
+  checkFailed: false,
+  releaseUrl: "https://github.com/lodestone-mc/lodestone/releases/tag/v0.2.0",
+  releaseTitle: "Lodestone 0.2.0",
+  releaseNotes: "Neu in diesem Release: Auto-Update für Panel und Nodes, verbesserte UI.",
+  publishedAt: new Date(now() - 2 * 24 * HOUR).toISOString(),
+  autoUpdate: true,
+  lastChecked: now() - 10 * MIN,
+  nodes: [
+    { id: "n1", name: "home", version: "0.1.0", updateAvailable: true, online: true },
+    { id: "n2", name: "hetzner-1", version: "", updateAvailable: false, online: false },
+  ],
+};
 
 let seq = 100;
 const id = () => (seq++).toString(16).padStart(12, "0");
@@ -252,7 +273,7 @@ const sessions = [
   { id: "s1", createdAt: now() - 2 * HOUR, expiresAt: now() + 29 * 24 * HOUR, userAgent: "Mozilla/5.0 (Windows NT 10.0) Chrome/130", ip: "192.168.1.20", current: true },
   { id: "s2", createdAt: now() - 4 * 24 * HOUR, expiresAt: now() + 26 * 24 * HOUR, userAgent: "Mozilla/5.0 (iPhone) Safari/604", ip: "203.0.113.7", current: false },
 ];
-let totpEnabled = false;
+let totpEnabled = true;
 const me = () => ({ ...user, totpEnabled, recoveryCodes: totpEnabled ? 8 : 0 });
 const playerLists = {
   whitelist: [{ uuid: "1", name: "Alex" }, { uuid: "2", name: "Luna" }, { uuid: "3", name: "Mika" }],
@@ -261,6 +282,7 @@ const playerLists = {
   bannedIps: [{ ip: "198.51.100.23", reason: "Spam" }],
 };
 let playit = { configured: false, running: false, image: "ghcr.io/playit-cloud/playit-agent:0.15", logs: [] };
+let claimPolls = null; // Abfragen seit dem Start der Verbindung mit playit (null = keine läuft)
 
 const synced = { applied: ["Proxy", "Lobby-1", "Lobby-2", "Survival"], pending: [], failed: [] };
 
@@ -320,7 +342,159 @@ async function api(req, res, url) {
     Object.assign(hook, body);
     return send(res, 200, hook);
   }
-  if (a === "users") return send(res, method === "GET" ? 200 : 204, method === "GET" ? users : undefined);
+  if (a === "admin") {
+    if (b === "overview") {
+      const serverCount = projects.reduce((acc, p) => acc + (p.servers ? p.servers.length : 0), 0);
+      const memberCount = projects.reduce((acc, p) => acc + (p.members ? p.members.length : 0), 0);
+      const sessionCount = users.reduce((acc, u) => acc + (u.id === "u1" ? sessions.length : (u.sessionCount ?? 1)), 0);
+      return send(res, 200, {
+        users: users.length,
+        admins: users.filter((u) => u.isAdmin).length,
+        disabledUsers: users.filter((u) => u.disabled).length,
+        projects: projects.length,
+        servers: serverCount,
+        nodes: nodes.length,
+        members: memberCount,
+        sessions: sessionCount,
+      });
+    }
+    if (b === "users") {
+      if (!c) {
+        return send(
+          res,
+          200,
+          users.map((u) => {
+            const userProjects = projects.filter((p) => p.members?.some((m) => m.userId === u.id));
+            return {
+              id: u.id,
+              username: u.username,
+              isAdmin: !!u.isAdmin,
+              disabled: !!u.disabled,
+              createdAt: u.createdAt,
+              totpEnabled: u.id === "u1" ? !!totpEnabled : !!u.totpEnabled,
+              projectCount: userProjects.length,
+              sessionCount: u.id === "u1" ? sessions.length : (u.sessionCount ?? 1),
+            };
+          }),
+        );
+      }
+      const target = users.find((entry) => entry.id === c);
+      if (!target) return send(res, 404, { error: "nicht gefunden" });
+      if (d === "sessions" && method === "DELETE") {
+        if (target.id === "u1") sessions.splice(0, sessions.length);
+        target.sessionCount = 0;
+        return send(res, 204);
+      }
+      const userProjects = projects.flatMap((p) => {
+        const m = p.members?.find((member) => member.userId === target.id);
+        if (!m) return [];
+        return [{ id: p.id, name: p.name, kind: p.kind, role: m.role }];
+      });
+      return send(res, 200, {
+        user: {
+          id: target.id,
+          username: target.username,
+          isAdmin: !!target.isAdmin,
+          disabled: !!target.disabled,
+          createdAt: target.createdAt,
+          totpEnabled: target.id === "u1" ? !!totpEnabled : !!target.totpEnabled,
+          projectCount: userProjects.length,
+          sessionCount: target.id === "u1" ? sessions.length : (target.sessionCount ?? 1),
+        },
+        projects: userProjects,
+      });
+    }
+    if (b === "projects") {
+      return send(
+        res,
+        200,
+        projects.map((p) => {
+          const owner = users.find((u) => u.id === p.ownerId);
+          return {
+            id: p.id,
+            name: p.name,
+            kind: p.kind,
+            description: p.description || "",
+            createdAt: p.createdAt,
+            ownerId: p.ownerId,
+            ownerName: owner ? owner.username : "admin",
+            memberCount: p.members ? p.members.length : 0,
+            serverCount: p.servers ? p.servers.length : 0,
+          };
+        }),
+      );
+    }
+    return send(res, 404, { error: "nicht gefunden" });
+  }
+  if (a === "users") {
+    if (c === "totp" && method === "DELETE") {
+      const target = users.find((u) => u.id === b);
+      if (target) {
+        target.totpEnabled = false;
+        if (target.id === "u1") totpEnabled = false;
+      }
+      return send(res, 204);
+    }
+    if (c === "password" && method === "POST") {
+      return send(res, 204);
+    }
+    if (method === "POST") {
+      const newUser = { id: id(), username: body.username, isAdmin: !!body.isAdmin, disabled: false, createdAt: now(), totpEnabled: false, sessionCount: 0 };
+      users.push(newUser);
+      return send(res, 201, newUser);
+    }
+    if (method === "PATCH" && b) {
+      const target = users.find((u) => u.id === b);
+      if (target) Object.assign(target, body);
+      return send(res, 200, target);
+    }
+    if (method === "DELETE" && b) {
+      const idx = users.findIndex((u) => u.id === b);
+      if (idx !== -1) users.splice(idx, 1);
+      return send(res, 204);
+    }
+    return send(res, method === "GET" ? 200 : 204, method === "GET" ? users : undefined);
+  }
+  if (a === "updates") {
+    if (b === "check" && method === "POST") {
+      updateStatus.lastChecked = now();
+      return send(res, 200, updateStatus);
+    }
+    if (b === "settings" && method === "PUT") {
+      if (body.channel !== undefined && body.channel !== "stable" && body.channel !== "dev") return send(res, 400, { error: "Der Update-Kanal muss „stable“ oder „dev“ sein." });
+      if (body.autoUpdate !== undefined) updateStatus.autoUpdate = !!body.autoUpdate;
+      if (body.channel) {
+        updateStatus.channel = body.channel;
+        const dev = body.channel === "dev";
+        updateStatus.latestVersion = dev ? "dev-1a2b3c4" : "0.2.0";
+        updateStatus.releaseTitle = dev ? "Spielerliste im Dashboard" : "Lodestone 0.2.0";
+        updateStatus.releaseUrl = dev ? "https://github.com/lodestone-mc/lodestone/commit/1a2b3c4" : "https://github.com/lodestone-mc/lodestone/releases/tag/v0.2.0";
+      }
+      return send(res, 200, { autoUpdate: updateStatus.autoUpdate, channel: updateStatus.channel });
+    }
+    return send(res, 200, updateStatus);
+  }
+  if (a === "panel" && b === "update") {
+    return send(res, 200, { ok: true, message: "Panel-Update wird durchgeführt" });
+  }
+  if (a === "nodes" && b === "update-all") {
+    return send(res, 200, { ok: true, message: "Alle Nodes werden aktualisiert" });
+  }
+  if (a === "nodes" && c === "update") {
+    return send(res, 200, { ok: true, message: "Node-Update wird durchgeführt" });
+  }
+  if (a === "nodes" && c === "playit" && d === "claim") {
+    // Die Bestätigung auf playit.gg gilt nach dem dritten Abfragen als erfolgt
+    if (method === "POST") {
+      claimPolls = 0;
+      return send(res, 201, { state: "waiting", url: "https://playit.gg/claim/0123456789" });
+    }
+    if (claimPolls === null) return send(res, 200, { state: "none" });
+    if (++claimPolls < 3) return send(res, 200, { state: "waiting", url: "https://playit.gg/claim/0123456789" });
+    claimPolls = null;
+    playit = { configured: true, running: true, image: playit.image, logs: ["[playit] agent started", "[playit] tunnel ready: survival.playit.gg"] };
+    return send(res, 200, { state: "accepted" });
+  }
   if (a === "nodes" && c === "playit") {
     if (method === "PUT") playit = { configured: true, running: true, image: playit.image, logs: ["[playit] agent started", "[playit] tunnel ready: survival.playit.gg"] };
     else if (method === "DELETE") playit = { configured: false, running: false, image: playit.image, logs: [] };
@@ -329,13 +503,16 @@ async function api(req, res, url) {
   if (a === "nodes") return send(res, method === "GET" ? 200 : 201, method === "GET" ? nodes : nodes[0]);
   if (a === "software") {
     if (b && c === "versions") {
-      return send(res, 200, b === "velocity" ? ["3.5.1", "3.4.0", "4.3.1"] : b === "fabric" ? ["1.21.4", "1.21.3", "1.20.6"] : ["26.3", "26.2", "1.21.11", "1.21.10", "1.21.4"]);
+      return send(res, 200, b === "velocity" ? ["3.5.1", "3.4.0", "4.3.1"] : b === "fabric" ? ["1.21.4", "1.21.3", "1.20.6"] : b === "neoforge" ? ["1.21.4", "1.21.3", "1.21.1", "1.20.4"] : b === "forge" ? ["1.21.11", "1.21.4", "1.20.1", "1.18.2"] : ["26.3", "26.2", "1.21.11", "1.21.10", "1.21.4"]);
     }
     return send(res, 200, [
       { id: "paper", name: "Paper", kind: "server", extensions: "plugins", defaultPort: 25565 },
       { id: "purpur", name: "Purpur", kind: "server", extensions: "plugins", defaultPort: 25565 },
       { id: "folia", name: "Folia", kind: "server", extensions: "plugins", defaultPort: 25565 },
+      { id: "leaf", name: "Leaf", kind: "server", extensions: "plugins", defaultPort: 25565 },
       { id: "fabric", name: "Fabric", kind: "server", extensions: "mods", defaultPort: 25565 },
+      { id: "neoforge", name: "NeoForge", kind: "server", extensions: "mods", defaultPort: 25565 },
+      { id: "forge", name: "Forge", kind: "server", extensions: "mods", defaultPort: 25565 },
       { id: "vanilla", name: "Vanilla", kind: "server", extensions: "none", defaultPort: 25565 },
       { id: "velocity", name: "Velocity", kind: "proxy", extensions: "plugins", defaultPort: 25565 },
     ]);
@@ -444,6 +621,41 @@ async function api(req, res, url) {
     if (c === "command") return send(res, 204);
     if (c === "auto-restart") { server.autoRestart = !!body.enabled; return send(res, 200, server); }
     if (c === "public-address") { server.publicAddress = body.address || undefined; return send(res, 200, server); }
+    if (c === "tunnels") {
+      server.tunnels ??= [];
+      if (method === "GET" && d === "options") {
+        return send(res, 200, {
+          premium: true,
+          regions: [{ id: "europe", name: "Europa" }, { id: "germany", name: "Deutschland" }, { id: "north-america", name: "Nordamerika" }, { id: "asia", name: "Asien" }],
+          domains: [{ id: "dddddddd-0000-0000-0000-000000000001", name: "play.beispiel.de", external: true, used: false }, { id: "dddddddd-0000-0000-0000-000000000002", name: "alt.beispiel.de", external: true, used: true }],
+        });
+      }
+      if (method === "GET") {
+        const udp = !!server.view.ports?.some((port) => port.protocol === "udp");
+        return send(res, 200, { configured: playit.configured, tunnels: server.tunnels, available: { java: !!server.view.ports?.some((port) => port.protocol === "tcp"), voicechat: udp } });
+      }
+      if (method === "POST") {
+        if (!playit.configured) return send(res, 409, { error: "playit ist auf diesem Node nicht eingerichtet. Ein Administrator hinterlegt den Schlüssel unter Nodes." });
+        let tunnel = server.tunnels.find((entry) => entry.kind === body.kind);
+        if (!tunnel) {
+          tunnel = body.kind === "voicechat"
+            ? { kind: "voicechat", id: id(), address: "demo.gl.at.ply.gg:41234", state: "allocated" }
+            : { kind: "java", id: id(), address: "demo-server.joinmc.link", state: "allocated" };
+          if (body.region) tunnel.region = { europe: "Europa", germany: "Deutschland", "north-america": "Nordamerika", asia: "Asien" }[body.region] ?? body.region;
+          if (body.domainId && body.kind === "java") tunnel.domain = tunnel.address = "play.beispiel.de";
+          server.tunnels.push(tunnel);
+        }
+        if (tunnel.kind === "java") server.publicAddress = tunnel.address;
+        else server.publicVoiceAddress = tunnel.address;
+        return send(res, 201, tunnel);
+      }
+      if (method === "DELETE") {
+        server.tunnels = server.tunnels.filter((entry) => entry.kind !== d);
+        if (d === "java") server.publicAddress = undefined;
+        else server.publicVoiceAddress = undefined;
+        return send(res, 204);
+      }
+    }
     if (c === "reinstall") return send(res, 202, server.view);
     if (c === "player-lists") return send(res, 200, playerLists);
     if (c === "player-action") {
@@ -490,32 +702,60 @@ async function api(req, res, url) {
       return send(res, 200, files[dir] ?? []);
     }
     if (c === "addons") {
-      if (d === "check") return send(res, 200, [
+      const isNeoForge = server.software === "neoforge";
+      if (d === "check") return send(res, 200, isNeoForge ? [
+        { file: "jei-1.21.4-neoforge-19.21.0.246.jar", dir: "mods", name: "Just Enough Items", current: "19.21.0.246", latest: "19.21.0.250", latestFile: "jei-1.21.4-neoforge-19.21.0.250.jar", known: true, updateAvailable: true },
+        { file: "voicechat-neoforge-1.21.4-2.6.27.jar", dir: "mods", name: "Simple Voice Chat", current: "2.6.27", known: true, updateAvailable: false },
+        { file: "Eigenbau-mod.jar", dir: "mods", name: "Eigenbau Mod", current: "1.0", known: false, updateAvailable: false },
+      ] : [
         { file: "LuckPerms-Bukkit-5.4.150.jar", dir: "plugins", name: "LuckPerms", current: "5.4.150", latest: "5.5.0", latestFile: "LuckPerms-Bukkit-5.5.0.jar", known: true, updateAvailable: true },
         { file: "voicechat-bukkit-2.6.27.jar", dir: "plugins", name: "Simple Voice Chat", current: "2.6.27", known: true, updateAvailable: false },
         { file: "Eigenbau.jar", dir: "plugins", name: "Eigenbau", current: "1.0", known: false, updateAvailable: false },
       ]);
-      if (d === "update") return send(res, 200, [{ file: "LuckPerms-Bukkit-5.4.150.jar", updated: true, to: "5.5.0" }]);
-      if (d === "details") return send(res, 200, [
+      if (d === "update") return send(res, 200, isNeoForge
+        ? [{ file: "jei-1.21.4-neoforge-19.21.0.246.jar", updated: true, to: "19.21.0.250" }]
+        : [{ file: "LuckPerms-Bukkit-5.4.150.jar", updated: true, to: "5.5.0" }]);
+      if (d === "details") return send(res, 200, isNeoForge ? [
+        { file: "jei-1.21.4-neoforge-19.21.0.246.jar", dir: "mods", known: true, projectId: "u6dDxAtlas", slug: "jei", title: "Just Enough Items (JEI)", description: "Zeigt Gegenstände und Rezepte an.", projectType: "mod", link: "https://modrinth.com/mod/jei", downloads: 80_000_000, sourceUrl: "https://github.com/mezz/JustEnoughItems", issuesUrl: "https://github.com/mezz/JustEnoughItems/issues", license: "MIT", versionId: "v-jei-1", versionNumber: "19.21.0.246", versionName: "19.21.0.246", versionType: "release", published: "2026-08-12T10:00:00Z" },
+        { file: "voicechat-neoforge-1.21.4-2.6.27.jar", dir: "mods", known: true, projectId: "9eGKb6K1", slug: "simple-voice-chat", title: "Simple Voice Chat", description: "Proximity-Voicechat in Minecraft.", projectType: "mod", link: "https://modrinth.com/plugin/simple-voice-chat", downloads: 25_000_000, license: "Custom", versionId: "v2", versionNumber: "2.6.27", versionName: "2.6.27", versionType: "release", published: "2026-09-30T10:00:00Z" },
+        { file: "Eigenbau-mod.jar", dir: "mods", known: false },
+      ] : [
         { file: "LuckPerms-Bukkit-5.4.150.jar", dir: "plugins", known: true, projectId: "Vebnzrzj", slug: "luckperms", title: "LuckPerms", description: "Ein Rechtesystem für Minecraft-Server.", projectType: "plugin", link: "https://modrinth.com/plugin/luckperms", downloads: 12_400_000, sourceUrl: "https://github.com/LuckPerms/LuckPerms", issuesUrl: "https://github.com/LuckPerms/LuckPerms/issues", license: "MIT", versionId: "v1", versionNumber: "5.4.150", versionName: "v5.4.150", versionType: "release", published: "2026-08-12T10:00:00Z" },
         { file: "voicechat-bukkit-2.6.27.jar", dir: "plugins", known: true, projectId: "9eGKb6K1", slug: "simple-voice-chat", title: "Simple Voice Chat", description: "Proximity-Voicechat in Minecraft.", projectType: "plugin", link: "https://modrinth.com/plugin/simple-voice-chat", downloads: 25_000_000, license: "Custom", versionId: "v2", versionNumber: "2.6.27", versionName: "2.6.27", versionType: "release", published: "2026-09-30T10:00:00Z" },
         { file: "Eigenbau.jar", dir: "plugins", known: false },
       ]);
-      if (d === "switch") return send(res, 200, { file: "LuckPerms-Bukkit-5.5.0.jar", from: "5.4.150", to: body.versionId });
-      return send(res, 200, [
+      if (d === "switch") return send(res, 200, isNeoForge
+        ? { file: "jei-1.21.4-neoforge-19.21.0.250.jar", from: "19.21.0.246", to: body.versionId }
+        : { file: "LuckPerms-Bukkit-5.5.0.jar", from: "5.4.150", to: body.versionId });
+      return send(res, 200, isNeoForge ? [
+        { file: "jei-1.21.4-neoforge-19.21.0.246.jar", dir: "mods", size: 1_200_000, modified: now() - 3 * 24 * HOUR, enabled: true, name: "Just Enough Items", version: "19.21.0.246", kind: "neoforge", sha1: "a" },
+        { file: "voicechat-neoforge-1.21.4-2.6.27.jar", dir: "mods", size: 2_100_000, modified: now() - 2 * 24 * HOUR, enabled: true, name: "Simple Voice Chat", version: "2.6.27", kind: "neoforge", sha1: "b" },
+        { file: "Eigenbau-mod.jar", dir: "mods", size: 90_000, modified: now() - 24 * HOUR, enabled: false, name: "Eigenbau Mod", version: "1.0", kind: "unknown", sha1: "c" },
+      ] : [
         { file: "LuckPerms-Bukkit-5.4.150.jar", dir: "plugins", size: 1_600_000, modified: now() - 3 * 24 * HOUR, enabled: true, name: "LuckPerms", version: "5.4.150", kind: "paper", sha1: "a" },
         { file: "voicechat-bukkit-2.6.27.jar", dir: "plugins", size: 2_100_000, modified: now() - 2 * 24 * HOUR, enabled: true, name: "Simple Voice Chat", version: "2.6.27", kind: "paper", sha1: "b" },
         { file: "Eigenbau.jar", dir: "plugins", size: 90_000, modified: now() - 24 * HOUR, enabled: false, name: "Eigenbau", version: "1.0", kind: "unknown", sha1: "c" },
       ]);
     }
     if (c === "modrinth") {
-      if (d === "search") return send(res, 200, { total_hits: 3, hits: [
+      const isNeoForge = server.software === "neoforge";
+      if (d === "search") return send(res, 200, isNeoForge ? { total_hits: 3, hits: [
+        { project_id: "u6dDxAtlas", slug: "jei", title: "Just Enough Items (JEI)", description: "Zeigt Gegenstände und Rezepte an.", author: "mezz", downloads: 80_000_000, icon_url: "", categories: ["neoforge"] },
+        { project_id: "lhGA9TYQ", slug: "ferrite-core", title: "FerriteCore", description: "Speicheroptimierungen für Minecraft.", author: "malte0811", downloads: 18_000_000, icon_url: "", categories: ["neoforge"] },
+        { project_id: "9eGKb6K1", slug: "simple-voice-chat", title: "Simple Voice Chat", description: "Proximity-Voicechat in Minecraft.", author: "henkelmax", downloads: 25_000_000, icon_url: "", categories: ["neoforge"] },
+      ] } : { total_hits: 3, hits: [
         { project_id: "Vebnzrzj", slug: "luckperms", title: "LuckPerms", description: "Ein Rechtesystem für Minecraft-Server.", author: "Luck", downloads: 12_400_000, icon_url: "", categories: [] },
         { project_id: "hXiIvTyT", slug: "essentialsx", title: "EssentialsX", description: "Die Essentials für Server: Homes, Warps, Kits und mehr.", author: "EssentialsX", downloads: 8_100_000, icon_url: "", categories: [] },
         { project_id: "9eGKb6K1", slug: "simple-voice-chat", title: "Simple Voice Chat", description: "Proximity-Voicechat in Minecraft.", author: "henkelmax", downloads: 25_000_000, icon_url: "", categories: [] },
       ] });
-      if (d === "install") return send(res, 200, { installed: ["Beispiel.jar"] });
-      return send(res, 200, { project: { id: "Vebnzrzj", title: "LuckPerms", description: "Ein Rechtesystem.", icon_url: "", downloads: 1, slug: "luckperms" }, versions: [{ id: "v1", name: "v5.5.0", versionNumber: "5.5.0", type: "release", published: new Date().toISOString(), gameVersions: ["1.21.4"] }] });
+      if (d === "install") return send(res, 200, { installed: [isNeoForge ? "jei-1.21.4-neoforge-19.21.0.250.jar" : "Beispiel.jar"] });
+      return send(res, 200, isNeoForge ? {
+        project: { id: "u6dDxAtlas", title: "Just Enough Items (JEI)", description: "Zeigt Gegenstände und Rezepte an.", icon_url: "", downloads: 80_000_000, slug: "jei" },
+        versions: [{ id: "v-jei-1", name: "v19.21.0.250", versionNumber: "19.21.0.250", type: "release", published: new Date().toISOString(), gameVersions: ["1.21.4"] }],
+      } : {
+        project: { id: "Vebnzrzj", title: "LuckPerms", description: "Ein Rechtesystem.", icon_url: "", downloads: 1, slug: "luckperms" },
+        versions: [{ id: "v1", name: "v5.5.0", versionNumber: "5.5.0", type: "release", published: new Date().toISOString(), gameVersions: ["1.21.4"] }],
+      });
     }
     if (c === "backups") {
       if (method === "GET" && !d) return send(res, 200, [
@@ -544,6 +784,17 @@ function staticFile(res, pathname) {
       return fs.createReadStream(file).pipe(res);
     }
   }
+  // SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/..., /status/<slug>/... und /admin/...
+  const first = clean.split(/[\\/]/)[0];
+  if (first === "project" || first === "server" || first === "status" || first === "admin") {
+    const isTxt = clean.endsWith(".txt");
+    const fallback = path.join(root, first, isTxt ? "index.txt" : "index.html");
+    if (fs.existsSync(fallback) && fs.statSync(fallback).isFile()) {
+      res.writeHead(200, { "Content-Type": types[path.extname(fallback)] ?? "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+      return fs.createReadStream(fallback).pipe(res);
+    }
+  }
+
   const missing = path.join(root, "404.html");
   res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
   res.end(fs.existsSync(missing) ? fs.readFileSync(missing) : "nicht gefunden");

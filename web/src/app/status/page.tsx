@@ -1,14 +1,14 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { LodestoneLogo } from "@/components/ui/mc";
 import { Dot } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import type { PublicStatus } from "@/lib/types";
 
-/** Öffentliche Statusseite eines Projekts, ohne Anmeldung. Aufruf: /status/?p=<Kürzel>, mit &embed=1 ohne Rahmen. */
+/** Öffentliche Statusseite eines Projekts, ohne Anmeldung. Aufruf: /status/<Kürzel>/ oder /status/?p=<Kürzel>, mit &embed=1 ohne Rahmen. */
 export default function StatusPage() {
   return (
     <Suspense fallback={null}>
@@ -17,9 +17,18 @@ export default function StatusPage() {
   );
 }
 
+function parseStatusSlug(pathname: string, searchParams: URLSearchParams): string | null {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] === "status" && segments[1]) {
+    return segments[1];
+  }
+  return searchParams.get("p");
+}
+
 function StatusView() {
+  const pathname = usePathname() ?? "";
   const params = useSearchParams();
-  const slug = params.get("p");
+  const slug = parseStatusSlug(pathname, params);
   const embed = params.get("embed") === "1";
   const [status, setStatus] = useState<PublicStatus | null>(null);
   const [missing, setMissing] = useState(false);

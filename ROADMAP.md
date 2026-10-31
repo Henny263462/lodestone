@@ -7,11 +7,8 @@ Stand: Version 0.1 (Oktober 2026).
 
 Das sollte erledigt sein, bevor das Repository öffentlich wird oder jemand Fremdes Lodestone installiert.
 
-- [ ] **Auto-Update reparieren (S).** Das mitgelieferte Compose startet *Watchtower* mit Zugriff auf `docker.sock`, standardmäßig an. 
-  - *Teilweise erledigt:* Watchtower ist jetzt ein optionales Compose-Profil (`autoupdate`), standardmäßig aus. Offen: `latest` nur für getaggte Releases und der „Update verfügbar“-Hinweis im Panel.
-  - `containrrr/watchtower` ist seit Dezember 2025 archiviert und läuft mit Docker 29 nicht (es meldet API 1.25 und scheitert). Auf dem Home-Server läuft Docker 29.6.
-  - `latest` wird bei **jedem Push auf `main`** neu gebaut: Installationen würden ungetesteten Code automatisch übernehmen.
-  - Lösung: Auto-Update nur optional (Compose-Profil), `latest` nur für getaggte Releases (`main` und Commit-Hash als eigene Tags), ein gepflegter Fork oder besser ein **„Update verfügbar“-Hinweis im Panel** mit Link zu den Release Notes.
+- [x] **Auto-Update reparieren und automatisieren (S).** Das mitgelieferte Compose startete früher *Watchtower* mit Zugriff auf `docker.sock`. 
+  - *Erledigt:* Auto-Update für Panel und Nodes über die Weboberfläche unter Admin-Panel → Updates (Ein-Klick-Update für Panel, einzelne Nodes oder alle, Release-Notizen, Prüfung gegen GitHub Releases alle 6 Stunden, optionales automatisches Update; das Panel tauscht den Container mit Rückweg bei Fehlern). Die Version wird beim Release-Build ins Binary eingebaut. Update-Kanäle **Stabil** (Releases) und **Dev** (jeder gebaute Commit auf `main`, Tag `dev-<Commit>`), umschaltbar im Panel. Offen: ein Lauf gegen echtes Docker und echte Images. Watchtower ist als optionales Compose-Profil (`autoupdate`) weiterhin möglich, aber das Panel-interne Update ist der empfohlene Weg.
 - [ ] **Tests für die neuen Panel-Endpunkte (M).** Es gibt keine Tests für Modpack-Server anlegen, Addon-Details und Versionswechsel, öffentliche Adresse und playit-Verwaltung. Außerdem ist die Modpack-Installation und der playit-Agent noch nie gegen ein echtes Modpack bzw. einen echten Schlüssel gelaufen. Zusätzlich in der CI `go test -race` (Linux) laufen lassen. 
   - *Teilweise erledigt:* Integrationstests mit gespieltem Modrinth/Node für Modpack, Addon-Details/Versionswechsel, öffentliche Adresse und playit. Offen: `go test -race` in der CI und ein Lauf gegen ein echtes Modpack / einen echten playit-Schlüssel.
 - [ ] **Doku auf den aktuellen Stand bringen (S).** README, `docs/architecture.md` und Website sagen noch „Gruppen kommen später“ und „Voicechat pro Server“. Gruppen, Statistiken und Voicechat über den Proxy fehlen auf der Website. Screenshots der neuen Oberfläche (Server-Seite, Gruppen, Statistiken) einbauen. Eine Seite „Modpacks, playit und Gruppen“ unter `docs/`.
@@ -57,7 +54,8 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [ ] **Welten (M).** Welt hoch- und herunterladen, zurücksetzen, wechseln; Chunky-Vorberechnung mit einem Klick; BlueMap oder Dynmap über das Panel erreichbar.
 - [ ] **Öffentliche Statusseite (M).** Pro Projekt: online/offline, Spielerzahl, MOTD, einbettbar (Widget) – plus Hilfe für **Domain und SRV-Eintrag** (Cloudflare-DNS-Anbindung: `mc.deine-domain.de` automatisch). 
   - *Teilweise erledigt:* Seite, Einbettung und JSON-Schnittstelle. Offen: Domain- und SRV-Hilfe / DNS-Anbindung.
-- [ ] **playit weiterdenken (M).** Tunnel-Status im Panel anzeigen, Tunnel automatisch anlegen, falls playit eine API dafür anbietet (heute nur im Dashboard möglich), und eine Tunnel-Schnittstelle für Alternativen (Tailscale, frp).
+- [ ] **playit weiterdenken (M).** Eine Tunnel-Schnittstelle für Alternativen (Tailscale, frp).
+  - *Erledigt:* Tunnel für Minecraft Java und Voicechat werden über die playit-Schnittstelle automatisch angelegt, übernommen und gelöscht (Server → Einstellungen → playit-Tunnel). Ebenso erledigt: Region und eigene Domain beim Anlegen wählbar, Premium-Erkennung über `/agents/rundata` (Region per `alloc: region` im Anlegen, Domain über `/v1/tunnels/create` mit `hostname`). Offen: ein Lauf gegen ein echtes playit-Konto (bisher nur gegen eine gespielte Schnittstelle getestet; besonders Domain-Zuweisung und Domainliste mit dem Agenten-Schlüssel), Region/Domain eines bestehenden Tunnels ändern (heute: Tunnel löschen und neu anlegen), Bedrock/Geyser-Tunnel (UDP) und der eigene Tunnel-Typ „MC: Simple Voice Chat“ des Dashboards, falls die Schnittstelle ihn anbietet (heute: gewöhnlicher UDP-Tunnel).
 - [ ] **Leistungsanalyse (M).** TPS-Verlauf, spark-Berichte verlinken, Festplattenverbrauch pro Server, Netzwerkverkehr als Diagramm, JVM-Voreinstellungen (Aikar-Flags) mit Erklärung.
 - [ ] **Proxy-Extras (M).** Geyser/Floodgate (Bedrock-Spieler) mit einem Klick, ViaVersion, Wartungsmodus für das ganze Netzwerk (MOTD, Whitelist), MOTD-Editor mit Vorschau. 
   - *Teilweise erledigt:* MOTD-Editor mit Vorschau. Offen: Geyser/Floodgate, ViaVersion, Wartungsmodus.
@@ -66,7 +64,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 ## P3 – Langfristig
 
 - [ ] **Gruppen 2.0 (L).** Vorgewärmte Reserve-Instanzen, Skalierung nach TPS statt nur Spielerzahl, Welt-Vorlagen (bei jedem Start frisch aus der Vorlage), Party- und Warteschlangen-System, Lobby-Verteilung nach Auslastung.
-- [ ] **Neue Server-Arten über Beschreibungsdateien (L).** Software als YAML („Eggs“) statt im Code: Forge, NeoForge, Quilt, Waterfall/BungeeCord, Bedrock, später andere Spiele.
+- [ ] **Neue Server-Arten über Beschreibungsdateien (L).** Software als YAML („Eggs“) statt im Code: Quilt, Waterfall/BungeeCord, Bedrock, später andere Spiele.
 - [ ] **Offene Schnittstelle (M).** Dokumentierte REST-API (OpenAPI), Webhooks, ein Kommandozeilenprogramm `lodestonectl`, ein Terraform-Provider.
 - [ ] **Betrieb im größeren Maßstab (L).** Prometheus-Metriken und fertiges Grafana-Dashboard, PostgreSQL statt SQLite wählbar, Sicherung der Panel-Datenbank (Litestream), Hochverfügbarkeit des Panels.
 - [ ] **Anmeldung über Dritte (M).** OIDC/SSO (Authentik, Keycloak, Discord), LDAP.

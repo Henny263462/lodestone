@@ -102,5 +102,5 @@ Eintrag im `entries`-Array von `server/page.tsx` (Rang beachten) bzw. im Tab-Arr
 - Kein `fetch` außerhalb von `lib/api.ts`. Keine API-Adressen mit festem Host.
 - Kein Inline-`style`, außer für berechnete Werte (Breite eines Balkens, Pixelgrößen von Avataren).
 - Keine Server-Komponenten, `generateStaticParams`, `useRouter().push` auf dynamische Pfade.
-- Kein Umbenennen oder Verschieben bestehender Routen (Lesezeichen und die öffentliche Statusadresse `/status/?p=` müssen bleiben).
+- Kein Umbenennen oder Verschieben bestehender Basisrouten (Lesezeichen und bestehende Adressen wie `/status/?p=` müssen als Fallback weiter funktionieren).
 - Keine Texte in Englisch, keine Zahlenformatierung von Hand (`lib/format`).

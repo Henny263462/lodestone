@@ -83,6 +83,7 @@ Zahlen in Tabellen und Anzeigen: `tabular-nums`. Lange Texte kürzen mit `trunca
 | `Switch` | Ein/Aus mit sofortiger Wirkung | Mit Beschriftung daneben, in `rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5`. |
 | `Checkbox`, `SearchInput` | Auswahl, Suche | Suche immer mit `SearchInput`. |
 | `RowMenu` | „⋯“-Menü für Zeilenaktionen | Gefährliches mit `danger: true`, durch `"separator"` abgetrennt. |
+| `Select` (`value`, `onChange`, `options`, `size`) | Jede Auswahl: Software, Version, Node, Rollen, Zeiten | Eigene Liste im Panel-Stil. Kein natives `<select>` mehr: dessen aufgeklappte Liste zeichnet der Browser im Systemstil und lässt sich nicht gestalten. |
 | `Meter`, `loadTone` | Auslastung als Balken | Farbe aus `loadTone(prozent)` (ab 75 % gelb, ab 90 % rot). |
 | `EmptyState` | Leere Liste/Karte | Icon + kurzer Titel + ein Satz, was zu tun ist. |
 | `Loading`, `ErrorState` (`ui/async.tsx`) | Laden, Fehler | `ErrorState` bekommt `retry`. |
