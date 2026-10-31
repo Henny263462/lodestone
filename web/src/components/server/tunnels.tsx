@@ -4,7 +4,7 @@ import { Cable, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useUser } from "@/components/layout/shell";
-import { Badge, Button, Card, CardHeader, EmptyState } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, EmptyState, Select } from "@/components/ui/primitives";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
@@ -75,14 +75,12 @@ function CreateTunnelDialog({ server, kind, onClose, onCreated }: { server: Serv
         <>
           <div>
             <label className="label">Region</label>
-            <select className="field" value={region} onChange={(event) => setRegion(event.target.value)} disabled={!canRegion}>
-              <option value="">Automatisch</option>
-              {data?.regions.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={region}
+              onChange={setRegion}
+              disabled={!canRegion}
+              options={[{ value: "", label: "Automatisch" }, ...(data?.regions.map((entry) => ({ value: entry.id, label: entry.name })) ?? [])]}
+            />
             <p className="mt-1 text-xs text-muted">
               {domainId ? "Bei einer eigenen Domain bestimmt die Domain die Region." : "Spieler in der Nähe der Region haben weniger Verzögerung. Eine Region lässt sich später nicht ändern – lege dann den Tunnel neu an."}
             </p>
@@ -90,15 +88,15 @@ function CreateTunnelDialog({ server, kind, onClose, onCreated }: { server: Serv
           {kind === "java" && (
             <div>
               <label className="label">Eigene Domain</label>
-              <select className="field" value={domainId} onChange={(event) => setDomainId(event.target.value)} disabled={!canDomain && !domainId}>
-                <option value="">Keine (Adresse von playit)</option>
-                {data?.domains.map((domain) => (
-                  <option key={domain.id} value={domain.id} disabled={domain.used}>
-                    {domain.name}
-                    {domain.used ? " (schon vergeben)" : ""}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={domainId}
+                onChange={setDomainId}
+                disabled={!canDomain && !domainId}
+                options={[
+                  { value: "", label: "Keine (Adresse von playit)" },
+                  ...(data?.domains.map((domain) => ({ value: domain.id, label: domain.used ? `${domain.name} (schon vergeben)` : domain.name, disabled: domain.used })) ?? []),
+                ]}
+              />
               <p className="mt-1 text-xs text-muted">
                 {data?.domainsProblem
                   ? `Die Domains ließen sich nicht laden: ${data.domainsProblem}`

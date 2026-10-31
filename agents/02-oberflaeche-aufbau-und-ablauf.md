@@ -76,8 +76,10 @@ return …                                                                   // 
 - Beschriftung immer über dem Feld (`label`), Platzhalter nur als Beispiel („Lobby“), nie als Ersatz für die Beschriftung.
 - Primärknopf ist deaktiviert (`disabled`), solange Pflichtfelder fehlen; **kein** roter Fehler, bevor jemand etwas getan hat.
 - Prüfe im Browser nur zur Hilfe (Länge, Muster); die Pflichtprüfung macht das Backend. Dessen Fehlermeldung wird per Toast gezeigt.
-- Auswahlfelder: `<select className="field">`. Mehrwahl: `Checkbox`. Zahl mit Einheit: Einheit im Label („Arbeitsspeicher (MB)“) oder
-  Auswahlliste mit schon formatierten Werten (`megabytes()` aus `lib/format`).
+- Auswahlfelder: `<Select value={…} onChange={…} options={[{ value, label }]} />` aus `ui/primitives`; die Liste erscheint im Panel-Stil.
+  Ein natives `<select>` zeichnet der Browser beim Aufklappen im Systemstil und wird nicht mehr benutzt. Mehrwahl: `Checkbox`.
+- Arbeitsspeicher: `MemoryInput` (`components/memory-input.tsx`) mit MB-Feld und Schieberegler (256 MB bis 64 GB), nicht als Auswahlliste.
+  Andere Zahlen mit Einheit: Einheit ins Label („Arbeitsspeicher (MB)“).
 - Geheimnisse (Tokens, Schlüssel, Passwörter): `type="password"` bzw. einmalig anzeigen mit Kopierknopf und dem Hinweis, dass sie
   nicht wieder erscheinen. Nie in der Adresse, nie im Log.
 

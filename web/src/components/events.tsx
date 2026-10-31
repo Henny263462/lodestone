@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, Bell, Info, Pencil, Plus, Send, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Select, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
@@ -212,10 +212,14 @@ function WebhookDialog({ project, hook, onClose, onDone }: { project: Project; h
         </div>
         <div>
           <label className="label">Art</label>
-          <select className="field" value={kind} onChange={(event) => setKind(event.target.value as "discord" | "generic")}>
-            <option value="discord">Discord</option>
-            <option value="generic">Allgemein (JSON)</option>
-          </select>
+          <Select
+            value={kind}
+            onChange={(value) => setKind(value as "discord" | "generic")}
+            options={[
+              { value: "discord", label: "Discord" },
+              { value: "generic", label: "Allgemein (JSON)" },
+            ]}
+          />
         </div>
       </div>
       <div>
