@@ -53,13 +53,23 @@ func IsPaperFamily(id software.ID) bool {
 
 // CanBeBackend sagt, ob ein Server hinter Velocity laufen kann (er muss "modern forwarding" verstehen). Fabric und NeoForge
 // bekommen das über einen Mod, den Lodestone installiert (siehe ProxyMod).
-func CanBeBackend(id software.ID) bool { return IsPaperFamily(id) || ProxyMod(id) != "" }
+func CanBeBackend(id software.ID) bool {
+	if pack, ok := software.GetPack(id); ok {
+		if pack.Meta.Backend.Supported || (pack.Autoconfig.Backend != nil && len(pack.Autoconfig.Backend.Edits) > 0) {
+			return true
+		}
+	}
+	return IsPaperFamily(id) || ProxyMod(id) != ""
+}
 
 // ProxyMod nennt das Modrinth-Projekt, das einen Mod-Server "modern forwarding" von Velocity beibringt ("" = nicht nötig
 // oder nicht möglich).
 func ProxyMod(id software.ID) string {
+	if pack, ok := software.GetPack(id); ok && pack.Meta.Backend.ProxyMod != "" {
+		return pack.Meta.Backend.ProxyMod
+	}
 	switch id {
-	case "fabric":
+	case "fabric", "quilt":
 		return "fabricproxy-lite"
 	case "neoforge":
 		return "proxy-compatible-forge"
@@ -69,10 +79,13 @@ func ProxyMod(id software.ID) string {
 
 // VoiceConfigFile ist die Einstellungsdatei von Simple Voice Chat bei dieser Software ("" = Voicechat nicht unterstützt).
 func VoiceConfigFile(id software.ID) string {
+	if pack, ok := software.GetPack(id); ok && pack.Meta.Backend.VoiceConfigFile != "" {
+		return pack.Meta.Backend.VoiceConfigFile
+	}
 	switch {
 	case IsPaperFamily(id):
 		return "plugins/voicechat/voicechat-server.properties"
-	case id == "fabric", id == "neoforge":
+	case id == "fabric", id == "neoforge", id == "quilt":
 		return "config/voicechat/voicechat-server.properties"
 	}
 	return ""
@@ -200,6 +213,9 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 }
 
 func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.Autoconfig, bool) {
+	if pack, ok := software.GetPack(software.ID(server.Row.Software)); ok && pack.Autoconfig.Backend != nil && len(pack.Autoconfig.Backend.Edits) > 0 {
+		return buildPackBackendAutoconfig(pack, secret, server, voiceProxy)
+	}
 	edits := []node.Edit{{
 		File:   "server.properties",
 		Format: "properties",
@@ -257,6 +273,117 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 		})
 	}
 	return node.Autoconfig{Edits: edits, Restart: true}, true
+}
+
+func interpolateString(s, secret string, server NetServer) string {
+	repl := strings.NewReplacer(
+		"{{SECRET}}", secret,
+		"{{VOICE_HOST}}", server.voiceHost(),
+		"{{VOICE_PORT}}", strconv.Itoa(voicePort),
+		"{{SERVER_NAME}}", server.Row.Name,
+		"{{SERVER_SLUG}}", server.Row.Slug,
+		"{{INTERNAL_PORT}}", strconv.Itoa(server.InternalPort),
+	)
+	return repl.Replace(s)
+}
+
+func interpolateValue(val any, secret string, server NetServer) any {
+	switch v := val.(type) {
+	case string:
+		return interpolateString(v, secret, server)
+	case []any:
+		out := make([]any, len(v))
+		for i, item := range v {
+			out[i] = interpolateValue(item, secret, server)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for k, item := range v {
+			out[k] = interpolateValue(item, secret, server)
+		}
+		return out
+	default:
+		return val
+	}
+}
+
+func buildPackBackendAutoconfig(pack *software.PositionPack, secret string, server NetServer, voiceProxy bool) (node.Autoconfig, bool) {
+	target := pack.Autoconfig.Backend
+	if target == nil {
+		return node.Autoconfig{}, false
+	}
+	var edits []node.Edit
+	for _, pe := range target.Edits {
+		edit := node.Edit{
+			File:   interpolateString(pe.File, secret, server),
+			Format: pe.Format,
+			Create: pe.Create,
+		}
+		for _, op := range pe.Set {
+			path := make([]string, len(op.Path))
+			for i, p := range op.Path {
+				path[i] = interpolateString(p, secret, server)
+			}
+			edit.Set = append(edit.Set, node.SetOp{
+				Path:  path,
+				Value: interpolateValue(op.Value, secret, server),
+			})
+		}
+		edits = append(edits, edit)
+	}
+
+	voice := server.voiceHost()
+	if !voiceProxy && server.Row.Voicechat && voice != "" {
+		if pack.Autoconfig.Voicechat != nil {
+			pv := pack.Autoconfig.Voicechat
+			vEdit := node.Edit{
+				File:   interpolateString(pv.File, secret, server),
+				Format: pv.Format,
+			}
+			for _, op := range pv.Set {
+				path := make([]string, len(op.Path))
+				for i, p := range op.Path {
+					path[i] = interpolateString(p, secret, server)
+				}
+				vEdit.Set = append(vEdit.Set, node.SetOp{
+					Path:  path,
+					Value: interpolateValue(op.Value, secret, server),
+				})
+			}
+			edits = append(edits, vEdit)
+		} else if voiceFile := VoiceConfigFile(software.ID(server.Row.Software)); voiceFile != "" {
+			edits = append(edits, node.Edit{
+				File:   voiceFile,
+				Format: "properties",
+				Set: []node.SetOp{
+					{Path: []string{"port"}, Value: voicePort},
+					{Path: []string{"voice_host"}, Value: voice},
+				},
+			})
+		}
+	}
+
+	var writes []node.FileWrite
+	for _, pw := range target.Writes {
+		writes = append(writes, node.FileWrite{
+			Path:    interpolateString(pw.Path, secret, server),
+			Content: interpolateString(pw.Content, secret, server),
+		})
+	}
+	if strings.TrimSpace(pack.Script) != "" {
+		writes = append(writes, node.FileWrite{
+			Path:    "autoconfig.sh",
+			Content: interpolateString(pack.Script, secret, server),
+		})
+	}
+
+	return node.Autoconfig{
+		Edits:   edits,
+		Writes:  writes,
+		Restart: target.Restart,
+		Reload:  interpolateString(target.Reload, secret, server),
+	}, true
 }
 
 // NetworkProblems prüft die Zusammenstellung eines Netzwerks und liefert Hinweise für die Oberfläche.

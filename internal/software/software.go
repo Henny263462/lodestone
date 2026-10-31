@@ -69,6 +69,10 @@ type Info struct {
 	StopCommand string `json:"stopCommand"`
 	// ReadyPattern erkennt in der Konsole, dass der Server bereit ist.
 	ReadyPattern string `json:"readyPattern"`
+	Description  string `json:"description,omitempty"`
+	CanBeBackend bool   `json:"canBeBackend"`
+	CanVoice     bool   `json:"canVoice"`
+	Custom       bool   `json:"custom,omitempty"`
 }
 
 const javaStartup = "exec java -Xms{{MEMORY}}M -Xmx{{MEMORY}}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+DisableExplicitGC -Dterminal.jline=false -Dterminal.ansi=true -jar {{JAR}}"
@@ -90,6 +94,16 @@ var catalog = []Info{
 
 // Catalog liefert alle unterstützten Server-Arten.
 func Catalog() []Info {
+	pm := GetPackManager()
+	packs := pm.All()
+	if len(packs) > 0 {
+		out := make([]Info, 0, len(packs))
+		for _, p := range packs {
+			out = append(out, p.Info())
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+		return out
+	}
 	out := make([]Info, len(catalog))
 	copy(out, catalog)
 	return out
@@ -97,6 +111,9 @@ func Catalog() []Info {
 
 // Lookup findet eine Server-Art.
 func Lookup(id ID) (Info, bool) {
+	if pack, ok := GetPackManager().Get(id); ok {
+		return pack.Info(), true
+	}
 	for _, info := range catalog {
 		if info.ID == id {
 			return info, true
@@ -212,6 +229,17 @@ var ErrNotFound = errors.New("diese Version gibt es nicht")
 
 // Versions liefert die verfügbaren Versionen, die neueste zuerst. Vorabversionen nur mit prerelease.
 func (r *Resolver) Versions(ctx context.Context, id ID, prerelease bool) ([]string, error) {
+	if pack, ok := GetPack(id); ok {
+		if pack.Meta.Provider.Type == "static" {
+			return pack.Meta.Provider.Versions, nil
+		}
+		if pack.Meta.Provider.Type == "direct" {
+			return pack.Meta.Provider.Versions, nil
+		}
+		if pack.Meta.Provider.Type != "" && ID(pack.Meta.Provider.Type) != id {
+			return r.Versions(ctx, ID(pack.Meta.Provider.Type), prerelease)
+		}
+	}
 	var versions []string
 	switch id {
 	case Paper, Folia, Velocity:
@@ -415,6 +443,20 @@ func NeoForgeToMinecraft(version string) string {
 func (r *Resolver) Resolve(ctx context.Context, id ID, version string) (Artifact, error) {
 	if version == "" || strings.ContainsAny(version, "/\\ ?#") {
 		return Artifact{}, fmt.Errorf("ungültige Version: %q", version)
+	}
+	if pack, ok := GetPack(id); ok {
+		if pack.Meta.Provider.DownloadURL != "" {
+			address := strings.ReplaceAll(pack.Meta.Provider.DownloadURL, "{{VERSION}}", version)
+			fileName := pack.Meta.Provider.FileName
+			if fileName == "" {
+				fileName = fmt.Sprintf("%s-%s.jar", id, version)
+			}
+			fileName = strings.ReplaceAll(fileName, "{{VERSION}}", version)
+			return Artifact{URL: address, FileName: fileName}, nil
+		}
+		if pack.Meta.Provider.Type != "" && ID(pack.Meta.Provider.Type) != id {
+			return r.Resolve(ctx, ID(pack.Meta.Provider.Type), version)
+		}
 	}
 	switch id {
 	case Paper, Folia, Velocity:
@@ -649,6 +691,20 @@ func (r *Resolver) versionDetail(ctx context.Context, version string) (versionDe
 // JavaMajor bestimmt die Java-Version, die Software und Minecraft-Version brauchen. Mojang nennt sie je Version;
 // ist das nicht erreichbar, rechnet FallbackJava sie aus der Versionsnummer.
 func (r *Resolver) JavaMajor(ctx context.Context, id ID, version string) int {
+	if pack, ok := GetPack(id); ok {
+		if pack.Meta.Java.Strategy == "fixed" && pack.Meta.Java.Major > 0 {
+			return pack.Meta.Java.Major
+		}
+		if pack.Meta.Java.Strategy == "velocity" || id == Velocity {
+			if parts := numericParts(version); len(parts) > 0 && parts[0] >= 4 {
+				return 25
+			}
+			return 21
+		}
+		if pack.Meta.Provider.Type != "" && ID(pack.Meta.Provider.Type) != id {
+			return r.JavaMajor(ctx, ID(pack.Meta.Provider.Type), version)
+		}
+	}
 	if id == Velocity {
 		if parts := numericParts(version); len(parts) > 0 && parts[0] >= 4 {
 			return 25
