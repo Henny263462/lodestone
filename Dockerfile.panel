@@ -1,7 +1,7 @@
 # Baut Oberfläche und Panel komplett im Container (für alle, die Lodestone selbst bauen wollen).
 # Web- und Go-Stufe laufen immer auf der Plattform des Builders und kompilieren das Go-Binary für die Zielplattform
 # (Cross-Compile). So braucht ein arm64-Image keine QEMU-Emulation für npm und go build.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS web
+FROM --platform=$BUILDPLATFORM node:25-alpine AS web
 WORKDIR /src/web
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY web/package.json web/package-lock.json ./
