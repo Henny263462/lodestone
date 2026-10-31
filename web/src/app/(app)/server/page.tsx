@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, BarChart3, ChevronLeft, FolderOpen, Puzzle, Settings, Terminal, Users, type LucideIcon } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { Badge, Meter, cx, loadTone } from "@/components/ui/primitives";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { PowerButtons, StateBadge } from "@/components/status";
@@ -36,20 +36,33 @@ interface Entry {
   icon: LucideIcon;
 }
 
+function parseServerRoute(pathname: string, searchParams: URLSearchParams): { id: string | null; tab: Tab } {
+  const segments = pathname.split("/").filter(Boolean);
+  let id: string | null = null;
+  let tabPart: string | null = null;
+  if (segments[0] === "server" && segments[1]) {
+    id = segments[1];
+    tabPart = segments[2] || null;
+  }
+  if (!id) {
+    id = searchParams.get("id");
+  }
+  const tab = (tabPart as Tab) || (searchParams.get("tab") as Tab) || "console";
+  return { id, tab };
+}
+
 function ServerView() {
   const router = useRouter();
+  const pathname = usePathname() ?? "";
   const params = useSearchParams();
-  const id = params.get("id");
+  const { id, tab: routeTab } = parseServerRoute(pathname, params);
   const { data, error, mutate } = useApi<{ server: Server; myRole: Role }>(id ? `/servers/${id}` : null, { refreshInterval: 3000 });
   const { data: project } = useApi<Project>(data ? `/projects/${data.server.projectId}` : null);
-  const [tab, setTabState] = useState<Tab>((params.get("tab") as Tab) || "console");
 
   function setTab(next: Tab) {
-    setTabState(next);
-    // Der Bereich steht in der Adresse, damit sich ein Link oder Neuladen merkt, wo man war
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", next);
-    window.history.replaceState(null, "", url);
+    if (!id) return;
+    const target = next === "console" ? `/server/${id}/` : `/server/${id}/${next}/`;
+    router.push(target);
   }
 
   if (!id) return <ErrorState error={new Error("Kein Server angegeben")} />;
@@ -60,7 +73,7 @@ function ServerView() {
   const rank = roleRank[myRole];
   const view = server.view;
   const state = view?.state;
-  const extensions = server.software === "fabric" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
+  const extensions = server.software === "fabric" || server.software === "neoforge" || server.software === "forge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
 
   const entries: Entry[] = [
     { id: "console", label: "Konsole", icon: Terminal },
@@ -71,7 +84,7 @@ function ServerView() {
     { id: "backups", label: "Backups", icon: Archive },
     ...(rank >= roleRank.admin ? [{ id: "settings" as const, label: "Einstellungen", icon: Settings }] : []),
   ];
-  const active = entries.some((entry) => entry.id === tab) ? tab : "console";
+  const active = entries.some((entry) => entry.id === routeTab) ? routeTab : "console";
   const stats = view?.stats;
   const memoryPercent = stats && stats.memoryLimit > 0 ? (stats.memoryBytes / stats.memoryLimit) * 100 : 0;
 
@@ -79,7 +92,7 @@ function ServerView() {
     <>
       <SecondarySidebar>
         <div className="flex flex-col gap-4 p-4 lg:min-h-full lg:p-5">
-          <Link href={`/project/?id=${server.projectId}`} className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-ink">
+          <Link href={`/project/${server.projectId}/`} className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-ink">
             <ChevronLeft className="h-3.5 w-3.5" />
             {project?.name ?? "Projekt"}
           </Link>
@@ -159,7 +172,7 @@ function ServerView() {
       {active === "addons" && extensions && <AddonsTab serverId={server.id} canWrite={rank >= roleRank.operator} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />}
       {active === "players" && <PlayersTab server={server} canOperate={rank >= roleRank.operator} />}
       {active === "backups" && <BackupsTab serverId={server.id} canWrite={rank >= roleRank.operator} offline={state === "offline"} />}
-      {active === "settings" && <SettingsTab server={server} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />}
+      {active === "settings" && <SettingsTab server={server} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/${server.projectId}/`)} />}
     </>
   );
 }

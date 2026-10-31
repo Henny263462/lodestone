@@ -93,7 +93,7 @@ Standardmäßig wird **nichts** committet, gepusht, getaggt oder deployt. Auf Au
 2. **Commit:** eine zusammenhängende Änderung pro Commit, Titelzeile im Imperativ/Perfekt auf Deutsch oder Englisch wie in `git log`,
    darunter ein kurzer Absatz *warum*. Nie `--no-verify`, nie Verlauf umschreiben (`--force`) auf `main`.
 3. **Push** nach `origin main` (Repository `Henny263462/lodestone`). Das stößt den Workflow *Docker Autobuild & Release* an, der die Images
-   `ghcr.io/henny263462/lodestone-{panel,node}` baut (Tags `latest`, `main`, Commit-Hash). CI (`ci.yml`) prüft `go vet`, `go test`, `tsc`, `next build`
+   `ghcr.io/henny263462/lodestone-{panel,node}` baut (Tags `main`, `dev-<sieben Zeichen des Commits>` und voller Commit-Hash, Version `dev-<Commit>`; `latest` und `vX.Y.Z` gibt es nur für Release-Tags, siehe Schritt 4). Das Panel bietet Dev-Builds im Update-Kanal „Dev“ an. CI (`ci.yml`) prüft `go vet`, `go test`, `tsc`, `next build`
    und die Docker-Builds; **warte auf grün**, bevor du „fertig“ sagst, und melde Rot mit der Ursache.
 4. **Release:** Versionsnummer nach SemVer (`vMAJOR.MINOR.PATCH`; neue Funktionen = MINOR, Fehlerbehebungen = PATCH). Tag auf dem geprüften
    Commit setzen (`git tag -a vX.Y.Z -m "…"`, `git push origin vX.Y.Z`). Der Workflow baut dann die Images mit dem Tag und legt das **GitHub-Release

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, Network, Plus, Server as ServerIcon, Trash2, UserPlus } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
-import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Switch, Tabs } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Select, Switch, Tabs } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { AddServerDialog } from "@/components/add-server";
@@ -32,10 +32,27 @@ export default function ProjectPage() {
 
 type Tab = "servers" | "network" | "groups" | "schedules" | "events" | "members" | "settings";
 
+function parseProjectRoute(pathname: string, searchParams: URLSearchParams): { id: string | null; tab: Tab } {
+  const segments = pathname.split("/").filter(Boolean);
+  let id: string | null = null;
+  let tabPart: string | null = null;
+  if (segments[0] === "project" && segments[1]) {
+    id = segments[1];
+    tabPart = segments[2] || null;
+  }
+  if (!id) {
+    id = searchParams.get("id");
+  }
+  const tab = (tabPart as Tab) || (searchParams.get("tab") as Tab) || "servers";
+  return { id, tab };
+}
+
 function ProjectView() {
-  const id = useSearchParams().get("id");
+  const router = useRouter();
+  const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const { id, tab: routeTab } = parseProjectRoute(pathname, searchParams);
   const { data: project, error, mutate } = useApi<Project>(id ? `/projects/${id}` : null, { refreshInterval: 4000 });
-  const [tab, setTab] = useState<Tab>("servers");
   const [adding, setAdding] = useState(false);
 
   if (!id) return <ErrorState error={new Error("Kein Projekt angegeben")} />;
@@ -55,6 +72,14 @@ function ProjectView() {
     { id: "members", label: "Mitglieder", count: project.members?.length },
     ...(canManage ? [{ id: "settings" as const, label: "Einstellungen" }] : []),
   ];
+
+  const activeTab = tabs.some((t) => t.id === routeTab) ? routeTab : "servers";
+
+  function setTab(next: Tab) {
+    if (!id) return;
+    const target = next === "servers" ? `/project/${id}/` : `/project/${id}/${next}/`;
+    router.push(target);
+  }
 
   return (
     <>
@@ -83,16 +108,16 @@ function ProjectView() {
       )}
 
       <div className="mb-5 overflow-x-auto">
-        <Tabs value={tab} onChange={setTab} items={tabs} />
+        <Tabs value={activeTab} onChange={setTab} items={tabs} />
       </div>
 
-      {tab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
-      {tab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
-      {tab === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
-      {tab === "schedules" && <SchedulesTab project={project} />}
-      {tab === "events" && <EventsTab project={project} />}
-      {tab === "members" && <MembersTab project={project} refresh={() => mutate()} />}
-      {tab === "settings" && canManage && <SettingsTab project={project} refresh={() => mutate()} />}
+      {activeTab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
+      {activeTab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
+      {activeTab === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
+      {activeTab === "schedules" && <SchedulesTab project={project} />}
+      {activeTab === "events" && <EventsTab project={project} />}
+      {activeTab === "members" && <MembersTab project={project} refresh={() => mutate()} />}
+      {activeTab === "settings" && canManage && <SettingsTab project={project} refresh={() => mutate()} />}
 
       <AddServerDialog project={project} open={adding} onClose={() => setAdding(false)} onCreated={() => mutate()} />
     </>
@@ -129,7 +154,7 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
       {project.servers.map((server) => (
         <Card key={server.id} className="p-4">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link href={`/server/?id=${server.id}`} className="flex min-w-[200px] flex-1 items-center gap-3">
+            <Link href={`/server/${server.id}/`} className="flex min-w-[200px] flex-1 items-center gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-muted">
                 <ServerIcon className="h-4 w-4" />
               </span>
@@ -288,7 +313,7 @@ function NetworkTab({ project, canManage, refresh }: { project: Project; canMana
           }
         />
         {entries.length === 0 ? (
-          <EmptyState icon={<ServerIcon className="h-6 w-6" />} title="Noch keine Server" text="Füge Server hinzu (Paper, Purpur, Folia oder Fabric) – sie werden dem Proxy automatisch bekannt gemacht." />
+          <EmptyState icon={<ServerIcon className="h-6 w-6" />} title="Noch keine Server" text="Füge Server hinzu (Paper, Purpur, Folia, Leaf, Fabric oder NeoForge) – sie werden dem Proxy automatisch bekannt gemacht." />
         ) : (
           <div className="divide-y divide-white/[0.05]">
             {entries.map((entry, index) => (
@@ -397,18 +422,13 @@ function MembersTab({ project, refresh }: { project: Project; refresh: () => voi
               {member.username}
               {member.userId === user.id && <span className="ml-2 text-xs text-muted">(du)</span>}
             </p>
-            <select
-              className="field w-40"
+            <Select
+              className="w-40"
               value={member.role}
               disabled={!canManage || roleRank[member.role] > roleRank[project.myRole]}
-              onChange={(event) => setRole(member, event.target.value as Role)}
-            >
-              {(Object.keys(roleLabel) as Role[]).map((role) => (
-                <option key={role} value={role} disabled={roleRank[role] > roleRank[project.myRole]}>
-                  {roleLabel[role]}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setRole(member, value as Role)}
+              options={(Object.keys(roleLabel) as Role[]).map((role) => ({ value: role, label: roleLabel[role], disabled: roleRank[role] > roleRank[project.myRole] }))}
+            />
             {(canManage || member.userId === user.id) && (
               <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(member)} aria-label="Entfernen" title={member.userId === user.id ? "Projekt verlassen" : "Entfernen"}>
                 <Trash2 className="h-3.5 w-3.5" />
@@ -473,25 +493,20 @@ function AddMemberDialog({ project, open, onClose, onDone }: { project: Project;
     >
       <div>
         <label className="label">Benutzer</label>
-        <select className="field" value={userId} onChange={(event) => setUserId(event.target.value)}>
-          <option value="">Auswählen …</option>
-          {choices.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.username}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={userId}
+          onChange={setUserId}
+          options={[{ value: "", label: "Auswählen …" }, ...choices.map((candidate) => ({ value: candidate.id, label: candidate.username }))]}
+        />
         {users && choices.length === 0 && <p className="mt-1.5 text-xs text-muted">Alle Benutzer sind schon Mitglied. Neue Benutzer legt ein Administrator unter „Benutzer“ an.</p>}
       </div>
       <div>
         <label className="label">Rolle</label>
-        <select className="field" value={role} onChange={(event) => setRole(event.target.value as Role)}>
-          {(Object.keys(roleLabel) as Role[]).map((value) => (
-            <option key={value} value={value} disabled={roleRank[value] > roleRank[project.myRole]}>
-              {roleLabel[value]}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={role}
+          onChange={(value) => setRole(value as Role)}
+          options={(Object.keys(roleLabel) as Role[]).map((value) => ({ value, label: roleLabel[value], disabled: roleRank[value] > roleRank[project.myRole] }))}
+        />
       </div>
     </Dialog>
   );

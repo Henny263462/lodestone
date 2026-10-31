@@ -545,6 +545,8 @@ type ServerRow struct {
 	// PublicAddress ist die Adresse, unter der Spieler den Server erreichen, wenn sie nicht die der Maschine ist (z. B.
 	// ein playit-Tunnel). Sie wird nur angezeigt.
 	PublicAddress string `json:"publicAddress,omitempty"`
+	// PublicVoiceAddress ist die Adresse des Voicechats (z. B. ein playit-Tunnel). Sie landet in der voice_host-Einstellung.
+	PublicVoiceAddress string `json:"publicVoiceAddress,omitempty"`
 	// Modpack ist das Modrinth-Modpack, aus dem der Server angelegt wurde.
 	Modpack *ModpackInfo `json:"modpack,omitempty"`
 	// AutoRestart startet den Server nach einem Absturz neu (mit Obergrenze).
@@ -563,14 +565,14 @@ type ModpackInfo struct {
 	Minecraft     string `json:"minecraft"`
 }
 
-const serverColumns = "id, project_id, node_id, name, slug, role, software, in_try, try_position, forced_host, voicechat, group_id, public_address, modpack, auto_restart, created_at"
+const serverColumns = "id, project_id, node_id, name, slug, role, software, in_try, try_position, forced_host, voicechat, group_id, public_address, public_voice_address, modpack, auto_restart, created_at"
 
 func scanServer(row interface{ Scan(...any) error }) (ServerRow, error) {
 	var server ServerRow
 	var inTry, voice int
 	var modpack string
 	var autoRestart int
-	if err := row.Scan(&server.ID, &server.ProjectID, &server.NodeID, &server.Name, &server.Slug, &server.Role, &server.Software, &inTry, &server.TryPosition, &server.ForcedHost, &voice, &server.GroupID, &server.PublicAddress, &modpack, &autoRestart, &server.CreatedAt); err != nil {
+	if err := row.Scan(&server.ID, &server.ProjectID, &server.NodeID, &server.Name, &server.Slug, &server.Role, &server.Software, &inTry, &server.TryPosition, &server.ForcedHost, &voice, &server.GroupID, &server.PublicAddress, &server.PublicVoiceAddress, &modpack, &autoRestart, &server.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ServerRow{}, ErrNotFound
 		}
@@ -591,8 +593,8 @@ func (s *Store) CreateServer(server ServerRow) (ServerRow, error) {
 		server.ID = newID()
 	}
 	server.CreatedAt = time.Now().UnixMilli()
-	_, err := s.db.Exec("INSERT INTO servers ("+serverColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		server.ID, server.ProjectID, server.NodeID, server.Name, server.Slug, server.Role, server.Software, boolInt(server.InTry), server.TryPosition, server.ForcedHost, boolInt(server.Voicechat), server.GroupID, server.PublicAddress, modpackText(server.Modpack), boolInt(server.AutoRestart), server.CreatedAt)
+	_, err := s.db.Exec("INSERT INTO servers ("+serverColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		server.ID, server.ProjectID, server.NodeID, server.Name, server.Slug, server.Role, server.Software, boolInt(server.InTry), server.TryPosition, server.ForcedHost, boolInt(server.Voicechat), server.GroupID, server.PublicAddress, server.PublicVoiceAddress, modpackText(server.Modpack), boolInt(server.AutoRestart), server.CreatedAt)
 	if isUnique(err) {
 		return ServerRow{}, fmt.Errorf("%w: ein Server mit diesem Namen existiert im Projekt schon", ErrExists)
 	}
@@ -625,8 +627,8 @@ func (s *Store) ListServers(projectID string) ([]ServerRow, error) {
 }
 
 func (s *Store) UpdateServer(server ServerRow) error {
-	_, err := s.db.Exec("UPDATE servers SET name = ?, slug = ?, role = ?, software = ?, in_try = ?, try_position = ?, forced_host = ?, voicechat = ?, node_id = ?, public_address = ?, modpack = ?, auto_restart = ? WHERE id = ?",
-		server.Name, server.Slug, server.Role, server.Software, boolInt(server.InTry), server.TryPosition, server.ForcedHost, boolInt(server.Voicechat), server.NodeID, server.PublicAddress, modpackText(server.Modpack), boolInt(server.AutoRestart), server.ID)
+	_, err := s.db.Exec("UPDATE servers SET name = ?, slug = ?, role = ?, software = ?, in_try = ?, try_position = ?, forced_host = ?, voicechat = ?, node_id = ?, public_address = ?, public_voice_address = ?, modpack = ?, auto_restart = ? WHERE id = ?",
+		server.Name, server.Slug, server.Role, server.Software, boolInt(server.InTry), server.TryPosition, server.ForcedHost, boolInt(server.Voicechat), server.NodeID, server.PublicAddress, server.PublicVoiceAddress, modpackText(server.Modpack), boolInt(server.AutoRestart), server.ID)
 	if isUnique(err) {
 		return fmt.Errorf("%w: ein Server mit diesem Namen existiert im Projekt schon", ErrExists)
 	}

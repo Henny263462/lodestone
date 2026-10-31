@@ -71,7 +71,7 @@ export default function OverviewPage() {
               const live = project.servers.filter((server) => server.view?.state === "running").length;
               const first = project.servers[0];
               return (
-                <Link key={project.id} href={`/project/?id=${project.id}`} className="group">
+                <Link key={project.id} href={`/project/${project.id}/`} className="group">
                   <Card className="h-full p-5 transition duration-100 group-hover:border-white/[0.16] group-active:scale-[0.99]">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
@@ -106,7 +106,7 @@ export default function OverviewPage() {
         onClose={() => setCreating(false)}
         onCreated={(project) => {
           mutate();
-          router.push(`/project/?id=${project.id}`);
+          router.push(`/project/${project.id}/`);
         }}
       />
     </>
@@ -136,7 +136,7 @@ function NewProjectDialog({ open, onClose, onCreated }: { open: boolean; onClose
   }
 
   const options = [
-    { id: "server" as const, icon: ServerIcon, title: "Einzelner Server", text: "Ein Server: Paper, Purpur, Folia, Fabric, Vanilla oder Velocity." },
+    { id: "server" as const, icon: ServerIcon, title: "Einzelner Server", text: "Ein Server: Paper, Purpur, Folia, Leaf, Fabric, NeoForge, Forge, Vanilla oder Velocity." },
     { id: "network" as const, icon: Network, title: "Netzwerk", text: "Velocity-Proxy mit mehreren Servern dahinter. Wird automatisch verbunden." },
   ];
 

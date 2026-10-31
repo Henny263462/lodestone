@@ -25,8 +25,8 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 ## Datenmodell
 
 - **Projekt**: Einzelserver oder Netzwerk; hat Mitglieder mit Rollen pro Projekt.
-- **Server** gehört zu einem Projekt und läuft auf einer Node. Er hat eine **Software** (Paper, Purpur, Folia, Fabric,
-  Vanilla, Velocity, später Forge/NeoForge), Version, Java-Version, Startzeile und Limits. Ein Server ist entweder
+- **Server** gehört zu einem Projekt und läuft auf einer Node. Er hat eine **Software** (Paper, Purpur, Folia, Leaf, Fabric,
+  NeoForge, Forge, Vanilla, Velocity), Version, Java-Version, Startzeile und Limits. Ein Server ist entweder
   *statisch* (behält seine Daten) oder Instanz einer *Gruppe*.
 - **Netzwerk** = ein oder mehrere Proxys + beliebig viele statische Server + optional Gruppen. Auch ein kleines
   Netzwerk nur aus statischen Servern ist möglich.
@@ -40,8 +40,9 @@ Beim Hinzufügen eines Servers zu einem Netzwerk schreibt das Panel alles selbst
 
 - Velocity: Forwarding-Secret, Server-Liste und **Try-Liste** (pro Server wählbar, ob und an welcher Position, per
   Drag & Drop), Forced-Hosts
-- Paper/Purpur/Folia: Velocity-Forwarding mit Secret, `online-mode=false`, Port
+- Paper/Purpur/Folia/Leaf: Velocity-Forwarding mit Secret, `online-mode=false`, Port
 - Fabric: Proxy-Mod (z. B. FabricProxy-Lite) samt Config
+- NeoForge: Proxy Compatible Forge (`config/proxy-compatible-forge.toml`), wird wie bei Fabric installiert und konfiguriert
 - **Gruppen:** Instanzen melden sich im laufenden Proxy an und beim Stoppen wieder ab (Proxy-Plugin, ähnlich
   Comparator), ohne Neustart. Das Plugin kann auch die Lobby nach Auslastung verteilen, denn Velocity probiert die
   Try-Liste nur der Reihe nach.
@@ -69,7 +70,7 @@ sie mit dem Panel verbindet. Datenbank hinter einer Schnittstelle, SQLite für k
 5. ✅ Netzwerk-Autoconfig (Try-Reihenfolge, Forced Hosts, statische Server, Voicechat)
 6. **Nächste Stufe:** Gruppen mit Scaling und Proxy-Plugin, Verbindung der Node nach außen, Netzwerke über mehrere
    Nodes, geplante Backups, Zwei-Faktor, Audit-Log
-7. Forge/NeoForge, Geyser/Floodgate und weitere Bausteine, Spieler-Verwaltung über Rechte (Torch optional)
+7. Forge, Geyser/Floodgate und weitere Bausteine, Spieler-Verwaltung über Rechte (Torch optional)
 
 ## Betrieb (Panel-Schleifen)
 

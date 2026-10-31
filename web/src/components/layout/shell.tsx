@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Cpu, LayoutDashboard, LogOut, Menu, Network, PanelLeftClose, PanelLeftOpen, ScrollText, Search, Server, UserCog, Users, X } from "lucide-react";
+import { Cpu, LayoutDashboard, LogOut, Menu, Network, PanelLeftClose, PanelLeftOpen, Search, Server, ShieldCheck, UserCog, X } from "lucide-react";
 import { cx } from "@/components/ui/primitives";
 import { LodestoneLogo, PixelAvatar, Wordmark } from "@/components/ui/mc";
 import { Loading } from "@/components/ui/async";
@@ -82,6 +82,9 @@ function normalize(path: string): string {
 
 const FOLD_KEY = "lodestone.sidebar.folded";
 
+// Alle Seiten des Admin-Panels; sie teilen sich eine zweite Seitenleiste, darum zählt jede als „Admin-Panel“.
+const ADMIN_PATHS = ["/admin/", "/users/", "/audit/"];
+
 function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = normalize(usePathname() ?? "/");
   const params = useSearchParams();
@@ -123,7 +126,9 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
     window.location.replace("/login/");
   }
 
-  const currentProject = pathname === "/project/" ? params.get("id") : null;
+  const segments = pathname.split("/").filter(Boolean);
+  const currentProject = segments[0] === "project" && segments[1] ? segments[1] : pathname === "/project/" ? params.get("id") : null;
+  const currentServer = segments[0] === "server" && segments[1] ? segments[1] : pathname === "/server/" ? params.get("id") : null;
 
   function link(href: string, label: string, Icon: Icon, selected: boolean, compact: boolean) {
     return (
@@ -179,20 +184,21 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
           {heading("Projekte")}
           {(projects ?? []).map((project) =>
             link(
-              `/project/?id=${project.id}`,
+              `/project/${project.id}/`,
               project.name,
               project.kind === "network" ? Network : Server,
-              currentProject === project.id || (pathname === "/server/" && project.servers.some((server) => server.id === params.get("id"))),
+              currentProject === project.id || (currentServer ? project.servers.some((server) => server.id === currentServer) : false),
               compact,
             ),
           )}
           {projects && projects.length === 0 && !compact && <p className="px-3 py-1 text-xs text-muted/70">Noch keine Projekte</p>}
 
           {heading("Verwaltung")}
-          {link("/nodes/", "Nodes", Cpu, pathname === "/nodes/", compact)}
-          {user.isAdmin && link("/users/", "Benutzer", Users, pathname === "/users/", compact)}
-          {user.isAdmin && link("/audit/", "Protokoll", ScrollText, pathname === "/audit/", compact)}
+          {link("/nodes/", "Nodes", Cpu, pathname.startsWith("/nodes/"), compact)}
           {link("/account/", "Konto", UserCog, pathname === "/account/", compact)}
+
+          {user.isAdmin && heading("Administration")}
+          {user.isAdmin && link("/admin/", "Admin-Panel", ShieldCheck, ADMIN_PATHS.some((path) => pathname.startsWith(path)), compact)}
         </nav>
 
         <div className="border-t border-white/[0.06] p-3">

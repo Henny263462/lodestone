@@ -45,14 +45,38 @@ func Slugify(name string) string {
 // IsPaperFamily sagt, ob die Software ihre Proxy-Einstellung in config/paper-global.yml hat.
 func IsPaperFamily(id software.ID) bool {
 	switch id {
-	case "paper", "purpur", "folia":
+	case "paper", "purpur", "folia", "leaf":
 		return true
 	}
 	return false
 }
 
-// CanBeBackend sagt, ob ein Server hinter Velocity laufen kann (er muss "modern forwarding" verstehen).
-func CanBeBackend(id software.ID) bool { return IsPaperFamily(id) || id == "fabric" }
+// CanBeBackend sagt, ob ein Server hinter Velocity laufen kann (er muss "modern forwarding" verstehen). Fabric und NeoForge
+// bekommen das über einen Mod, den Lodestone installiert (siehe ProxyMod).
+func CanBeBackend(id software.ID) bool { return IsPaperFamily(id) || ProxyMod(id) != "" }
+
+// ProxyMod nennt das Modrinth-Projekt, das einen Mod-Server "modern forwarding" von Velocity beibringt ("" = nicht nötig
+// oder nicht möglich).
+func ProxyMod(id software.ID) string {
+	switch id {
+	case "fabric":
+		return "fabricproxy-lite"
+	case "neoforge":
+		return "proxy-compatible-forge"
+	}
+	return ""
+}
+
+// VoiceConfigFile ist die Einstellungsdatei von Simple Voice Chat bei dieser Software ("" = Voicechat nicht unterstützt).
+func VoiceConfigFile(id software.ID) string {
+	switch {
+	case IsPaperFamily(id):
+		return "plugins/voicechat/voicechat-server.properties"
+	case id == "fabric", id == "neoforge":
+		return "config/voicechat/voicechat-server.properties"
+	}
+	return ""
+}
 
 // NetServer sind die Angaben, die die Rezepte über einen Server des Netzwerks brauchen.
 type NetServer struct {
@@ -63,8 +87,21 @@ type NetServer struct {
 	PublicHost string
 	// VoiceHostPort ist der veröffentlichte UDP-Port für Voicechat (0, wenn es keinen gibt).
 	VoiceHostPort int
+	// VoiceAddress ersetzt PublicHost:VoiceHostPort als Adresse des Voicechats (z. B. ein playit-Tunnel).
+	VoiceAddress string
 	// MOTD ist die Nachricht in der Serverliste (nur am Proxy; leer = Standard von Velocity).
 	MOTD string
+}
+
+// voiceHost ist die Adresse, die Spieler für den Voicechat benutzen (leer, wenn es keine gibt).
+func (s NetServer) voiceHost() string {
+	switch {
+	case s.VoiceAddress != "":
+		return s.VoiceAddress
+	case s.VoiceHostPort > 0 && s.PublicHost != "":
+		return s.PublicHost + ":" + strconv.Itoa(s.VoiceHostPort)
+	}
+	return ""
 }
 
 func (s NetServer) internalAddress() string {
@@ -142,7 +179,7 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 	if proxy.MOTD != "" {
 		edits[0].Set = append(edits[0].Set, node.SetOp{Path: []string{"motd"}, Value: proxy.MOTD})
 	}
-	if voiceProxy && proxy.VoiceHostPort > 0 && proxy.PublicHost != "" {
+	if voice := proxy.voiceHost(); voiceProxy && voice != "" {
 		// Der Proxy nimmt den Voicechat aller Server über einen UDP-Port an und reicht ihn weiter
 		edits = append(edits, node.Edit{
 			File:   "plugins/voicechat/voicechat-proxy.properties",
@@ -150,7 +187,7 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 			Create: true,
 			Set: []node.SetOp{
 				{Path: []string{"port"}, Value: -1},
-				{Path: []string{"voice_host"}, Value: proxy.PublicHost + ":" + strconv.Itoa(proxy.VoiceHostPort)},
+				{Path: []string{"voice_host"}, Value: voice},
 			},
 		})
 	}
@@ -168,7 +205,7 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 		Format: "properties",
 		Set:    []node.SetOp{{Path: []string{"online-mode"}, Value: false}},
 	}}
-	var voiceFile string
+	voiceFile := VoiceConfigFile(software.ID(server.Row.Software))
 	switch {
 	case IsPaperFamily(software.ID(server.Row.Software)):
 		edits = append(edits, node.Edit{
@@ -180,7 +217,6 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 				{Path: []string{"proxies", "velocity", "secret"}, Value: secret},
 			},
 		})
-		voiceFile = "plugins/voicechat/voicechat-server.properties"
 	case server.Row.Software == "fabric":
 		edits = append(edits, node.Edit{
 			File:   "config/FabricProxy-Lite.toml",
@@ -194,18 +230,29 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 				{Path: []string{"secret"}, Value: secret},
 			},
 		})
-		voiceFile = "config/voicechat/voicechat-server.properties"
+	case server.Row.Software == "neoforge":
+		// Proxy Compatible Forge liest die Datei beim Start; alle drei Werte stehen drin, damit nichts vom Standard abhängt
+		edits = append(edits, node.Edit{
+			File:   "config/proxy-compatible-forge.toml",
+			Format: "toml",
+			Create: true,
+			Set: []node.SetOp{
+				{Path: []string{"forwarding", "enabled"}, Value: true},
+				{Path: []string{"forwarding", "mode"}, Value: "MODERN"},
+				{Path: []string{"forwarding", "secret"}, Value: secret},
+			},
+		})
 	default:
 		return node.Autoconfig{}, false
 	}
 
-	if !voiceProxy && server.Row.Voicechat && server.VoiceHostPort > 0 && server.PublicHost != "" {
+	if voice := server.voiceHost(); !voiceProxy && server.Row.Voicechat && voice != "" {
 		edits = append(edits, node.Edit{
 			File:   voiceFile,
 			Format: "properties",
 			Set: []node.SetOp{
 				{Path: []string{"port"}, Value: voicePort},
-				{Path: []string{"voice_host"}, Value: server.PublicHost + ":" + strconv.Itoa(server.VoiceHostPort)},
+				{Path: []string{"voice_host"}, Value: voice},
 			},
 		})
 	}

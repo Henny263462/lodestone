@@ -27,7 +27,43 @@ export interface NodeInfo {
   serverCount: number;
   memoryAvailable?: number;
   memoryCommitted?: number;
+  memoryUsed?: number;
+  memoryTotal?: number;
+  pingMs?: number;
+  updateAvailable?: boolean;
   system?: { dockerVersion: string; os: string; architecture: string; cpus: number; memoryBytes: number };
+}
+
+export interface NodeDetail extends NodeInfo {
+  servers: Server[];
+  projects?: Record<string, string>;
+}
+
+export interface NodeUpdateStatus {
+  id: string;
+  name: string;
+  version: string;
+  updateAvailable: boolean;
+  online: boolean;
+}
+
+export interface UpdateStatus {
+  panelVersion: string;
+  latestVersion: string;
+  /** Nur das Panel ist veraltet; `updateAvailable` gilt für Panel oder irgendeinen Node. */
+  panelUpdateAvailable: boolean;
+  updateAvailable: boolean;
+  /** Update-Kanal: `stable` bietet Releases an, `dev` den neuesten gebauten Stand von main. */
+  channel: "stable" | "dev";
+  /** Die neueste Version ließ sich nicht ermitteln: „kein Update“ heißt dann nur „unbekannt“. */
+  checkFailed: boolean;
+  releaseUrl?: string;
+  releaseTitle?: string;
+  releaseNotes?: string;
+  publishedAt?: string;
+  autoUpdate: boolean;
+  lastChecked: number;
+  nodes: NodeUpdateStatus[];
 }
 
 export type ServerState = "installing" | "offline" | "starting" | "running" | "stopping" | "restoring";
@@ -89,6 +125,7 @@ export interface Server {
   address?: string;
   voiceAddress?: string;
   publicAddress?: string;
+  publicVoiceAddress?: string;
   modpack?: ModpackInfo;
   autoRestart: boolean;
   view: NodeView | null;
@@ -132,6 +169,65 @@ export interface PlayitStatus {
   logs: string[];
   error?: string;
   since?: number;
+}
+
+/** Stand der Verbindung eines Nodes mit playit (den Schlüssel bekommt der Browser nie). */
+export interface PlayitClaim {
+  state: "none" | "waiting" | "accepted" | "rejected" | "expired";
+  url?: string;
+}
+
+export type TunnelKind = "java" | "voicechat";
+
+export interface Tunnel {
+  kind: TunnelKind;
+  id: string;
+  address: string;
+  state: "allocated" | "pending" | "disabled";
+  /** Name der gewählten Region; fehlt bei „Automatisch“. */
+  region?: string;
+  /** Eigene Domain des Tunnels; fehlt ohne eigene Domain. */
+  domain?: string;
+}
+
+/** Was das playit-Konto beim Anlegen eines Tunnels erlaubt. */
+export interface TunnelOptions {
+  /** Regionen und eigene Domains gehören zu playit Premium. */
+  premium: boolean;
+  regions: { id: string; name: string }[];
+  domains: { id: string; name: string; external: boolean; used: boolean }[];
+  domainsProblem?: string;
+}
+
+export interface TunnelList {
+  configured: boolean;
+  tunnels: Tunnel[];
+  available: { java: boolean; voicechat: boolean };
+  problem?: string;
+}
+
+export interface PlayitNodeOverview {
+  nodeId: string;
+  nodeName: string;
+  online: boolean;
+  publicHost: string;
+  status: PlayitStatus;
+  error?: string;
+}
+
+export interface PlayitTunnelOverview {
+  serverId: string;
+  serverName: string;
+  projectId: string;
+  projectName: string;
+  nodeId: string;
+  nodeName: string;
+  tunnel: Tunnel;
+}
+
+export interface PlayitOverview {
+  nodes: PlayitNodeOverview[];
+  tunnels: PlayitTunnelOverview[];
 }
 
 export interface AddonDetail {
@@ -426,3 +522,50 @@ export interface PublicStatus {
   servers: { name: string; online: boolean; players: number; maxPlayers?: number }[];
   updated: number;
 }
+
+export interface AdminOverview {
+  users: number;
+  admins: number;
+  disabledUsers: number;
+  projects: number;
+  servers: number;
+  nodes: number;
+  members: number;
+  sessions: number;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  disabled: boolean;
+  createdAt: number;
+  totpEnabled: boolean;
+  projectCount: number;
+  sessionCount: number;
+}
+
+export interface AdminUserProject {
+  id: string;
+  name: string;
+  kind: "server" | "network";
+  role: Role;
+}
+
+export interface AdminUserDetail {
+  user: AdminUser;
+  projects: AdminUserProject[];
+}
+
+export interface AdminProject {
+  id: string;
+  name: string;
+  kind: "server" | "network";
+  description: string;
+  createdAt: number;
+  ownerId: string;
+  ownerName: string;
+  memberCount: number;
+  serverCount: number;
+}
+
