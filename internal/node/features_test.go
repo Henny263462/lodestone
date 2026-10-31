@@ -171,12 +171,15 @@ func TestBackupCreateRestoreAndPrune(t *testing.T) {
 	put(t, server, "world/region/r.0.0.mca", []byte("welt-daten"))
 	put(t, server, "server.properties", []byte("motd=alt\n"))
 
+	server.backupBusy.Store(true)
+	if _, err := server.CreateBackup("noch eins"); err == nil {
+		t.Fatal("zwei Backups gleichzeitig dürfen nicht möglich sein")
+	}
+	server.backupBusy.Store(false)
+
 	backup, err := server.CreateBackup("Vor dem Update!")
 	if err != nil || !backup.Creating || !strings.HasSuffix(backup.Name, "-vor-dem-update.tar.gz") {
 		t.Fatalf("CreateBackup: %+v %v", backup, err)
-	}
-	if _, err := server.CreateBackup("noch eins"); err == nil {
-		t.Fatal("zwei Backups gleichzeitig dürfen nicht möglich sein")
 	}
 	list := waitBackup(t, server, 1)
 	if list[0].Size == 0 || list[0].Label != "vor-dem-update" {
