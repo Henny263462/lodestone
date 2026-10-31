@@ -100,8 +100,9 @@ type PackAutoconfigVoice struct {
 type PositionPack struct {
 	Meta       PackMeta       `json:"meta"`
 	Autoconfig PackAutoconfig `json:"autoconfig"`
-	Script     string         `json:"script,omitempty"` // Inhalt von autoconfig.sh
-	Custom     bool           `json:"custom"`           // vom Benutzer hochgeladen
+	Script     string         `json:"script,omitempty"`     // Inhalt von autoconfig.sh
+	Custom     bool           `json:"custom"`               // vom Benutzer hochgeladen
+	Overridden bool           `json:"overridden,omitempty"` // überschreibt ein Standard-Pack
 	ZipSize    int64          `json:"zipSize"`
 }
 
@@ -116,6 +117,7 @@ type PackSummary struct {
 	Extensions    Extensions `json:"extensions"`
 	DefaultPort   int        `json:"defaultPort"`
 	Custom        bool       `json:"custom"`
+	Overridden    bool       `json:"overridden,omitempty"`
 	ZipSize       int64      `json:"zipSize"`
 	HasAutoconfig bool       `json:"hasAutoconfig"`
 	HasScript     bool       `json:"hasScript"`
@@ -138,6 +140,7 @@ func (p *PositionPack) Summary() PackSummary {
 		Extensions:    p.Meta.Extensions,
 		DefaultPort:   p.Meta.DefaultPort,
 		Custom:        p.Custom,
+		Overridden:    p.Overridden,
 		ZipSize:       p.ZipSize,
 		HasAutoconfig: hasAutoconfig,
 		HasScript:     strings.TrimSpace(p.Script) != "",
@@ -350,7 +353,6 @@ func InitPackManager(dir string) *PackManager {
 	globalManagerMu.Lock()
 	defer globalManagerMu.Unlock()
 	globalManager = NewPackManager(dir)
-	syncCatalog()
 	return globalManager
 }
 
@@ -360,7 +362,6 @@ func GetPackManager() *PackManager {
 	defer globalManagerMu.Unlock()
 	if globalManager == nil {
 		globalManager = NewPackManager("")
-		syncCatalog()
 	}
 	return globalManager
 }
@@ -413,7 +414,13 @@ func (pm *PackManager) loadFromDir(dir string) {
 		if err != nil {
 			continue
 		}
-		pack.Custom = true
+		if isDefaultID(pack.Meta.ID) {
+			pack.Custom = false
+			pack.Overridden = true
+		} else {
+			pack.Custom = true
+			pack.Overridden = false
+		}
 		pack.ZipSize = int64(len(data))
 		pm.packs[pack.Meta.ID] = pack
 	}
@@ -454,7 +461,13 @@ func (pm *PackManager) Add(zipData []byte) (*PositionPack, error) {
 	if err != nil {
 		return nil, err
 	}
-	pack.Custom = true
+	if isDefaultID(pack.Meta.ID) {
+		pack.Custom = false
+		pack.Overridden = true
+	} else {
+		pack.Custom = true
+		pack.Overridden = false
+	}
 	pack.ZipSize = int64(len(zipData))
 
 	pm.mu.Lock()
@@ -467,12 +480,15 @@ func (pm *PackManager) Add(zipData []byte) (*PositionPack, error) {
 		}
 	}
 	pm.packs[pack.Meta.ID] = pack
-	syncCatalogLocked(pm)
 	return pack, nil
 }
 
 // Save aktualisiert ein Position-Pack und speichert es als ZIP.
 func (pm *PackManager) Save(pack *PositionPack) error {
+	if isDefaultID(pack.Meta.ID) {
+		pack.Custom = false
+		pack.Overridden = true
+	}
 	if err := pack.Meta.Validate(); err != nil {
 		return err
 	}
@@ -492,11 +508,21 @@ func (pm *PackManager) Save(pack *PositionPack) error {
 		}
 	}
 	pm.packs[pack.Meta.ID] = pack
-	syncCatalogLocked(pm)
 	return nil
 }
 
-// Delete entfernt ein benutzerdefiniertes Position-Pack.
+// RegisterMemory registriert ein Position-Pack direkt im Speicher (z. B. für Node-Synchronisation).
+func (pm *PackManager) RegisterMemory(pack *PositionPack) error {
+	if err := pack.Meta.Validate(); err != nil {
+		return err
+	}
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.packs[pack.Meta.ID] = pack
+	return nil
+}
+
+// Delete entfernt ein benutzerdefiniertes Position-Pack oder setzt ein überschriebenes Standard-Pack zurück.
 func (pm *PackManager) Delete(id ID) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -505,7 +531,8 @@ func (pm *PackManager) Delete(id ID) error {
 	if !ok {
 		return ErrNotFound
 	}
-	if !pack.Custom {
+	defaultP, isDefault := defaultPack(id)
+	if isDefault && !pack.Overridden {
 		return errors.New("Standard-Position-Packs können nicht gelöscht werden")
 	}
 
@@ -514,8 +541,12 @@ func (pm *PackManager) Delete(id ID) error {
 		_ = os.Remove(dst)
 		_ = os.Remove(filepath.Join(pm.dir, string(id)+".positionpack"))
 	}
-	delete(pm.packs, id)
-	syncCatalogLocked(pm)
+	if isDefault {
+		cloned := *defaultP
+		pm.packs[id] = &cloned
+	} else {
+		delete(pm.packs, id)
+	}
 	return nil
 }
 
@@ -530,21 +561,18 @@ func (pm *PackManager) Export(id ID) ([]byte, error) {
 	return CreateZipPack(pack)
 }
 
-func syncCatalog() {
-	if globalManager == nil {
-		return
+func defaultPack(id ID) (*PositionPack, bool) {
+	for _, p := range DefaultPacks() {
+		if p.Meta.ID == id {
+			return p, true
+		}
 	}
-	globalManager.mu.RLock()
-	defer globalManager.mu.RUnlock()
-	syncCatalogLocked(globalManager)
+	return nil, false
 }
 
-func syncCatalogLocked(pm *PackManager) {
-	newCatalog := make([]Info, 0, len(pm.packs))
-	for _, p := range pm.packs {
-		newCatalog = append(newCatalog, p.Info())
-	}
-	catalog = newCatalog
+func isDefaultID(id ID) bool {
+	_, ok := defaultPack(id)
+	return ok
 }
 
 // ---------------------------------------------------------------- Default Packs
@@ -561,7 +589,6 @@ func DefaultPacks() []*PositionPack {
 		defaultLeafPack(),
 		defaultForgePack(),
 		defaultVanillaPack(),
-		defaultQuiltPack(),
 	}
 }
 
@@ -617,7 +644,6 @@ func defaultPaperPack() *PositionPack {
 				},
 			},
 		},
-		Script: "#!/bin/sh\n# Lodestone Autoconfig für Paper\necho \"Paper Position-Pack aktiv\"\n",
 	}
 }
 
@@ -677,7 +703,6 @@ func defaultFabricPack() *PositionPack {
 				},
 			},
 		},
-		Script: "#!/bin/sh\n# Lodestone Autoconfig für Fabric\necho \"Fabric Position-Pack aktiv\"\n",
 	}
 }
 
@@ -733,7 +758,6 @@ func defaultPurpurPack() *PositionPack {
 				},
 			},
 		},
-		Script: "#!/bin/sh\n# Lodestone Autoconfig für Purpur\necho \"Purpur Position-Pack aktiv\"\n",
 	}
 }
 
@@ -774,7 +798,6 @@ func defaultVelocityPack() *PositionPack {
 				},
 			},
 		},
-		Script: "#!/bin/sh\n# Lodestone Autoconfig für Velocity\necho \"Velocity Position-Pack aktiv\"\n",
 	}
 }
 
@@ -968,65 +991,5 @@ func defaultVanillaPack() *PositionPack {
 			Provider:     PackProvider{Type: "vanilla"},
 			Backend:      PackBackend{Supported: false},
 		},
-	}
-}
-
-func defaultQuiltPack() *PositionPack {
-	return &PositionPack{
-		Meta: PackMeta{
-			ID:           ID("quilt"),
-			Name:         "Quilt",
-			Description:  "Modulare Modding-Plattform und kompatible Weiterentwicklung von Fabric.",
-			Version:      "1.0.0",
-			Author:       "The Quilt Project / Lodestone",
-			Kind:         KindServer,
-			Extensions:   ExtMods,
-			DefaultPort:  25565,
-			Startup:      javaStartup + " nogui",
-			StopCommand:  "stop",
-			ReadyPattern: `Done \(`,
-			Java:         PackJava{Strategy: "mojang", Major: 21},
-			Provider:     PackProvider{Type: "fabric"}, // Fabric-kompatibler Bezug
-			Backend: PackBackend{
-				Supported:       true,
-				ProxyMod:        "fabricproxy-lite",
-				VoiceConfigFile: "config/voicechat/voicechat-server.properties",
-			},
-		},
-		Autoconfig: PackAutoconfig{
-			Backend: &PackAutoconfigTarget{
-				Restart: true,
-				Edits: []PackEdit{
-					{
-						File:   "server.properties",
-						Format: "properties",
-						Set: []PackSetOp{
-							{Path: []string{"online-mode"}, Value: false},
-						},
-					},
-					{
-						File:   "config/FabricProxy-Lite.toml",
-						Format: "toml",
-						Create: true,
-						Set: []PackSetOp{
-							{Path: []string{"hackOnlineMode"}, Value: true},
-							{Path: []string{"hackEarlySend"}, Value: false},
-							{Path: []string{"hackMessageChain"}, Value: true},
-							{Path: []string{"disconnectMessage"}, Value: "Dieser Server ist nur über den Proxy erreichbar."},
-							{Path: []string{"secret"}, Value: "{{SECRET}}"},
-						},
-					},
-				},
-			},
-			Voicechat: &PackAutoconfigVoice{
-				File:   "config/voicechat/voicechat-server.properties",
-				Format: "properties",
-				Set: []PackSetOp{
-					{Path: []string{"port"}, Value: "{{VOICE_PORT}}"},
-					{Path: []string{"voice_host"}, Value: "{{VOICE_HOST}}"},
-				},
-			},
-		},
-		Script: "#!/bin/sh\n# Lodestone Autoconfig für Quilt\necho \"Quilt Position-Pack aktiv\"\n",
 	}
 }

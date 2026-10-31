@@ -197,8 +197,41 @@ func TestPackManagerLifecycle(t *testing.T) {
 		t.Errorf("Datei sollte von der Platte entfernt sein")
 	}
 
-	// Standard-Pack darf nicht gelöscht werden
+	// Standard-Pack darf nicht gelöscht werden (wenn nicht überschrieben)
 	if err := pm.Delete(Paper); err == nil {
 		t.Errorf("Löschen von Paper hätte fehlschlagen müssen")
+	}
+
+	// Standard-Pack überschreiben
+	paperMod := *paper
+	paperMod.Meta.Description = "Modifiziertes Paper"
+	modZip, err := CreateZipPack(&paperMod)
+	if err != nil {
+		t.Fatalf("CreateZipPack: %v", err)
+	}
+	saved, err := pm.Add(modZip)
+	if err != nil {
+		t.Fatalf("pm.Add modifiziertes Paper: %v", err)
+	}
+	if saved.Custom {
+		t.Errorf("überschriebenes Standard-Pack darf nicht Custom sein")
+	}
+	if !saved.Overridden {
+		t.Errorf("überschriebenes Standard-Pack muss Overridden=true sein")
+	}
+
+	// Löschen setzt auf Standard zurück
+	if err := pm.Delete(Paper); err != nil {
+		t.Fatalf("Löschen von überschriebenem Paper fehlgeschlagen: %v", err)
+	}
+	restored, ok := pm.Get(Paper)
+	if !ok {
+		t.Fatalf("Paper muss nach Reset vorhanden bleiben")
+	}
+	if restored.Overridden {
+		t.Errorf("wiederhergestelltes Paper darf nicht Overridden sein")
+	}
+	if restored.Meta.Description == "Modifiziertes Paper" {
+		t.Errorf("Paper-Beschreibung wurde nicht auf Standard zurückgesetzt")
 	}
 }

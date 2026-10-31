@@ -349,6 +349,36 @@ export interface SoftwareInfo {
   custom?: boolean;
 }
 
+export interface PackSetOp {
+  path: string[];
+  value: unknown;
+}
+
+export interface PackEdit {
+  file: string;
+  format: "properties" | "yaml" | "toml";
+  create?: boolean;
+  set?: PackSetOp[];
+}
+
+export interface PackWrite {
+  path: string;
+  content: string;
+}
+
+export interface PackAutoconfigTarget {
+  edits?: PackEdit[];
+  writes?: PackWrite[];
+  restart?: boolean;
+  reload?: string;
+}
+
+export interface PackAutoconfigVoice {
+  file: string;
+  format: "properties" | "yaml" | "toml" | string;
+  set?: PackSetOp[];
+}
+
 export interface PositionPackSummary {
   id: string;
   name: string;
@@ -359,6 +389,7 @@ export interface PositionPackSummary {
   extensions: "plugins" | "mods" | "none";
   defaultPort: number;
   custom: boolean;
+  overridden?: boolean;
   zipSize: number;
   hasAutoconfig: boolean;
   hasScript: boolean;
@@ -396,13 +427,14 @@ export interface PositionPackDetail {
     };
   };
   autoconfig: {
-    backend?: any;
-    proxy?: any;
-    standalone?: any;
-    voicechat?: any;
+    backend?: PackAutoconfigTarget;
+    proxy?: PackAutoconfigTarget;
+    standalone?: PackAutoconfigTarget;
+    voicechat?: PackAutoconfigVoice;
   };
   script?: string;
   custom: boolean;
+  overridden?: boolean;
   zipSize: number;
 }
 

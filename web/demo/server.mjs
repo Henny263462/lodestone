@@ -504,11 +504,11 @@ async function api(req, res, url) {
   if (a === "packs") {
     if (!b) {
       return send(res, 200, [
-        { id: "paper", name: "Paper", description: "Hochperformante Minecraft-Server-Software mit Plugin-Unterstützung.", version: "1.0.0", author: "PaperMC", kind: "server", extensions: "plugins", defaultPort: 25565, custom: false, zipSize: 4200, hasAutoconfig: true, hasScript: true, canBeBackend: true, canVoice: true },
-        { id: "fabric", name: "Fabric", description: "Leichtgewichtige, modulare Modding-Toolchain für Minecraft.", version: "1.0.0", author: "FabricMC", kind: "server", extensions: "mods", defaultPort: 25565, custom: false, zipSize: 3800, hasAutoconfig: true, hasScript: true, canBeBackend: true, canVoice: true },
-        { id: "purpur", name: "Purpur", description: "Paper-Abspaltung mit Fokus auf Konfigurierbarkeit.", version: "1.0.0", author: "PurpurMC", kind: "server", extensions: "plugins", defaultPort: 25565, custom: false, zipSize: 4100, hasAutoconfig: true, hasScript: true, canBeBackend: true, canVoice: true },
-        { id: "velocity", name: "Velocity", description: "Moderner, extrem schneller Minecraft-Proxy von PaperMC.", version: "1.0.0", author: "PaperMC", kind: "proxy", extensions: "plugins", defaultPort: 25565, custom: false, zipSize: 4500, hasAutoconfig: true, hasScript: true, canBeBackend: false, canVoice: false },
-        { id: "quilt", name: "Quilt", description: "Modulare Modding-Plattform und Weiterentwicklung von Fabric.", version: "1.0.0", author: "The Quilt Project", kind: "server", extensions: "mods", defaultPort: 25565, custom: true, zipSize: 3900, hasAutoconfig: true, hasScript: true, canBeBackend: true, canVoice: true },
+        { id: "paper", name: "Paper", description: "Hochperformante Minecraft-Server-Software mit Plugin-Unterstützung.", version: "1.0.0", author: "PaperMC", kind: "server", extensions: "plugins", defaultPort: 25565, custom: false, zipSize: 4200, hasAutoconfig: true, hasScript: false, canBeBackend: true, canVoice: true },
+        { id: "fabric", name: "Fabric", description: "Leichtgewichtige, modulare Modding-Toolchain für Minecraft.", version: "1.0.0", author: "FabricMC", kind: "server", extensions: "mods", defaultPort: 25565, custom: false, zipSize: 3800, hasAutoconfig: true, hasScript: false, canBeBackend: true, canVoice: true },
+        { id: "purpur", name: "Purpur", description: "Paper-Abspaltung mit Fokus auf Konfigurierbarkeit.", version: "1.0.0", author: "PurpurMC", kind: "server", extensions: "plugins", defaultPort: 25565, custom: false, zipSize: 4100, hasAutoconfig: true, hasScript: false, canBeBackend: true, canVoice: true },
+        { id: "velocity", name: "Velocity", description: "Moderner, extrem schneller Minecraft-Proxy von PaperMC.", version: "1.0.0", author: "PaperMC", kind: "proxy", extensions: "plugins", defaultPort: 25565, custom: false, zipSize: 4500, hasAutoconfig: true, hasScript: false, canBeBackend: false, canVoice: false },
+        { id: "minestom", name: "Minestom", description: "Schnelle Reimplementierung ohne Vanilla-Code.", version: "1.0.0", author: "Minestom Project", kind: "server", extensions: "none", defaultPort: 25565, custom: true, zipSize: 3900, hasAutoconfig: true, hasScript: true, canBeBackend: true, canVoice: false },
       ]);
     }
     if (b === "upload" && method === "POST") {
@@ -528,7 +528,7 @@ async function api(req, res, url) {
       meta: { id: b, name: b === "paper" ? "Paper" : b === "fabric" ? "Fabric" : "Position-Pack", kind: b === "velocity" ? "proxy" : "server", extensions: b === "fabric" ? "mods" : "plugins", defaultPort: 25565, startup: "exec java -jar {{JAR}} nogui", stopCommand: "stop", readyPattern: "Done \\(", backend: { supported: b !== "velocity", voiceConfigFile: "plugins/voicechat/voicechat-server.properties" } },
       autoconfig: { backend: { edits: [{ file: "server.properties", format: "properties", set: [{ path: ["online-mode"], value: false }] }] } },
       script: "#!/bin/sh\necho 'Autoconfig ausgeführt'\n",
-      custom: b === "quilt",
+      custom: b === "minestom",
       zipSize: 4200,
     });
   }

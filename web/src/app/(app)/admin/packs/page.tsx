@@ -6,10 +6,11 @@ import { AdminSidebar } from "@/components/admin-sidebar";
 import { useUser } from "@/components/layout/shell";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
-import { Badge, Button, Card, EmptyState, PageHeader, SearchInput, Tabs } from "@/components/ui/primitives";
+import { Badge, Button, Card, EmptyState, PageHeader, SearchInput } from "@/components/ui/primitives";
+import { PackDetailModal } from "@/components/pack-detail";
 import { api, apiBase, upload, useApi } from "@/lib/api";
 import { bytes } from "@/lib/format";
-import type { PositionPackDetail, PositionPackSummary } from "@/lib/types";
+import type { PositionPackSummary } from "@/lib/types";
 
 export default function PositionPacksPage() {
   const user = useUser();
@@ -144,7 +145,9 @@ export default function PositionPacksPage() {
                     ) : (
                       <Badge tone="info">Server</Badge>
                     )}
-                    {pack.custom ? (
+                    {pack.overridden ? (
+                      <Badge tone="warn">Überschrieben</Badge>
+                    ) : pack.custom ? (
                       <Badge tone="good">Eigenes Pack</Badge>
                     ) : (
                       <Badge tone="neutral">Standard</Badge>
@@ -189,13 +192,13 @@ export default function PositionPacksPage() {
                     <Wrench className="h-3.5 w-3.5" />
                     Details
                   </Button>
-                  {pack.custom && (
+                  {(pack.custom || pack.overridden) && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleteTarget(pack)}
                       className="text-bad hover:bg-bad/10"
-                      title="Position-Pack löschen"
+                      title={pack.overridden ? "Auf Standard zurücksetzen" : "Position-Pack löschen"}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -284,307 +287,16 @@ export default function PositionPacksPage() {
           open={true}
           onClose={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget)}
-          title="Position-Pack löschen"
-          text={`Möchtest du das Position-Pack „${deleteTarget.name}“ wirklich löschen? Bestehende Server bleiben erhalten, aber die Software steht beim Neu-Anlegen nicht mehr zur Verfügung.`}
-          confirm="Position-Pack löschen"
+          title={deleteTarget.overridden ? "Auf Standard zurücksetzen" : "Position-Pack löschen"}
+          text={
+            deleteTarget.overridden
+              ? `Möchtest du das Position-Pack „${deleteTarget.name}“ wirklich auf den eingebauten Standard zurücksetzen? Eigene Anpassungen gehen dabei verloren.`
+              : `Möchtest du das Position-Pack „${deleteTarget.name}“ wirklich löschen? Bestehende Server bleiben erhalten, aber die Software steht beim Neu-Anlegen nicht mehr zur Verfügung.`
+          }
+          confirm={deleteTarget.overridden ? "Auf Standard zurücksetzen" : "Position-Pack löschen"}
           danger
         />
       )}
     </>
-  );
-}
-
-function PackDetailModal({
-  id,
-  onClose,
-  onSaved,
-}: {
-  id: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const toast = useToast();
-  const { data: detail, error, mutate, isLoading } = useApi<PositionPackDetail>(`/packs/${encodeURIComponent(id)}`);
-  const [activeTab, setActiveTab] = useState<"meta" | "autoconfig" | "script">("meta");
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [startup, setStartup] = useState("");
-  const [stopCommand, setStopCommand] = useState("");
-  const [readyPattern, setReadyPattern] = useState("");
-  const [backendSupported, setBackendSupported] = useState(false);
-  const [proxyMod, setProxyMod] = useState("");
-  const [voiceConfigFile, setVoiceConfigFile] = useState("");
-
-  const [autoconfigJson, setAutoconfigJson] = useState("");
-  const [scriptContent, setScriptContent] = useState("");
-  const [initialized, setInitialized] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  if (detail && !initialized) {
-    setName(detail.meta.name || "");
-    setDescription(detail.meta.description || "");
-    setStartup(detail.meta.startup || "");
-    setStopCommand(detail.meta.stopCommand || "");
-    setReadyPattern(detail.meta.readyPattern || "");
-    setBackendSupported(detail.meta.backend?.supported ?? false);
-    setProxyMod(detail.meta.backend?.proxyMod || "");
-    setVoiceConfigFile(detail.meta.backend?.voiceConfigFile || "");
-
-    setAutoconfigJson(JSON.stringify(detail.autoconfig || {}, null, 2));
-    setScriptContent(detail.script || "");
-    setInitialized(true);
-  }
-
-  async function handleSave() {
-    if (!detail) return;
-    setSaving(true);
-    try {
-      let parsedAutoconfig = {};
-      if (autoconfigJson.trim()) {
-        try {
-          parsedAutoconfig = JSON.parse(autoconfigJson);
-        } catch (e) {
-          toast.error("Autokonfiguration enthält ungültiges JSON");
-          setSaving(false);
-          return;
-        }
-      }
-
-      const updatedMeta = {
-        ...detail.meta,
-        name,
-        description,
-        startup,
-        stopCommand,
-        readyPattern,
-        backend: {
-          ...detail.meta.backend,
-          supported: backendSupported,
-          proxyMod,
-          voiceConfigFile,
-        },
-      };
-
-      await api.put(`/packs/${encodeURIComponent(id)}`, {
-        meta: updatedMeta,
-        autoconfig: parsedAutoconfig,
-        script: scriptContent,
-      });
-      toast.success("Position-Pack erfolgreich gespeichert.");
-      await mutate();
-      onSaved();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open={true}
-      onClose={onClose}
-      wide
-      title={detail ? `Position-Pack: ${detail.meta.name}` : "Position-Pack wird geladen..."}
-      description={detail ? `ID: ${detail.meta.id} • ${detail.custom ? "Eigenes Pack" : "Standard-Pack"}` : undefined}
-      footer={
-        <div className="flex w-full items-center justify-between">
-          <a
-            href={`${apiBase()}/api/packs/${encodeURIComponent(id)}/export`}
-            download
-            className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Als ZIP herunterladen
-          </a>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={onClose} disabled={saving}>
-              Schließen
-            </Button>
-            <Button variant="primary" onClick={handleSave} loading={saving} disabled={!detail}>
-              Änderungen speichern
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      {isLoading || !detail ? (
-        <div className="py-8">
-          <Loading />
-        </div>
-      ) : error ? (
-        <ErrorState error={error} retry={() => mutate()} />
-      ) : (
-        <div className="space-y-4">
-          <Tabs
-            items={[
-              { id: "meta", label: "Übersicht & Metadaten" },
-              { id: "autoconfig", label: "Autokonfiguration" },
-              { id: "script", label: "Skript (autoconfig.sh)" },
-            ]}
-            value={activeTab}
-            onChange={(tab) => setActiveTab(tab as any)}
-          />
-
-          {activeTab === "meta" && (
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-medium text-muted">Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted">ID</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={detail.meta.id}
-                    className="mt-1 w-full cursor-not-allowed rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-1.5 font-mono text-sm text-muted"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted">Beschreibung</label>
-                <textarea
-                  rows={2}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="text-xs font-medium text-muted">Typ</label>
-                  <div className="mt-1 text-sm font-medium capitalize text-ink">{detail.meta.kind}</div>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted">Erweiterungen</label>
-                  <div className="mt-1 text-sm font-medium capitalize text-ink">{detail.meta.extensions}</div>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted">Standard-Port</label>
-                  <div className="mt-1 text-sm font-medium text-ink">{detail.meta.defaultPort}</div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted">Startbefehl (Startup)</label>
-                <input
-                  type="text"
-                  value={startup}
-                  onChange={(e) => setStartup(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent"
-                />
-                <p className="mt-1 text-[11px] text-muted">Platzhalter: {"{{MEMORY}}"} (RAM in MB), {"{{JAR}}"} (Dateiname)</p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-medium text-muted">Stop-Befehl</label>
-                  <input
-                    type="text"
-                    value={stopCommand}
-                    onChange={(e) => setStopCommand(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted">Bereit-Muster (Ready Pattern)</label>
-                  <input
-                    type="text"
-                    value={readyPattern}
-                    onChange={(e) => setReadyPattern(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent"
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3 space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={backendSupported}
-                    onChange={(e) => setBackendSupported(e.target.checked)}
-                    className="rounded border-white/[0.2] bg-white/[0.05] text-accent focus:ring-accent"
-                  />
-                  <span className="text-xs font-medium text-ink">Kann als Backend hinter Velocity-Proxy laufen</span>
-                </label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="text-xs text-muted">Proxy-Mod (Modrinth-Slug für Forwarding)</label>
-                    <input
-                      type="text"
-                      value={proxyMod}
-                      onChange={(e) => setProxyMod(e.target.value)}
-                      placeholder="z. B. fabricproxy-lite"
-                      className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-ink outline-none focus:border-accent"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted">Simple Voice Chat Konfigurationsdatei</label>
-                    <input
-                      type="text"
-                      value={voiceConfigFile}
-                      onChange={(e) => setVoiceConfigFile(e.target.value)}
-                      placeholder="z. B. plugins/voicechat/voicechat-server.properties"
-                      className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-ink outline-none focus:border-accent"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "autoconfig" && (
-            <div className="space-y-3">
-              <div className="rounded-lg border border-info/20 bg-info/5 p-3 text-xs text-info">
-                In den Werten und Pfaden können Platzhalter verwendet werden:
-                <code className="ml-1 text-white">{"{{SECRET}}"}</code>,
-                <code className="ml-1 text-white">{"{{VOICE_HOST}}"}</code>,
-                <code className="ml-1 text-white">{"{{VOICE_PORT}}"}</code>,
-                <code className="ml-1 text-white">{"{{SERVER_NAME}}"}</code>,
-                <code className="ml-1 text-white">{"{{SERVER_SLUG}}"}</code>.
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted">autoconfig.json</label>
-                <textarea
-                  rows={14}
-                  value={autoconfigJson}
-                  onChange={(e) => setAutoconfigJson(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.03] p-3 font-mono text-xs text-ink outline-none focus:border-accent"
-                  placeholder="{}"
-                />
-              </div>
-            </div>
-          )}
-
-          {activeTab === "script" && (
-            <div className="space-y-3">
-              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 text-xs text-muted">
-                Dieses Skript (<code className="text-white">autoconfig.sh</code>) wird im ZIP-Paket getrennt von den Metadaten abgelegt und bei der Bereitstellung auf den Server geschrieben.
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted">autoconfig.sh (Shell-Skript)</label>
-                <textarea
-                  rows={14}
-                  value={scriptContent}
-                  onChange={(e) => setScriptContent(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/[0.08] bg-white/[0.03] p-3 font-mono text-xs text-ink outline-none focus:border-accent"
-                  placeholder="#!/bin/sh"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </Dialog>
   );
 }

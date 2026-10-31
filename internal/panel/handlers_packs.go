@@ -1,11 +1,13 @@
 package panel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/lodestone-mc/lodestone/internal/software"
 )
@@ -60,6 +62,9 @@ func (p *Panel) uploadPack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Gesamte Anfrage auf maxPackZipSize plus Multipart-Framing-Puffer begrenzen
+	r.Body = http.MaxBytesReader(w, r.Body, maxPackZipSize+1024*1024)
+
 	var zipBytes []byte
 	contentType := r.Header.Get("Content-Type")
 
@@ -106,6 +111,7 @@ func (p *Panel) uploadPack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.audit(r, "Position-Pack hochgeladen", pack.Meta.Name)
+	go p.syncPackToNodes(pack)
 	writeJSON(w, http.StatusCreated, pack.Summary())
 }
 
@@ -140,6 +146,7 @@ func (p *Panel) updatePack(w http.ResponseWriter, r *http.Request) {
 		Autoconfig: payload.Autoconfig,
 		Script:     payload.Script,
 		Custom:     existing.Custom,
+		Overridden: existing.Overridden,
 	}
 
 	if err := pm.Save(updated); err != nil {
@@ -148,6 +155,7 @@ func (p *Panel) updatePack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.audit(r, "Position-Pack geändert", updated.Meta.Name)
+	go p.syncPackToNodes(updated)
 	writeJSON(w, http.StatusOK, updated.Summary())
 }
 
@@ -168,5 +176,52 @@ func (p *Panel) deletePack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.audit(r, "Position-Pack gelöscht", string(id))
+	go p.deletePackFromNodes(id)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (p *Panel) syncPackToNodes(pack *software.PositionPack) {
+	nodes, err := p.store.ListNodes()
+	if err != nil {
+		return
+	}
+	for _, n := range nodes {
+		client, _, err := p.client(n.ID)
+		if err != nil {
+			continue
+		}
+		go func(c *NodeClient) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_ = c.Do(ctx, http.MethodPut, "/api/packs/"+string(pack.Meta.ID), pack, nil)
+		}(client)
+	}
+}
+
+func (p *Panel) deletePackFromNodes(id software.ID) {
+	nodes, err := p.store.ListNodes()
+	if err != nil {
+		return
+	}
+	for _, n := range nodes {
+		client, _, err := p.client(n.ID)
+		if err != nil {
+			continue
+		}
+		go func(c *NodeClient) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_ = c.Do(ctx, http.MethodDelete, "/api/packs/"+string(id), nil, nil)
+		}(client)
+	}
+}
+
+func (p *Panel) ensurePackOnNode(ctx context.Context, client *NodeClient, id software.ID) {
+	pack, ok := software.GetPack(id)
+	if !ok || (!pack.Custom && !pack.Overridden) {
+		return
+	}
+	if err := client.Do(ctx, http.MethodPut, "/api/packs/"+string(pack.Meta.ID), pack, nil); err != nil {
+		p.log.Warn("Position-Pack konnte nicht auf Node synchronisiert werden", "pack", pack.Meta.ID, "error", err)
+	}
 }

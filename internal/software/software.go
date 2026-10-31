@@ -80,32 +80,23 @@ const javaStartup = "exec java -Xms{{MEMORY}}M -Xmx{{MEMORY}}M -XX:+UseG1GC -XX:
 // installerStartup startet Forge und NeoForge: Beim ersten Start läuft der Installer, danach run.sh mit den Speicherwerten.
 const installerStartup = "if [ ! -f run.sh ]; then java -jar {{JAR}} --installServer && if [ -f run.sh ]; then sed -i 's/^java/exec java/' run.sh 2>/dev/null || true; fi; fi; echo '-Xms{{MEMORY}}M -Xmx{{MEMORY}}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+DisableExplicitGC -Dterminal.jline=false -Dterminal.ansi=true' > user_jvm_args.txt; exec sh run.sh nogui"
 
-var catalog = []Info{
-	{ID: Paper, Name: "Paper", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: Purpur, Name: "Purpur", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: Folia, Name: "Folia", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: Leaf, Name: "Leaf", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: Fabric, Name: "Fabric", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: NeoForge, Name: "NeoForge", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: installerStartup, StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: Forge, Name: "Forge", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: installerStartup, StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: Vanilla, Name: "Vanilla", Kind: KindServer, Extensions: ExtNone, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
-	{ID: Velocity, Name: "Velocity", Kind: KindProxy, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup, StopCommand: "end", ReadyPattern: `Done \(|Listening on`},
+func isBuiltinProvider(t string) bool {
+	switch ID(t) {
+	case Paper, Purpur, Folia, Leaf, Fabric, NeoForge, Forge, Vanilla, Velocity:
+		return true
+	default:
+		return false
+	}
 }
 
 // Catalog liefert alle unterstützten Server-Arten.
 func Catalog() []Info {
-	pm := GetPackManager()
-	packs := pm.All()
-	if len(packs) > 0 {
-		out := make([]Info, 0, len(packs))
-		for _, p := range packs {
-			out = append(out, p.Info())
-		}
-		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-		return out
+	packs := GetPackManager().All()
+	out := make([]Info, 0, len(packs))
+	for _, p := range packs {
+		out = append(out, p.Info())
 	}
-	out := make([]Info, len(catalog))
-	copy(out, catalog)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
@@ -113,11 +104,6 @@ func Catalog() []Info {
 func Lookup(id ID) (Info, bool) {
 	if pack, ok := GetPackManager().Get(id); ok {
 		return pack.Info(), true
-	}
-	for _, info := range catalog {
-		if info.ID == id {
-			return info, true
-		}
 	}
 	return Info{}, false
 }
@@ -236,7 +222,7 @@ func (r *Resolver) Versions(ctx context.Context, id ID, prerelease bool) ([]stri
 		if pack.Meta.Provider.Type == "direct" {
 			return pack.Meta.Provider.Versions, nil
 		}
-		if pack.Meta.Provider.Type != "" && ID(pack.Meta.Provider.Type) != id {
+		if pack.Meta.Provider.Type != "" && isBuiltinProvider(pack.Meta.Provider.Type) && ID(pack.Meta.Provider.Type) != id {
 			return r.Versions(ctx, ID(pack.Meta.Provider.Type), prerelease)
 		}
 	}
@@ -454,7 +440,7 @@ func (r *Resolver) Resolve(ctx context.Context, id ID, version string) (Artifact
 			fileName = strings.ReplaceAll(fileName, "{{VERSION}}", version)
 			return Artifact{URL: address, FileName: fileName}, nil
 		}
-		if pack.Meta.Provider.Type != "" && ID(pack.Meta.Provider.Type) != id {
+		if pack.Meta.Provider.Type != "" && isBuiltinProvider(pack.Meta.Provider.Type) && ID(pack.Meta.Provider.Type) != id {
 			return r.Resolve(ctx, ID(pack.Meta.Provider.Type), version)
 		}
 	}
@@ -701,7 +687,7 @@ func (r *Resolver) JavaMajor(ctx context.Context, id ID, version string) int {
 			}
 			return 21
 		}
-		if pack.Meta.Provider.Type != "" && ID(pack.Meta.Provider.Type) != id {
+		if pack.Meta.Provider.Type != "" && isBuiltinProvider(pack.Meta.Provider.Type) && ID(pack.Meta.Provider.Type) != id {
 			return r.JavaMajor(ctx, ID(pack.Meta.Provider.Type), version)
 		}
 	}

@@ -179,19 +179,65 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 		forced[host] = append(existing, backend.Row.Slug)
 	}
 
-	edits := []node.Edit{{
-		File:   "velocity.toml",
-		Format: "toml",
-		Set: []node.SetOp{
-			{Path: []string{"bind"}, Value: fmt.Sprintf("0.0.0.0:%d", proxyPort)},
-			{Path: []string{"player-info-forwarding-mode"}, Value: "modern"},
-			{Path: []string{"servers"}, Value: table},
-			{Path: []string{"forced-hosts"}, Value: forced},
-		},
-	}}
-	if proxy.MOTD != "" {
-		edits[0].Set = append(edits[0].Set, node.SetOp{Path: []string{"motd"}, Value: proxy.MOTD})
+	var edits []node.Edit
+	var writes []node.FileWrite
+	restart := true
+	reload := velocityReload
+
+	pack, hasPack := software.GetPack(software.ID(proxy.Row.Software))
+	if hasPack && pack.Autoconfig.Proxy != nil {
+		target := pack.Autoconfig.Proxy
+		restart = target.Restart
+		if target.Reload != "" {
+			reload = interpolateString(target.Reload, secret, proxy)
+		}
+		for _, pe := range target.Edits {
+			edit := node.Edit{
+				File:   interpolateString(pe.File, secret, proxy),
+				Format: pe.Format,
+				Create: pe.Create,
+			}
+			for _, op := range pe.Set {
+				edit.Set = append(edit.Set, node.SetOp{
+					Path:  op.Path,
+					Value: interpolateValue(op.Value, secret, proxy),
+				})
+			}
+			if edit.File == "velocity.toml" {
+				edit.Set = append(edit.Set,
+					node.SetOp{Path: []string{"servers"}, Value: table},
+					node.SetOp{Path: []string{"forced-hosts"}, Value: forced},
+				)
+				if proxy.MOTD != "" {
+					edit.Set = append(edit.Set, node.SetOp{Path: []string{"motd"}, Value: proxy.MOTD})
+				}
+			}
+			edits = append(edits, edit)
+		}
+		for _, pw := range target.Writes {
+			writes = append(writes, node.FileWrite{
+				Path:    interpolateString(pw.Path, secret, proxy),
+				Content: interpolateString(pw.Content, secret, proxy),
+			})
+		}
+	} else {
+		defaultEdit := node.Edit{
+			File:   "velocity.toml",
+			Format: "toml",
+			Set: []node.SetOp{
+				{Path: []string{"bind"}, Value: fmt.Sprintf("0.0.0.0:%d", proxyPort)},
+				{Path: []string{"player-info-forwarding-mode"}, Value: "modern"},
+				{Path: []string{"servers"}, Value: table},
+				{Path: []string{"forced-hosts"}, Value: forced},
+			},
+		}
+		if proxy.MOTD != "" {
+			defaultEdit.Set = append(defaultEdit.Set, node.SetOp{Path: []string{"motd"}, Value: proxy.MOTD})
+		}
+		edits = append(edits, defaultEdit)
+		writes = append(writes, node.FileWrite{Path: "forwarding.secret", Content: secret})
 	}
+
 	if voice := proxy.voiceHost(); voiceProxy && voice != "" {
 		// Der Proxy nimmt den Voicechat aller Server über einen UDP-Port an und reicht ihn weiter
 		edits = append(edits, node.Edit{
@@ -206,9 +252,9 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 	}
 	return node.Autoconfig{
 		Edits:   edits,
-		Writes:  []node.FileWrite{{Path: "forwarding.secret", Content: secret}},
-		Restart: true,
-		Reload:  velocityReload,
+		Writes:  writes,
+		Restart: restart,
+		Reload:  reload,
 	}
 }
 
@@ -280,6 +326,7 @@ func interpolateString(s, secret string, server NetServer) string {
 		"{{SECRET}}", secret,
 		"{{VOICE_HOST}}", server.voiceHost(),
 		"{{VOICE_PORT}}", strconv.Itoa(voicePort),
+		"{{PROXY_PORT}}", strconv.Itoa(proxyPort),
 		"{{SERVER_NAME}}", server.Row.Name,
 		"{{SERVER_SLUG}}", server.Row.Slug,
 		"{{INTERNAL_PORT}}", strconv.Itoa(server.InternalPort),

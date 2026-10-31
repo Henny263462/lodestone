@@ -218,21 +218,50 @@ func TestPositionPacksDeleteAndPermissions(t *testing.T) {
 	// Bob darf Packs ansehen
 	bob.expect(200, "GET", "/api/packs", nil)
 
-	// Bob darf nicht hochladen oder löschen
+	// Bob darf nicht hochladen oder löschen oder ändern
 	bob.expect(403, "POST", "/api/packs/upload", []byte("xyz"))
 	bob.expect(403, "DELETE", "/api/packs/paper", nil)
+	bob.expect(403, "PUT", "/api/packs/paper", map[string]any{"meta": map[string]any{"name": "Test"}})
 
-	// Standard-Pack löschen verbieten
+	// Update-Prüfungen
+	// Unbekannte ID liefert 404
+	admin.expect(404, "PUT", "/api/packs/unbekanntes-pack-xyz", map[string]any{"meta": map[string]any{"name": "Test"}})
+	// Unbekanntes Feld liefert 400
+	admin.expect(400, "PUT", "/api/packs/paper", map[string]any{"unerlaubtesFeld": "ungueltig"})
+	// Erfolgreiches Update
+	validUpdate := map[string]any{
+		"meta": map[string]any{
+			"id":           "paper",
+			"name":         "Paper Modifiziert",
+			"kind":         "server",
+			"extensions":   "plugins",
+			"defaultPort":  25565,
+			"startup":      "exec java -jar {{JAR}}",
+			"stopCommand":  "stop",
+			"readyPattern": "Done",
+		},
+		"autoconfig": map[string]any{},
+		"script":     "",
+	}
+	admin.expect(200, "PUT", "/api/packs/paper", validUpdate)
+
+	// Überschriebenes Standard-Pack löschen setzt auf Standard zurück (204)
+	admin.expect(204, "DELETE", "/api/packs/paper", nil)
+	admin.expect(200, "GET", "/api/packs/paper", nil)
+	// Nicht mehr überschriebenes Standard-Pack darf nicht gelöscht werden (400)
 	admin.expect(400, "DELETE", "/api/packs/paper", nil)
 
 	// Custom Pack hochladen und löschen
 	testPack := &software.PositionPack{
 		Meta: software.PackMeta{
-			ID:          "temp-pack",
-			Name:        "Temp",
-			Kind:        software.KindServer,
-			Extensions:  software.ExtNone,
-			DefaultPort: 25565,
+			ID:           "temp-pack",
+			Name:         "Temp",
+			Kind:         software.KindServer,
+			Extensions:   software.ExtNone,
+			DefaultPort:  25565,
+			Startup:      "exec java -jar {{JAR}}",
+			StopCommand:  "stop",
+			ReadyPattern: "Done",
 		},
 	}
 	zipBytes, _ := software.CreateZipPack(testPack)
@@ -240,10 +269,13 @@ func TestPositionPacksDeleteAndPermissions(t *testing.T) {
 	req.Header.Set("Content-Type", "application/zip")
 	req.Header.Set(csrfHeader, "1")
 	resp, err := admin.http.Do(req)
-	if err != nil || resp.StatusCode != 201 {
-		t.Fatalf("Upload: err=%v status=%d", err, resp.StatusCode)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("Upload status = %d, want 201", resp.StatusCode)
+	}
 
 	// Löschen
 	admin.expect(204, "DELETE", "/api/packs/temp-pack", nil)
