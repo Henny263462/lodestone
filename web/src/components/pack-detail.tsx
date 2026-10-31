@@ -254,13 +254,13 @@ export function PackDetailModal({
                     onChange={setBackendSupported}
                     label="Kann als Backend hinter Velocity-Proxy laufen"
                   />
-                  <label
-                    htmlFor="pack-backend-supported"
+                  <span
+                    aria-hidden="true"
                     onClick={() => setBackendSupported(!backendSupported)}
-                    className="cursor-pointer text-xs font-medium text-ink"
+                    className="cursor-pointer text-xs font-medium text-ink select-none"
                   >
                     Kann als Backend hinter Velocity-Proxy laufen
-                  </label>
+                  </span>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>

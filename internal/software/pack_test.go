@@ -234,4 +234,19 @@ func TestPackManagerLifecycle(t *testing.T) {
 	if restored.Meta.Description == "Modifiziertes Paper" {
 		t.Errorf("Paper-Beschreibung wurde nicht auf Standard zurückgesetzt")
 	}
+
+	// Save mit unnormalisierter ID ("Paper") muss trotzdem als Standard-Pack erkannt werden
+	caseTest := *restored
+	caseTest.Meta.ID = "Paper"
+	caseTest.Meta.Description = "Case-Normalisiertes Paper"
+	if err := pm.Save(&caseTest); err != nil {
+		t.Fatalf("pm.Save mit unnormalisierter ID fehlgeschlagen: %v", err)
+	}
+	if caseTest.Meta.ID != Paper {
+		t.Errorf("ID wurde nicht normalisiert: %q", caseTest.Meta.ID)
+	}
+	if caseTest.Custom || !caseTest.Overridden {
+		t.Errorf("unnormalisiertes Paper wurde nicht als Overridden Standard-Pack markiert: Custom=%v Overridden=%v", caseTest.Custom, caseTest.Overridden)
+	}
+	_ = pm.Delete(Paper)
 }

@@ -183,45 +183,55 @@ func (p *Panel) deletePack(w http.ResponseWriter, r *http.Request) {
 func (p *Panel) syncPackToNodes(pack *software.PositionPack) {
 	nodes, err := p.store.ListNodes()
 	if err != nil {
+		p.log.Warn("Nodes für Position-Pack-Sync konnten nicht gelistet werden", "pack", pack.Meta.ID, "error", err)
 		return
 	}
 	for _, n := range nodes {
 		client, _, err := p.client(n.ID)
 		if err != nil {
+			p.log.Warn("Node-Client für Position-Pack-Sync nicht erreichbar", "pack", pack.Meta.ID, "node", n.ID, "error", err)
 			continue
 		}
-		go func(c *NodeClient) {
+		go func(c *NodeClient, nodeID string) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_ = c.Do(ctx, http.MethodPut, "/api/packs/"+string(pack.Meta.ID), pack, nil)
-		}(client)
+			if err := c.Do(ctx, http.MethodPut, "/api/packs/"+string(pack.Meta.ID), pack, nil); err != nil {
+				p.log.Warn("Position-Pack konnte nicht auf Node synchronisiert werden", "pack", pack.Meta.ID, "node", nodeID, "error", err)
+			}
+		}(client, n.ID)
 	}
 }
 
 func (p *Panel) deletePackFromNodes(id software.ID) {
 	nodes, err := p.store.ListNodes()
 	if err != nil {
+		p.log.Warn("Nodes für Position-Pack-Löschung konnten nicht gelistet werden", "pack", id, "error", err)
 		return
 	}
 	for _, n := range nodes {
 		client, _, err := p.client(n.ID)
 		if err != nil {
+			p.log.Warn("Node-Client für Position-Pack-Löschung nicht erreichbar", "pack", id, "node", n.ID, "error", err)
 			continue
 		}
-		go func(c *NodeClient) {
+		go func(c *NodeClient, nodeID string) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_ = c.Do(ctx, http.MethodDelete, "/api/packs/"+string(id), nil, nil)
-		}(client)
+			if err := c.Do(ctx, http.MethodDelete, "/api/packs/"+string(id), nil, nil); err != nil {
+				p.log.Warn("Position-Pack konnte nicht von Node gelöscht werden", "pack", id, "node", nodeID, "error", err)
+			}
+		}(client, n.ID)
 	}
 }
 
-func (p *Panel) ensurePackOnNode(ctx context.Context, client *NodeClient, id software.ID) {
+func (p *Panel) ensurePackOnNode(ctx context.Context, client *NodeClient, id software.ID) error {
 	pack, ok := software.GetPack(id)
 	if !ok || (!pack.Custom && !pack.Overridden) {
-		return
+		return nil
 	}
 	if err := client.Do(ctx, http.MethodPut, "/api/packs/"+string(pack.Meta.ID), pack, nil); err != nil {
 		p.log.Warn("Position-Pack konnte nicht auf Node synchronisiert werden", "pack", pack.Meta.ID, "error", err)
+		return err
 	}
+	return nil
 }

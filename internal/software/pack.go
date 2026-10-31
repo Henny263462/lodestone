@@ -414,13 +414,7 @@ func (pm *PackManager) loadFromDir(dir string) {
 		if err != nil {
 			continue
 		}
-		if isDefaultID(pack.Meta.ID) {
-			pack.Custom = false
-			pack.Overridden = true
-		} else {
-			pack.Custom = true
-			pack.Overridden = false
-		}
+		markPackOrigin(pack)
 		pack.ZipSize = int64(len(data))
 		pm.packs[pack.Meta.ID] = pack
 	}
@@ -461,13 +455,7 @@ func (pm *PackManager) Add(zipData []byte) (*PositionPack, error) {
 	if err != nil {
 		return nil, err
 	}
-	if isDefaultID(pack.Meta.ID) {
-		pack.Custom = false
-		pack.Overridden = true
-	} else {
-		pack.Custom = true
-		pack.Overridden = false
-	}
+	markPackOrigin(pack)
 	pack.ZipSize = int64(len(zipData))
 
 	pm.mu.Lock()
@@ -485,13 +473,10 @@ func (pm *PackManager) Add(zipData []byte) (*PositionPack, error) {
 
 // Save aktualisiert ein Position-Pack und speichert es als ZIP.
 func (pm *PackManager) Save(pack *PositionPack) error {
-	if isDefaultID(pack.Meta.ID) {
-		pack.Custom = false
-		pack.Overridden = true
-	}
 	if err := pack.Meta.Validate(); err != nil {
 		return err
 	}
+	markPackOrigin(pack)
 	zipBytes, err := CreateZipPack(pack)
 	if err != nil {
 		return err
@@ -516,6 +501,7 @@ func (pm *PackManager) RegisterMemory(pack *PositionPack) error {
 	if err := pack.Meta.Validate(); err != nil {
 		return err
 	}
+	markPackOrigin(pack)
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pm.packs[pack.Meta.ID] = pack
@@ -573,6 +559,16 @@ func defaultPack(id ID) (*PositionPack, bool) {
 func isDefaultID(id ID) bool {
 	_, ok := defaultPack(id)
 	return ok
+}
+
+func markPackOrigin(pack *PositionPack) {
+	if isDefaultID(pack.Meta.ID) {
+		pack.Custom = false
+		pack.Overridden = true
+	} else {
+		pack.Custom = true
+		pack.Overridden = false
+	}
 }
 
 // ---------------------------------------------------------------- Default Packs
