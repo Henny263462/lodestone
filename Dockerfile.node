@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/lodestone-node ./cmd/lodestone-node
 
-FROM alpine:3.22
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=build /out/lodestone-node /usr/local/bin/lodestone-node
 ENV LODESTONE_NODE_LISTEN=0.0.0.0:8480
