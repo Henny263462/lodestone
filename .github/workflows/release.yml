@@ -20,7 +20,7 @@ jobs:
         image: [panel, node]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # QEMU braucht nur noch der kurze apk-Schritt im Endimage; kompiliert wird per Cross-Compile auf dem Builder.
       - name: Set up QEMU
@@ -75,7 +75,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
