@@ -316,6 +316,12 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	mux.HandleFunc("GET /api/servers/{id}/logs", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, []string{"zeile"})
 	})
+	mux.HandleFunc("PUT /api/packs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("DELETE /api/packs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return fake, server
