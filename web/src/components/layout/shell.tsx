@@ -194,7 +194,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
           {projects && projects.length === 0 && !compact && <p className="px-3 py-1 text-xs text-muted/70">Noch keine Projekte</p>}
 
           {heading("Verwaltung")}
-          {link("/nodes/", "Nodes", Cpu, pathname === "/nodes/", compact)}
+          {link("/nodes/", "Nodes", Cpu, pathname.startsWith("/nodes/"), compact)}
           {link("/account/", "Konto", UserCog, pathname === "/account/", compact)}
 
           {user.isAdmin && heading("Administration")}

@@ -27,8 +27,16 @@ export interface NodeInfo {
   serverCount: number;
   memoryAvailable?: number;
   memoryCommitted?: number;
+  memoryUsed?: number;
+  memoryTotal?: number;
+  pingMs?: number;
   updateAvailable?: boolean;
   system?: { dockerVersion: string; os: string; architecture: string; cpus: number; memoryBytes: number };
+}
+
+export interface NodeDetail extends NodeInfo {
+  servers: Server[];
+  projects?: Record<string, string>;
 }
 
 export interface NodeUpdateStatus {
@@ -196,6 +204,30 @@ export interface TunnelList {
   tunnels: Tunnel[];
   available: { java: boolean; voicechat: boolean };
   problem?: string;
+}
+
+export interface PlayitNodeOverview {
+  nodeId: string;
+  nodeName: string;
+  online: boolean;
+  publicHost: string;
+  status: PlayitStatus;
+  error?: string;
+}
+
+export interface PlayitTunnelOverview {
+  serverId: string;
+  serverName: string;
+  projectId: string;
+  projectName: string;
+  nodeId: string;
+  nodeName: string;
+  tunnel: Tunnel;
+}
+
+export interface PlayitOverview {
+  nodes: PlayitNodeOverview[];
+  tunnels: PlayitTunnelOverview[];
 }
 
 export interface AddonDetail {

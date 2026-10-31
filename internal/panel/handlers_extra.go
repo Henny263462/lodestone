@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lodestone-mc/lodestone/internal/node"
@@ -417,4 +418,139 @@ func (p *Panel) nodePlayitClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, status, claim)
+}
+
+type PlayitNodeOverview struct {
+	NodeID     string            `json:"nodeId"`
+	NodeName   string            `json:"nodeName"`
+	Online     bool              `json:"online"`
+	PublicHost string            `json:"publicHost"`
+	Status     node.PlayitStatus `json:"status"`
+	Error      string            `json:"error,omitempty"`
+}
+
+type PlayitTunnelOverview struct {
+	ServerID    string    `json:"serverId"`
+	ServerName  string    `json:"serverName"`
+	ProjectID   string    `json:"projectId"`
+	ProjectName string    `json:"projectName"`
+	NodeID      string    `json:"nodeId"`
+	NodeName    string    `json:"nodeName"`
+	Tunnel      TunnelDTO `json:"tunnel"`
+}
+
+type PlayitOverviewDTO struct {
+	Nodes   []PlayitNodeOverview   `json:"nodes"`
+	Tunnels []PlayitTunnelOverview `json:"tunnels"`
+}
+
+func (p *Panel) playitOverview(w http.ResponseWriter, r *http.Request) {
+	if err := requireAdmin(r); err != nil {
+		writeError(w, err)
+		return
+	}
+	nodes, err := p.store.ListNodes()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	servers, _ := p.store.ListServers("")
+	serversByID := make(map[string]ServerRow, len(servers))
+	for _, s := range servers {
+		serversByID[s.ID] = s
+	}
+
+	projects, _ := p.store.ListProjects("", true)
+	projectNames := make(map[string]string, len(projects))
+	for _, proj := range projects {
+		projectNames[proj.ID] = proj.Name
+	}
+
+	overview := PlayitOverviewDTO{
+		Nodes:   make([]PlayitNodeOverview, len(nodes)),
+		Tunnels: []PlayitTunnelOverview{},
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i, n := range nodes {
+		overview.Nodes[i] = PlayitNodeOverview{
+			NodeID:     n.ID,
+			NodeName:   n.Name,
+			PublicHost: n.PublicHost,
+		}
+		wg.Add(1)
+		go func(idx int, target Node) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			var status node.PlayitStatus
+			client := p.nodeClient(target)
+			if err := client.Do(ctx, http.MethodGet, "/api/playit", nil, &status); err != nil {
+				overview.Nodes[idx].Error = err.Error()
+				return
+			}
+			overview.Nodes[idx].Online = true
+			overview.Nodes[idx].Status = status
+
+			var rawTunnels []node.PlayitTunnel
+			if err := client.Do(ctx, http.MethodGet, "/api/playit/tunnels", nil, &rawTunnels); err == nil {
+				var found []PlayitTunnelOverview
+				for _, t := range rawTunnels {
+					if !strings.HasPrefix(t.Name, "ls-") {
+						continue
+					}
+					var serverID, kind string
+					switch {
+					case strings.HasSuffix(t.Name, "-java"):
+						serverID = strings.TrimSuffix(strings.TrimPrefix(t.Name, "ls-"), "-java")
+						kind = node.TunnelJava
+					case strings.HasSuffix(t.Name, "-voice"):
+						serverID = strings.TrimSuffix(strings.TrimPrefix(t.Name, "ls-"), "-voice")
+						kind = node.TunnelVoicechat
+					default:
+						continue
+					}
+					srv, exists := serversByID[serverID]
+					if !exists {
+						continue
+					}
+					found = append(found, PlayitTunnelOverview{
+						ServerID:    srv.ID,
+						ServerName:  srv.Name,
+						ProjectID:   srv.ProjectID,
+						ProjectName: projectNames[srv.ProjectID],
+						NodeID:      target.ID,
+						NodeName:    target.Name,
+						Tunnel: TunnelDTO{
+							Kind:    kind,
+							ID:      t.ID,
+							Address: t.Address,
+							State:   t.State,
+							Region:  t.Region,
+							Domain:  t.Domain,
+						},
+					})
+				}
+				if len(found) > 0 {
+					mu.Lock()
+					overview.Tunnels = append(overview.Tunnels, found...)
+					mu.Unlock()
+				}
+			}
+		}(i, n)
+	}
+	wg.Wait()
+
+	sort.Slice(overview.Tunnels, func(i, j int) bool {
+		if overview.Tunnels[i].ServerName != overview.Tunnels[j].ServerName {
+			return overview.Tunnels[i].ServerName < overview.Tunnels[j].ServerName
+		}
+		return overview.Tunnels[i].Tunnel.Kind < overview.Tunnels[j].Tunnel.Kind
+	})
+
+	writeJSON(w, http.StatusOK, overview)
 }

@@ -37,8 +37,9 @@ func TestCleanURLsRouting(t *testing.T) {
 		{"/server/s1/index.txt", http.StatusOK, "RSC Server"},
 		{"/status/demo/", http.StatusOK, "<h1>Status</h1>"},
 		{"/status/demo/index.txt", http.StatusOK, "RSC Status"},
+		{"/nodes/sub/", http.StatusOK, "<h1>Nodes</h1>"},
+		{"/nodes/n1/", http.StatusOK, "<h1>Nodes</h1>"},
 		{"/unknown/path/", http.StatusNotFound, "<h1>Not Found</h1>"},
-		{"/nodes/sub/", http.StatusNotFound, "<h1>Not Found</h1>"},
 	}
 
 	for _, tt := range tests {

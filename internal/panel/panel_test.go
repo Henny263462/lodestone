@@ -574,3 +574,53 @@ func TestNetworkLifecycle(t *testing.T) {
 	}
 	fake.mu.Unlock()
 }
+
+func TestNodeDetailAndPlayitOverview(t *testing.T) {
+	_, web, fake, nodeID := setupPanel(t)
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Mein Projekt", "kind": "server"}), &project)
+	admin.expect(201, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{Name: "Survival", NodeID: nodeID, Software: "paper", Version: "1.21.4", EULA: true})
+
+	// GET /api/nodes
+	var nodes []nodeDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/nodes", nil), &nodes)
+	if len(nodes) != 1 || nodes[0].PingMs == nil {
+		t.Fatalf("Nodes-Liste unerwartet: %+v", nodes)
+	}
+
+	// GET /api/nodes/{id}
+	var detail nodeDetailDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/nodes/"+nodeID, nil), &detail)
+	if detail.ID != nodeID || len(detail.Servers) != 1 || detail.Servers[0].Name != "Survival" {
+		t.Fatalf("Node-Detail unerwartet: %+v", detail)
+	}
+	if detail.Projects[project.ID] != "Mein Projekt" {
+		t.Fatalf("Projektname fehlt im Node-Detail: %+v", detail.Projects)
+	}
+	if detail.PingMs == nil {
+		t.Fatalf("PingMs fehlt im Node-Detail")
+	}
+
+	// GET /api/nodes/{unknown}
+	admin.expect(404, "GET", "/api/nodes/non-existent-id", nil)
+
+	// GET /api/playit/overview
+	fake.mu.Lock()
+	fake.playitSecret = "test-secret"
+	fake.tunnels = []node.PlayitTunnel{
+		{ID: "tun-1", Name: "ls-" + detail.Servers[0].ID + "-java", Address: "test.joinmc.link:25565", State: "allocated"},
+	}
+	fake.mu.Unlock()
+
+	var playit PlayitOverviewDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/playit/overview", nil), &playit)
+	if len(playit.Nodes) != 1 || !playit.Nodes[0].Online || !playit.Nodes[0].Status.Configured {
+		t.Fatalf("Playit Nodes Übersicht unerwartet: %+v", playit.Nodes)
+	}
+	if len(playit.Tunnels) != 1 || playit.Tunnels[0].ServerName != "Survival" || playit.Tunnels[0].Tunnel.Kind != "java" {
+		t.Fatalf("Playit Tunnels Übersicht unerwartet: %+v", playit.Tunnels)
+	}
+}
