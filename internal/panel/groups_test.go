@@ -138,6 +138,9 @@ func TestGroupBlockedWhenNodeIsFull(t *testing.T) {
 	fake.mu.Lock()
 	fake.servers["riese"] = node.View{Spec: node.Spec{ID: "riese", MemoryMB: 60000}, State: node.StateRunning}
 	fake.mu.Unlock()
+	for nodeID := range p.views {
+		p.invalidate(nodeID)
+	}
 	var group Group
 	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects/"+project.ID+"/groups", groupRequest{Name: "Lobby", Software: "paper", Version: "1.21.4", MemoryMB: 8192, MinInstances: ptr(1), EULA: true}), &group)
 	p.reconcileGroup(context.Background(), group)

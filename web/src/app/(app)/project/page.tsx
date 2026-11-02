@@ -24,7 +24,7 @@ import { roleLabel, roleRank, type Member, type Metrics, type Project, type Rang
 
 export default function ProjectPage() {
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={null}>
       <ProjectView />
     </Suspense>
   );
@@ -33,10 +33,25 @@ export default function ProjectPage() {
 type Tab = "servers" | "network" | "groups" | "schedules" | "events" | "members" | "settings";
 
 function ProjectView() {
-  const id = useSearchParams().get("id");
+  const params = useSearchParams();
+  const id = params.get("id");
+  const tabParam = params.get("tab") as Tab | null;
   const { data: project, error, mutate } = useApi<Project>(id ? `/projects/${id}` : null, { refreshInterval: 4000 });
-  const [tab, setTab] = useState<Tab>("servers");
+  const [tab, setTabState] = useState<Tab>(tabParam || "servers");
   const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    if (tabParam && tabParam !== tab) {
+      setTabState(tabParam);
+    }
+  }, [tabParam, tab]);
+
+  function setTab(next: Tab) {
+    setTabState(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState(null, "", url);
+  }
 
   if (!id) return <ErrorState error={new Error("Kein Projekt angegeben")} />;
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
