@@ -216,6 +216,35 @@ func (m *PackMeta) Validate() error {
 	return nil
 }
 
+// Limits für ZIP-Einträge und Position-Pack-Daten
+const (
+	MaxPackMetaSize       = 2 << 20 // 2 MB
+	MaxPackAutoconfigSize = 2 << 20 // 2 MB
+	MaxPackScriptSize     = 1 << 20 // 1 MB
+	MaxPackJSONSize       = 8 << 20 // 8 MB
+)
+
+// Validate prüft die Metadaten und Grenzwerte eines Position-Packs.
+func (p *PositionPack) Validate() error {
+	if err := p.Meta.Validate(); err != nil {
+		return err
+	}
+	if len(p.Script) > MaxPackScriptSize {
+		return fmt.Errorf("das Skript überschreitet die Höchstgröße von %d Bytes", MaxPackScriptSize)
+	}
+	hasAutoconfig := p.Autoconfig.Backend != nil || p.Autoconfig.Proxy != nil || p.Autoconfig.Standalone != nil || p.Autoconfig.Voicechat != nil
+	if hasAutoconfig {
+		acBytes, err := json.Marshal(p.Autoconfig)
+		if err != nil {
+			return fmt.Errorf("autoconfig ungültig: %w", err)
+		}
+		if len(acBytes) > MaxPackAutoconfigSize {
+			return fmt.Errorf("die Autokonfiguration überschreitet die Höchstgröße von %d Bytes", MaxPackAutoconfigSize)
+		}
+	}
+	return nil
+}
+
 // ReadZipPack liest ein Position-Pack aus einem ZIP-Archiv.
 func ReadZipPack(r io.ReaderAt, size int64) (*PositionPack, error) {
 	zr, err := zip.NewReader(r, size)
@@ -237,19 +266,19 @@ func ReadZipPack(r io.ReaderAt, size int64) (*PositionPack, error) {
 		}
 
 		if base == "meta.json" || base == "position-pack.json" || base == "pack.json" {
-			data, err := readZipEntry(file, 2<<20)
+			data, err := readZipEntry(file, MaxPackMetaSize)
 			if err != nil {
 				return nil, err
 			}
 			metaData = data
 		} else if base == "autoconfig.json" {
-			data, err := readZipEntry(file, 2<<20)
+			data, err := readZipEntry(file, MaxPackAutoconfigSize)
 			if err != nil {
 				return nil, err
 			}
 			autoconfigData = data
 		} else if base == "autoconfig.sh" || base == "script.sh" {
-			data, err := readZipEntry(file, 1<<20)
+			data, err := readZipEntry(file, MaxPackScriptSize)
 			if err != nil {
 				return nil, err
 			}
@@ -264,14 +293,15 @@ func ReadZipPack(r io.ReaderAt, size int64) (*PositionPack, error) {
 	if err := json.Unmarshal(metaData, &pack.Meta); err != nil {
 		return nil, fmt.Errorf("meta.json ist kein gültiges JSON: %w", err)
 	}
-	if err := pack.Meta.Validate(); err != nil {
-		return nil, err
-	}
 
 	if len(autoconfigData) > 0 {
 		if err := json.Unmarshal(autoconfigData, &pack.Autoconfig); err != nil {
 			return nil, fmt.Errorf("autoconfig.json ist kein gültiges JSON: %w", err)
 		}
+	}
+
+	if err := pack.Validate(); err != nil {
+		return nil, err
 	}
 
 	return pack, nil
@@ -283,11 +313,22 @@ func readZipEntry(f *zip.File, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	defer rc.Close()
-	return io.ReadAll(io.LimitReader(rc, limit))
+	data, err := io.ReadAll(io.LimitReader(rc, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("die Datei %s im Position-Pack überschreitet die Höchstgröße von %d Bytes", f.Name, limit)
+	}
+	return data, nil
 }
 
 // CreateZipPack packt ein Position-Pack in ein ZIP-Archiv.
 func CreateZipPack(pack *PositionPack) ([]byte, error) {
+	if err := pack.Validate(); err != nil {
+		return nil, err
+	}
+
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
 
@@ -337,11 +378,6 @@ func CreateZipPack(pack *PositionPack) ([]byte, error) {
 // ---------------------------------------------------------------- PackManager
 
 // PackManager verwaltet eingebaute und eigene Position-Packs.
-// MaxPackJSONSize definiert die maximale Größe für serialisierte Position-Pack-JSON-Daten (8 MB).
-// Dies berücksichtigt die ZIP-Eintragsgrenzen (meta.json: 2 MB, autoconfig.json: 2 MB, script: 1 MB)
-// zuzüglich JSON- und Feld-Overhead.
-const MaxPackJSONSize = 8 << 20
-
 type PackManager struct {
 	mu    sync.RWMutex
 	dir   string
@@ -478,7 +514,7 @@ func (pm *PackManager) Add(zipData []byte) (*PositionPack, error) {
 
 // Save aktualisiert ein Position-Pack und speichert es als ZIP.
 func (pm *PackManager) Save(pack *PositionPack) error {
-	if err := pack.Meta.Validate(); err != nil {
+	if err := pack.Validate(); err != nil {
 		return err
 	}
 	markPackOrigin(pack)
@@ -503,7 +539,7 @@ func (pm *PackManager) Save(pack *PositionPack) error {
 
 // RegisterMemory registriert ein Position-Pack direkt im Speicher (z. B. für Node-Synchronisation).
 func (pm *PackManager) RegisterMemory(pack *PositionPack) error {
-	if err := pack.Meta.Validate(); err != nil {
+	if err := pack.Validate(); err != nil {
 		return err
 	}
 	markPackOrigin(pack)

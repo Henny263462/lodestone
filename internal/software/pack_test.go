@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -118,6 +119,46 @@ func TestPackZipValidationErrors(t *testing.T) {
 	}
 	if err := badMeta.Validate(); err == nil {
 		t.Error("Fehler bei ungültiger ID erwartet")
+	}
+
+	// 4. Skript überschreitet MaxPackScriptSize (1 MB)
+	oversizedPack := &PositionPack{
+		Meta: PackMeta{
+			ID:   "oversized",
+			Name: "Oversized",
+			Kind: KindServer,
+		},
+		Script: strings.Repeat("a", MaxPackScriptSize+10),
+	}
+	if err := oversizedPack.Validate(); err == nil {
+		t.Error("Validate hätte Skript > 1MB abweisen müssen")
+	}
+	if _, err := CreateZipPack(oversizedPack); err == nil {
+		t.Error("CreateZipPack hätte Skript > 1MB abweisen müssen")
+	}
+
+	// 5. ZIP mit autoconfig.sh > 1 MB wird von ReadZipPack abgewiesen (keine stille Trunkierung)
+	buf = new(bytes.Buffer)
+	zw = zip.NewWriter(buf)
+	mf, _ := zw.Create("meta.json")
+	_, _ = mf.Write([]byte(`{"id":"bigscript","name":"BigScript","kind":"server"}`))
+	sf, _ := zw.Create("autoconfig.sh")
+	_, _ = sf.Write(bytes.Repeat([]byte("a"), MaxPackScriptSize+50))
+	_ = zw.Close()
+	if _, err := ReadZipPack(bytes.NewReader(buf.Bytes()), int64(buf.Len())); err == nil {
+		t.Error("ReadZipPack hätte ZIP mit Skript > 1MB abweisen müssen")
+	}
+
+	// 6. ZIP mit autoconfig.json > 2 MB wird von ReadZipPack abgewiesen
+	buf = new(bytes.Buffer)
+	zw = zip.NewWriter(buf)
+	mf2, _ := zw.Create("meta.json")
+	_, _ = mf2.Write([]byte(`{"id":"bigauto","name":"BigAuto","kind":"server"}`))
+	af, _ := zw.Create("autoconfig.json")
+	_, _ = af.Write(bytes.Repeat([]byte(" "), MaxPackAutoconfigSize+50))
+	_ = zw.Close()
+	if _, err := ReadZipPack(bytes.NewReader(buf.Bytes()), int64(buf.Len())); err == nil {
+		t.Error("ReadZipPack hätte ZIP mit autoconfig.json > 2MB abweisen müssen")
 	}
 }
 

@@ -413,7 +413,31 @@ func TestAPIPackRoutes(t *testing.T) {
 		t.Fatalf("PUT oversized body: erwartet 400, erhalten %d", status)
 	}
 
-	// 3b. Pack größer als das allgemeine maxJSONBody (1 MB), aber innerhalb von MaxPackJSONSize (8 MB)
+	// 3b. Pack mit Skript größer als MaxPackScriptSize (1 MB) wird abgewiesen
+	oversizedScriptPack := software.PositionPack{
+		Meta: software.PackMeta{
+			ID:         "oversized-script",
+			Name:       "Oversized Script",
+			Kind:       software.KindServer,
+			Extensions: software.ExtPlugins,
+		},
+		Script: strings.Repeat("# script\n", 150000), // ca. 1.35 MB > 1 MB
+	}
+	status, _ = a.do(http.MethodPut, "/api/packs/oversized-script", oversizedScriptPack)
+	if status != http.StatusBadRequest {
+		t.Fatalf("PUT oversized script (>1MB): erwartet 400, erhalten %d", status)
+	}
+
+	// 3c. Gültiges Pack größer als maxJSONBody (1 MB), aber mit zulässigen Eintragsgrößen (Script < 1 MB, Autoconfig < 2 MB)
+	scriptContent := strings.Repeat("# line\n", 100000) // ~700 KB (< 1 MB)
+	largeEdits := make([]software.PackEdit, 500)
+	for i := range largeEdits {
+		largeEdits[i] = software.PackEdit{
+			File:   "config.yml",
+			Format: "yaml",
+			Set:    []software.PackSetOp{{Path: []string{strings.Repeat("k", 20)}, Value: strings.Repeat("x", 800)}},
+		}
+	}
 	largePack := software.PositionPack{
 		Meta: software.PackMeta{
 			ID:         "large-pack",
@@ -421,11 +445,32 @@ func TestAPIPackRoutes(t *testing.T) {
 			Kind:       software.KindServer,
 			Extensions: software.ExtPlugins,
 		},
-		Script: strings.Repeat("# script line\n", 80000), // ca. 1.1 MB
+		Script: scriptContent,
+		Autoconfig: software.PackAutoconfig{
+			Backend: &software.PackAutoconfigTarget{
+				Edits: largeEdits,
+			},
+		},
 	}
 	status, _ = a.do(http.MethodPut, "/api/packs/large-pack", largePack)
 	if status != http.StatusOK {
 		t.Fatalf("PUT large pack (>1MB): erwartet 200, erhalten %d", status)
+	}
+
+	// Sicherstellen, dass das Pack beim Neuladen/Exportieren vollständig und unversehrt bleibt (Reload-Contract)
+	exported, err := software.GetPackManager().Export("large-pack")
+	if err != nil {
+		t.Fatalf("Export large-pack: %v", err)
+	}
+	reloaded, err := software.ReadZipPack(bytes.NewReader(exported), int64(len(exported)))
+	if err != nil {
+		t.Fatalf("ReadZipPack large-pack: %v", err)
+	}
+	if reloaded.Script != scriptContent {
+		t.Fatalf("Script wurde beim Neuladen abgeschnitten oder verändert: len %d vs %d", len(reloaded.Script), len(scriptContent))
+	}
+	if reloaded.Autoconfig.Backend == nil || len(reloaded.Autoconfig.Backend.Edits) != len(largeEdits) {
+		t.Fatalf("Autoconfig wurde beim Neuladen verändert")
 	}
 	_, _ = a.do(http.MethodDelete, "/api/packs/large-pack", nil)
 
