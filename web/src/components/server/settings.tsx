@@ -2,13 +2,12 @@
 
 import { RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, CardHeader, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Select, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
+import { MemoryInput } from "@/components/memory-input";
+import { TunnelsCard } from "@/components/server/tunnels";
 import { api, useApi } from "@/lib/api";
-import { megabytes } from "@/lib/format";
 import type { Server } from "@/lib/types";
-
-const memoryOptions = [256, 512, 1024, 2048, 3072, 4096, 6144, 8192, 12288, 16384];
 
 function envToText(env?: Record<string, string>): string {
   return Object.entries(env ?? {})
@@ -90,13 +89,7 @@ export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; 
           </div>
           <div>
             <label className="label">Arbeitsspeicher</label>
-            <select className="field" value={memory} onChange={(event) => setMemory(Number(event.target.value))} disabled={!offline}>
-              {[...new Set([...memoryOptions, memory])].sort((a, b) => a - b).map((value) => (
-                <option key={value} value={value}>
-                  {megabytes(value)}
-                </option>
-              ))}
-            </select>
+            <MemoryInput value={memory} onChange={setMemory} disabled={!offline} />
           </div>
           <div>
             <label className="label">CPU-Kerne (0 = unbegrenzt)</label>
@@ -133,6 +126,7 @@ export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; 
       </Card>
 
       <AutoRestart server={server} onDone={onChanged} />
+      <TunnelsCard server={server} onDone={onChanged} />
       <PublicAddress server={server} onDone={onChanged} />
 
       <Reinstall server={server} offline={!!offline} onDone={onChanged} />
@@ -199,7 +193,7 @@ function PublicAddress({ server, onDone }: { server: Server; onDone: () => void 
     <Card>
       <CardHeader
         title="Öffentliche Adresse"
-        description="Adresse, unter der Spieler den Server erreichen, z. B. ein playit-Tunnel (abc.joinmc.link:12345). Sie wird nur angezeigt; leer = Adresse der Maschine."
+        description="Adresse, unter der Spieler den Server erreichen. Ein playit-Tunnel von oben trägt sie selbst ein; hier kannst du eine eigene setzen (abc.joinmc.link:12345). Sie wird nur angezeigt; leer = Adresse der Maschine."
         action={
           <Button
             size="sm"
@@ -240,13 +234,13 @@ function Reinstall({ server, offline, onDone }: { server: Server; offline: boole
       <div className="flex flex-wrap items-end gap-3 px-5 py-4">
         <div className="w-56">
           <label className="label">Version (aktuell {current})</label>
-          <select className="field" value={version} onChange={(event) => setVersion(event.target.value)} disabled={!offline || !versions}>
-            {(versions ?? []).slice(0, 80).map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={version}
+            onChange={setVersion}
+            disabled={!offline || !versions}
+            aria-label={`Version (aktuell ${current})`}
+            options={(versions ?? []).slice(0, 80).map((entry) => ({ value: entry, label: entry }))}
+          />
         </div>
         <Button disabled={!offline || !version || version === current} onClick={() => setConfirm(true)}>
           <RefreshCw className="h-4 w-4" />

@@ -14,6 +14,7 @@ import {
 } from "react";
 import {
   Archive,
+  ArrowUpCircle,
   BarChart3,
   ChevronDown,
   ChevronLeft,
@@ -98,12 +99,15 @@ function normalize(path: string): string {
 
 const FOLD_KEY = "lodestone.sidebar.folded";
 
+// Alle Seiten des Admin-Panels; sie teilen sich den dynamischen Admin-Bereich der Seitenleiste.
+const ADMIN_PATHS = ["/admin/", "/users/", "/audit/", "/nodes/"];
+
 type NavView = "root" | "project" | "server" | "admin";
 
 function getNavView(pathname: string): NavView {
   if (pathname.startsWith("/server")) return "server";
   if (pathname.startsWith("/project")) return "project";
-  if (pathname.startsWith("/nodes") || pathname.startsWith("/users") || pathname.startsWith("/audit")) return "admin";
+  if (ADMIN_PATHS.some((path) => pathname.startsWith(path))) return "admin";
   return "root";
 }
 
@@ -214,8 +218,19 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
     window.location.replace("/login/");
   }
 
-  const currentProjectId = pathname === "/project/" ? params.get("id") : null;
-  const currentServerId = pathname === "/server/" ? params.get("id") : null;
+  const segments = pathname.split("/").filter(Boolean);
+  const currentProjectId =
+    segments[0] === "project" && segments[1]
+      ? segments[1]
+      : pathname === "/project/"
+        ? params.get("id")
+        : null;
+  const currentServerId =
+    segments[0] === "server" && segments[1]
+      ? segments[1]
+      : pathname === "/server/"
+        ? params.get("id")
+        : null;
 
   const activeProject = (projects ?? []).find((p) => p.id === currentProjectId);
   const activeServerProject = (projects ?? []).find((p) =>
@@ -248,9 +263,14 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
       const server = activeServer;
       const project = activeServerProject;
       const rank = project ? roleRank[project.myRole] : roleRank.viewer;
-      const activeTab = params.get("tab") || "console";
+      const routeTab =
+        segments[0] === "server" && segments[2]
+          ? segments[2]
+          : params.get("tab") || "console";
       const extensions =
-        server?.software === "fabric" || server?.software === "neoforge"
+        server?.software === "fabric" ||
+        server?.software === "neoforge" ||
+        server?.software === "forge"
           ? "Mods"
           : server?.software === "vanilla"
             ? null
@@ -270,10 +290,12 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
       const memoryPercent =
         stats && stats.memoryLimit > 0 ? (stats.memoryBytes / stats.memoryLimit) * 100 : 0;
 
+      const projectHref = project ? `/project/${project.id}/` : "/";
+
       return (
         <div className="space-y-3 pb-4">
           <Link
-            href={`/project/?id=${project?.id ?? ""}`}
+            href={projectHref}
             className={cx(
               "flex items-center gap-2 rounded-lg py-1.5 text-xs text-muted transition hover:bg-white/[0.04] hover:text-ink",
               compact ? "justify-center px-0" : "px-2.5",
@@ -297,25 +319,32 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
           )}
 
           <div className="space-y-0.5">
-            {entries.map((entry) => (
-              <Link
-                key={entry.id}
-                href={`/server/?id=${server?.id ?? currentServerId}&tab=${entry.id}`}
-                className={cx(
-                  "flex items-center rounded-lg border text-[13px] transition duration-100 active:scale-[0.97]",
-                  compact ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
-                  activeTab === entry.id
-                    ? "border-white/[0.07] bg-white/[0.07] font-medium text-ink"
-                    : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
-                )}
-                title={compact ? entry.label : undefined}
-              >
-                <entry.icon
-                  className={cx("h-4 w-4 shrink-0", activeTab === entry.id ? "text-ink" : "text-muted")}
-                />
-                {!compact && <span className="flex-1 truncate">{entry.label}</span>}
-              </Link>
-            ))}
+            {entries.map((entry) => {
+              const target =
+                entry.id === "console"
+                  ? `/server/${server?.id ?? currentServerId}/`
+                  : `/server/${server?.id ?? currentServerId}/${entry.id}/`;
+              const isSelected = routeTab === entry.id;
+              return (
+                <Link
+                  key={entry.id}
+                  href={target}
+                  className={cx(
+                    "flex items-center rounded-lg border text-[13px] transition duration-100 active:scale-[0.97]",
+                    compact ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
+                    isSelected
+                      ? "border-white/[0.07] bg-white/[0.07] font-medium text-ink"
+                      : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
+                  )}
+                  title={compact ? entry.label : undefined}
+                >
+                  <entry.icon
+                    className={cx("h-4 w-4 shrink-0", isSelected ? "text-ink" : "text-muted")}
+                  />
+                  {!compact && <span className="flex-1 truncate">{entry.label}</span>}
+                </Link>
+              );
+            })}
           </div>
 
           {!compact && server?.view?.state === "running" && stats && (
@@ -347,7 +376,10 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
       const rank = project ? roleRank[project.myRole] : roleRank.viewer;
       const canManage = rank >= roleRank.admin;
       const network = project?.kind === "network";
-      const activeTab = params.get("tab") || "servers";
+      const routeTab =
+        segments[0] === "project" && segments[2]
+          ? segments[2]
+          : params.get("tab") || "servers";
 
       const projectNavItems = [
         { id: "servers", label: "Server", icon: Server, count: project?.servers.length },
@@ -398,34 +430,41 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
           )}
 
           <div className="space-y-0.5">
-            {projectNavItems.map((item) => (
-              <Link
-                key={item.id}
-                href={`/project/?id=${project?.id ?? currentProjectId}&tab=${item.id}`}
-                className={cx(
-                  "flex items-center rounded-lg border text-[13px] transition duration-100 active:scale-[0.97]",
-                  compact ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
-                  activeTab === item.id
-                    ? "border-white/[0.07] bg-white/[0.07] font-medium text-ink"
-                    : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
-                )}
-                title={compact ? item.label : undefined}
-              >
-                <item.icon
-                  className={cx("h-4 w-4 shrink-0", activeTab === item.id ? "text-ink" : "text-muted")}
-                />
-                {!compact && (
-                  <>
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {item.count !== undefined && item.count > 0 && (
-                      <span className="rounded-full bg-white/[0.06] px-1.5 py-0.2 text-[10px] text-muted">
-                        {item.count}
-                      </span>
-                    )}
-                  </>
-                )}
-              </Link>
-            ))}
+            {projectNavItems.map((item) => {
+              const target =
+                item.id === "servers"
+                  ? `/project/${project?.id ?? currentProjectId}/`
+                  : `/project/${project?.id ?? currentProjectId}/${item.id}/`;
+              const isSelected = routeTab === item.id;
+              return (
+                <Link
+                  key={item.id}
+                  href={target}
+                  className={cx(
+                    "flex items-center rounded-lg border text-[13px] transition duration-100 active:scale-[0.97]",
+                    compact ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
+                    isSelected
+                      ? "border-white/[0.07] bg-white/[0.07] font-medium text-ink"
+                      : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
+                  )}
+                  title={compact ? item.label : undefined}
+                >
+                  <item.icon
+                    className={cx("h-4 w-4 shrink-0", isSelected ? "text-ink" : "text-muted")}
+                  />
+                  {!compact && (
+                    <>
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <span className="rounded-full bg-white/[0.06] px-1.5 py-0.2 text-[10px] text-muted">
+                          {item.count}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </Link>
+              );
+            })}
           </div>
 
           {!compact && project && project.servers.length > 0 && (
@@ -437,7 +476,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
                 {project.servers.map((server) => (
                   <Link
                     key={server.id}
-                    href={`/server/?id=${server.id}`}
+                    href={`/server/${server.id}/`}
                     className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[12.5px] text-muted transition hover:bg-white/[0.04] hover:text-ink"
                   >
                     <Server className="h-3.5 w-3.5 shrink-0 text-muted" />
@@ -480,9 +519,23 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
           )}
 
           <div className="space-y-0.5">
-            {link("/nodes/", "Nodes", Cpu, pathname === "/nodes/", compact)}
+            {user.isAdmin && link("/admin/", "Admin-Panel", ShieldCheck, pathname === "/admin/", compact)}
+            {link("/nodes/", "Nodes", Cpu, pathname.startsWith("/nodes/"), compact)}
             {user.isAdmin && link("/users/", "Benutzer", Users, pathname === "/users/", compact)}
-            {user.isAdmin && link("/audit/", "Protokoll", ScrollText, pathname === "/audit/", compact)}
+            {user.isAdmin &&
+              link(
+                "/admin/projects/",
+                "Alle Projekte",
+                FolderKanban,
+                pathname === "/admin/projects/",
+                compact,
+              )}
+            {user.isAdmin &&
+              link("/admin/updates/", "Updates", ArrowUpCircle, pathname === "/admin/updates/", compact)}
+            {user.isAdmin &&
+              link("/admin/packs/", "Packs", FolderOpen, pathname === "/admin/packs/", compact)}
+            {user.isAdmin &&
+              link("/audit/", "Protokoll", ScrollText, pathname === "/audit/", compact)}
           </div>
         </div>
       );
@@ -558,7 +611,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
               {displayedProjects.map((project) => (
                 <Link
                   key={project.id}
-                  href={`/project/?id=${project.id}`}
+                  href={`/project/${project.id}/`}
                   className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12.5px] text-muted transition hover:bg-white/[0.04] hover:text-ink"
                 >
                   {project.kind === "network" ? (
@@ -630,7 +683,6 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
               key={`prev-${viewState.previous}`}
               className={cx(
                 "absolute inset-0 no-scrollbar overflow-y-auto",
-                compact ? "px-0" : "px-0",
                 viewState.direction === "forward" ? "animate-slide-out-left" : "animate-slide-out-right",
               )}
             >
@@ -663,7 +715,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
 
               {user.isAdmin && (
                 <Link
-                  href="/nodes/"
+                  href="/admin/"
                   onClick={() => setProfileMenuOpen(false)}
                   className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-muted transition hover:bg-white/[0.06] hover:text-ink"
                 >

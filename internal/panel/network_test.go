@@ -39,6 +39,7 @@ func TestBuildAutoconfigs(t *testing.T) {
 		{Row: ServerRow{ID: "aaa", Name: "Proxy", Slug: "proxy", Role: RoleProxy, Software: "velocity"}, InternalPort: 25565},
 		{Row: ServerRow{ID: "bbb", Name: "Survival", Slug: "survival", Role: RoleBackend, Software: "paper", InTry: false, TryPosition: 1, ForcedHost: "survival.example.org", Voicechat: true}, VoiceHostPort: 28005, PublicHost: "mc.example.org"},
 		{Row: ServerRow{ID: "ccc", Name: "Lobby", Slug: "lobby", Role: RoleBackend, Software: "fabric", InTry: true, TryPosition: 0}},
+		{Row: ServerRow{ID: "ddd", Name: "Mods", Slug: "mods", Role: RoleBackend, Software: "neoforge", InTry: false, TryPosition: 2, Voicechat: true}, VoiceHostPort: 28006, PublicHost: "mc.example.org"},
 	}
 	configs := BuildAutoconfigs("geheim", servers, false)
 
@@ -88,6 +89,22 @@ func TestBuildAutoconfigs(t *testing.T) {
 		if edit.File == "config/voicechat/voicechat-server.properties" {
 			t.Error("Voicechat ist für Lobby nicht eingeschaltet")
 		}
+	}
+
+	neo := configs["ddd"]
+	pcf := editFor(t, neo, "config/proxy-compatible-forge.toml")
+	if !pcf.Create || pcf.Format != "toml" || setValue(t, pcf, "forwarding", "secret") != "geheim" ||
+		setValue(t, pcf, "forwarding", "enabled") != true || setValue(t, pcf, "forwarding", "mode") != "MODERN" {
+		t.Errorf("proxy-compatible-forge.toml = %+v", pcf)
+	}
+	if got := setValue(t, editFor(t, neo, "server.properties"), "online-mode"); got != false {
+		t.Errorf("online-mode bei NeoForge = %v", got)
+	}
+	if got := setValue(t, editFor(t, neo, "config/voicechat/voicechat-server.properties"), "voice_host"); got != "mc.example.org:28006" {
+		t.Errorf("voice_host bei NeoForge = %v", got)
+	}
+	if _, ok := configs["aaa"]; !ok {
+		t.Error("der Proxy braucht seine Einstellungen weiterhin")
 	}
 }
 

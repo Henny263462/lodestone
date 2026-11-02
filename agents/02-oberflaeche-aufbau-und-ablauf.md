@@ -6,13 +6,17 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 
 ```
 Übersicht (/)                      Projekte als Karten, Kennzahlen, Nodes
-Projekt (/project/?id=)            Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
-  └─ Server (/server/?id=&tab=)    Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
-Nodes (/nodes/)                    Maschinen, Speicher, playit
-Benutzer (/users/)                 nur Administratoren
-Protokoll (/audit/)                nur Administratoren
+Projekt (/project/<id>/)           Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
+  └─ Server (/server/<id>/<bereich>/) Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
+Nodes (/nodes/)                    Maschinen, Speicher, playit verbinden (Tunnel legt man beim Server an: Einstellungen → playit-Tunnel)
+Admin-Panel (/admin/)              nur Administratoren; Übersicht mit Kennzahlen. Zweite Seitenleiste (`AdminSidebar`) mit:
+  ├─ Benutzer (/users/)            Benutzerverwaltung (Zwei-Faktor, Sitzungen, Projekte je Benutzer)
+  ├─ Projekte (/admin/projects/)   alle Projekte mit Eigentümer, Mitgliedern, Servern
+  ├─ Nodes (/nodes/)               dieselbe Seite wie in der Hauptleiste
+  ├─ Updates (/admin/updates/)     Versionsstand von Panel und Nodes, Updates per Klick, Auto-Update
+  └─ Protokoll (/audit/)
 Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen
-Status (/status/?p=)               öffentlich, ohne Anmeldung, ohne Shell
+Status (/status/<kürzel>/)         öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
 ```
 
@@ -72,8 +76,10 @@ return …                                                                   // 
 - Beschriftung immer über dem Feld (`label`), Platzhalter nur als Beispiel („Lobby“), nie als Ersatz für die Beschriftung.
 - Primärknopf ist deaktiviert (`disabled`), solange Pflichtfelder fehlen; **kein** roter Fehler, bevor jemand etwas getan hat.
 - Prüfe im Browser nur zur Hilfe (Länge, Muster); die Pflichtprüfung macht das Backend. Dessen Fehlermeldung wird per Toast gezeigt.
-- Auswahlfelder: `<select className="field">`. Mehrwahl: `Checkbox`. Zahl mit Einheit: Einheit im Label („Arbeitsspeicher (MB)“) oder
-  Auswahlliste mit schon formatierten Werten (`megabytes()` aus `lib/format`).
+- Auswahlfelder: `<Select value={…} onChange={…} options={[{ value, label }]} />` aus `ui/primitives`; die Liste erscheint im Panel-Stil.
+  Ein natives `<select>` zeichnet der Browser beim Aufklappen im Systemstil und wird nicht mehr benutzt. Mehrwahl: `Checkbox`.
+- Arbeitsspeicher: `MemoryInput` (`components/memory-input.tsx`) mit MB-Feld und Schieberegler (256 MB bis 64 GB), nicht als Auswahlliste.
+  Andere Zahlen mit Einheit: Einheit ins Label („Arbeitsspeicher (MB)“).
 - Geheimnisse (Tokens, Schlüssel, Passwörter): `type="password"` bzw. einmalig anzeigen mit Kopierknopf und dem Hinweis, dass sie
   nicht wieder erscheinen. Nie in der Adresse, nie im Log.
 
