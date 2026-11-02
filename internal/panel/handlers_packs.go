@@ -135,7 +135,7 @@ func (p *Panel) updatePack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload packUpdatePayload
-	if err := decode(r, &payload); err != nil {
+	if err := decodeLimit(r, &payload, software.MaxPackJSONSize); err != nil {
 		writeError(w, err)
 		return
 	}

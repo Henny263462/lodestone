@@ -662,7 +662,7 @@ func (a *API) download(w http.ResponseWriter, r *http.Request, server *Server) {
 
 func (a *API) putPack(w http.ResponseWriter, r *http.Request) {
 	var pack software.PositionPack
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&pack); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, software.MaxPackJSONSize)).Decode(&pack); err != nil {
 		writeError(w, badRequest("ungültiges Position-Pack: %v", err))
 		return
 	}

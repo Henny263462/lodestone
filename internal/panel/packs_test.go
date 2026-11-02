@@ -89,7 +89,7 @@ func TestPositionPacksListAndExport(t *testing.T) {
 }
 
 func TestPositionPacksUploadAndServerCreation(t *testing.T) {
-	_, web, fake, nodeID := setupPanel(t)
+	p, web, fake, nodeID := setupPanel(t)
 	admin := newClient(t, web.URL)
 	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
 
@@ -164,6 +164,17 @@ func TestPositionPacksUploadAndServerCreation(t *testing.T) {
 		t.Fatalf("Upload: Status %d, erwartet 201", resp.StatusCode)
 	}
 
+	// Warten bis der asynchrone Sync von uploadPack beim Node angekommen ist
+	waitUntil(t, "uploadPack synchronisiert", func() bool {
+		for _, id := range fake.getPackPuts() {
+			if id == "sponge" {
+				return true
+			}
+		}
+		return false
+	})
+	fake.clearPackPuts()
+
 	// Prüfen, ob Pack in der Softwareliste auftaucht
 	var softwareList []software.Info
 	_ = json.Unmarshal(admin.expect(200, "GET", "/api/software", nil), &softwareList)
@@ -184,6 +195,29 @@ func TestPositionPacksUploadAndServerCreation(t *testing.T) {
 	var project struct{ ID string }
 	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Sponge-Projekt", "kind": "server"}), &project)
 
+	// 1. createServer: fehlgeschlagener Sync verhindert Servererstellung
+	fake.setPackFails(true)
+	admin.expect(500, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{
+		Name:     "Sponge-Fail",
+		NodeID:   nodeID,
+		Software: "sponge",
+		Version:  "1.21.4",
+		EULA:     true,
+	})
+	fake.mu.Lock()
+	if len(fake.servers) != 0 {
+		t.Fatalf("Server darf bei fehlgeschlagenem Pack-Sync nicht angelegt werden: %+v", fake.servers)
+	}
+	fake.mu.Unlock()
+	puts := fake.getPackPuts()
+	if len(puts) == 0 || puts[len(puts)-1] != "sponge" {
+		t.Fatalf("ensurePackOnNode hat keinen PUT für sponge gesendet: %+v", puts)
+	}
+
+	// 2. createServer: erfolgreicher Sync legt den Server an
+	fake.setPackFails(false)
+	fake.clearPackPuts()
+
 	var server struct{ ID, Software string }
 	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{
 		Name:     "Sponge-1",
@@ -202,6 +236,64 @@ func TestPositionPacksUploadAndServerCreation(t *testing.T) {
 	fake.mu.Unlock()
 	if !ok || nodeView.Spec.Software != "sponge" {
 		t.Fatalf("Server auf dem Node nicht angelegt: %+v", nodeView)
+	}
+	puts = fake.getPackPuts()
+	if len(puts) == 0 || puts[len(puts)-1] != "sponge" {
+		t.Fatalf("Erfolgreiches createServer hat keinen PUT für sponge gesendet: %+v", puts)
+	}
+
+	// 3. createInstance (Gruppen-Skalierung): Netzwerk-Projekt und Gruppe anlegen
+	var netProject struct{ ID string }
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Sponge-Netz", "kind": "network"}), &netProject)
+	admin.expect(201, "POST", "/api/projects/"+netProject.ID+"/servers", serverRequest{
+		Name:     "Proxy",
+		NodeID:   nodeID,
+		Software: "velocity",
+		Version:  "3.5.1",
+	})
+
+	var group Group
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects/"+netProject.ID+"/groups", groupRequest{
+		Name:         "Sponge-Gruppe",
+		Software:     "sponge",
+		Version:      "1.21.4",
+		MemoryMB:     512,
+		MinInstances: ptr(0),
+		MaxInstances: ptr(2),
+		EULA:         true,
+	}), &group)
+
+	// createInstance: fehlgeschlagener Sync verhindert Instanzerstellung
+	fake.setPackFails(true)
+	fake.clearPackPuts()
+	admin.expect(500, "POST", "/api/groups/"+group.ID+"/instances", nil)
+	rows, err := p.store.ListGroupServers(group.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("Instanz darf bei fehlgeschlagenem Pack-Sync nicht angelegt werden: %+v", rows)
+	}
+	puts = fake.getPackPuts()
+	if len(puts) == 0 || puts[len(puts)-1] != "sponge" {
+		t.Fatalf("createInstance hat keinen PUT für sponge gesendet: %+v", puts)
+	}
+
+	// createInstance: erfolgreicher Sync legt Instanz an
+	fake.setPackFails(false)
+	fake.clearPackPuts()
+	var instance ServerDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/groups/"+group.ID+"/instances", nil), &instance)
+	if instance.Software != "sponge" {
+		t.Fatalf("Instanz hat unerwartete Software: %s", instance.Software)
+	}
+	rows, err = p.store.ListGroupServers(group.ID)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("Instanz wurde nicht in DB angelegt: %+v", rows)
+	}
+	puts = fake.getPackPuts()
+	if len(puts) == 0 || puts[len(puts)-1] != "sponge" {
+		t.Fatalf("createInstance hat nach Freigabe keinen PUT für sponge gesendet: %+v", puts)
 	}
 }
 

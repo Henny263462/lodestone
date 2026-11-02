@@ -299,7 +299,11 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 func decode(r *http.Request, into any) error {
-	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+	return decodeLimit(r, into, 1<<20)
+}
+
+func decodeLimit(r *http.Request, into any, limit int64) error {
+	decoder := json.NewDecoder(io.LimitReader(r.Body, limit))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(into); err != nil {
 		return fail(http.StatusBadRequest, "ungültige Anfrage: "+err.Error())

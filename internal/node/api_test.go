@@ -405,13 +405,29 @@ func TestAPIPackRoutes(t *testing.T) {
 		t.Fatalf("PUT ungültiges JSON: erwartet 400, erhalten %d", status)
 	}
 
-	// 3. Body größer als maxJSONBody (1 MB)
-	oversized := append([]byte(`{"meta":{"name":"`), bytes.Repeat([]byte("a"), (1<<20)+100)...)
+	// 3. Body größer als software.MaxPackJSONSize (8 MB)
+	oversized := append([]byte(`{"meta":{"name":"`), bytes.Repeat([]byte("a"), software.MaxPackJSONSize+100)...)
 	oversized = append(oversized, []byte(`"}}`)...)
 	status, _ = a.do(http.MethodPut, "/api/packs/oversized-pack", oversized)
 	if status != http.StatusBadRequest {
 		t.Fatalf("PUT oversized body: erwartet 400, erhalten %d", status)
 	}
+
+	// 3b. Pack größer als das allgemeine maxJSONBody (1 MB), aber innerhalb von MaxPackJSONSize (8 MB)
+	largePack := software.PositionPack{
+		Meta: software.PackMeta{
+			ID:         "large-pack",
+			Name:       "Large Pack",
+			Kind:       software.KindServer,
+			Extensions: software.ExtPlugins,
+		},
+		Script: strings.Repeat("# script line\n", 80000), // ca. 1.1 MB
+	}
+	status, _ = a.do(http.MethodPut, "/api/packs/large-pack", largePack)
+	if status != http.StatusOK {
+		t.Fatalf("PUT large pack (>1MB): erwartet 200, erhalten %d", status)
+	}
+	_, _ = a.do(http.MethodDelete, "/api/packs/large-pack", nil)
 
 	// 4. Ungültige Metadaten
 	status, _ = a.do(http.MethodPut, "/api/packs/bad-pack", software.PositionPack{

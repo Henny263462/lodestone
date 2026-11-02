@@ -337,6 +337,11 @@ func CreateZipPack(pack *PositionPack) ([]byte, error) {
 // ---------------------------------------------------------------- PackManager
 
 // PackManager verwaltet eingebaute und eigene Position-Packs.
+// MaxPackJSONSize definiert die maximale Größe für serialisierte Position-Pack-JSON-Daten (8 MB).
+// Dies berücksichtigt die ZIP-Eintragsgrenzen (meta.json: 2 MB, autoconfig.json: 2 MB, script: 1 MB)
+// zuzüglich JSON- und Feld-Overhead.
+const MaxPackJSONSize = 8 << 20
+
 type PackManager struct {
 	mu    sync.RWMutex
 	dir   string
