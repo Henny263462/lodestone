@@ -1,6 +1,6 @@
 # Die Go-Stufe läuft immer auf der Plattform des Builders und kompiliert für die Zielplattform (Cross-Compile),
 # damit ein arm64-Image keine QEMU-Emulation für go build braucht.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
 # Release-Version für die Update-Prüfung; ohne Angabe meldet sich das Binary als „dev“ und gilt nie als veraltet.
