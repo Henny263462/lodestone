@@ -24,7 +24,7 @@ jobs:
 
       # QEMU braucht nur noch der kurze apk-Schritt im Endimage; kompiliert wird per Cross-Compile auf dem Builder.
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
 
