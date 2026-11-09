@@ -2,8 +2,9 @@
 
 ## 1. Technik (fest)
 
-Next.js 15 (App Router) mit `output: "export"` + `trailingSlash: true` → **statische Dateien**, die das Go-Panel aus dem Binary ausliefert
-(`internal/panel/webui/dist`). React 19, TypeScript (strikt), Tailwind 3, SWR, lucide-react, CodeMirror 6, qrcode.
+Next.js 16 (App Router) mit `output: "export"` + `trailingSlash: true` → **statische Dateien**, die das Go-Panel aus dem Binary ausliefert
+(`internal/panel/webui/dist`). React 19, TypeScript 7 (strikt), Tailwind 3, SWR, lucide-react, CodeMirror 6, qrcode.
+Globale CSS-Importe sind in `web/src/styles.d.ts` deklariert; die Stylesheets verarbeitet der Next.js-Bundler.
 Das hat Folgen:
 
 - Es gibt **keinen Next-Server**: keine API-Routen, keine Server Actions, keine Serverkomponenten mit Daten, kein `next/image`-Optimizer,
