@@ -190,7 +190,7 @@ func (p *Panel) createGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, ok := software.Lookup(software.ID(body.Software)); !ok || !CanBeBackend(software.ID(body.Software)) {
-		writeError(w, fail(http.StatusBadRequest, "Gruppen gibt es für Paper, Purpur, Folia und Fabric"))
+		writeError(w, fail(http.StatusBadRequest, "Gruppen gibt es für Paper, Purpur, Folia, Leaf, Fabric und NeoForge"))
 		return
 	}
 	if strings.TrimSpace(body.Version) == "" || !body.EULA {
@@ -425,6 +425,9 @@ func (p *Panel) createInstance(ctx context.Context, project Project, group Group
 	}
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	if err := p.ensurePackOnNode(callCtx, client, spec.Software); err != nil {
+		return ServerRow{}, err
+	}
 	if err := client.Do(callCtx, http.MethodPost, "/api/servers", spec, nil); err != nil {
 		return ServerRow{}, err
 	}

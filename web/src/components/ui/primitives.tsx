@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, Loader2, Search } from "lucide-react";
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { Check, ChevronDown, Loader2, Search } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -248,6 +249,258 @@ export function SearchInput({ className, ...rest }: Omit<InputHTMLAttributes<HTM
         type="search"
         className="h-10 w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted/70 [&::-webkit-search-cancel-button]:hidden"
       />
+    </div>
+  );
+}
+
+export interface SelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+type SelectPlacement = {
+  left: number;
+  width: number;
+  maxHeight: number;
+  top?: number;
+  bottom?: number;
+};
+
+/**
+ * Auswahlfeld mit eigener Liste im Panel-Stil. Ein natives <select> zeichnet die aufgeklappte Liste im
+ * Systemstil des Browsers, der sich nicht gestalten lässt; deshalb übernimmt diese Komponente Anzeige und Liste.
+ */
+export function Select({
+  value,
+  onChange,
+  options,
+  disabled,
+  placeholder = "Auswählen …",
+  className,
+  size = "md",
+  "aria-label": ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  disabled?: boolean;
+  placeholder?: string;
+  className?: string;
+  size?: "sm" | "md";
+  "aria-label"?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [placement, setPlacement] = useState<SelectPlacement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+
+  const firstEnabled = useCallback(() => options.findIndex((option) => !option.disabled), [options]);
+  const lastEnabled = useCallback(() => {
+    for (let index = options.length - 1; index >= 0; index--) if (!options[index].disabled) return index;
+    return -1;
+  }, [options]);
+
+  const move = useCallback(
+    (start: number, delta: number) => {
+      if (options.length === 0) return;
+      let index = start;
+      for (let step = 0; step < options.length; step++) {
+        index = (index + delta + options.length) % options.length;
+        if (!options[index].disabled) {
+          setActive(index);
+          return;
+        }
+      }
+    },
+    [options],
+  );
+
+  function show(index: number) {
+    if (disabled) return;
+    setActive(index >= 0 && !options[index]?.disabled ? index : firstEnabled());
+    setOpen(true);
+  }
+
+  function choose(index: number) {
+    const option = options[index];
+    if (!option || option.disabled) return;
+    onChange(option.value);
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const down = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    window.addEventListener("pointerdown", down, true);
+    return () => window.removeEventListener("pointerdown", down, true);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || active < 0) return;
+    menuRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [open, active]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const gap = 4;
+      const below = window.innerHeight - rect.bottom - gap - 8;
+      const above = rect.top - gap - 8;
+      // Nach oben klappen, wenn unten kaum Platz ist und oben mehr.
+      const placeAbove = below < 160 && above > below;
+      const maxHeight = Math.max(120, Math.min(288, placeAbove ? above : below));
+      const width = Math.min(rect.width, window.innerWidth - 16);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      setPlacement(
+        placeAbove
+          ? { left, width, maxHeight, bottom: window.innerHeight - rect.top + gap }
+          : { left, width, maxHeight, top: rect.bottom + gap },
+      );
+    };
+    const reposition = (event: Event) => {
+      // Scrollt die Liste selbst, bleibt die Position; nur äußere Scrollbewegungen verschieben das Feld.
+      if (menuRef.current?.contains(event.target as Node)) return;
+      update();
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open]);
+
+  function onKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (disabled) return;
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        if (!open) show(selectedIndex >= 0 ? selectedIndex : firstEnabled());
+        else move(active >= 0 ? active : firstEnabled(), 1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        if (!open) show(selectedIndex >= 0 ? selectedIndex : lastEnabled());
+        else move(active >= 0 ? active : lastEnabled(), -1);
+        break;
+      case "Home":
+        if (!open) return;
+        event.preventDefault();
+        setActive(firstEnabled());
+        break;
+      case "End":
+        if (!open) return;
+        event.preventDefault();
+        setActive(lastEnabled());
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        if (open) choose(active);
+        else show(selectedIndex >= 0 ? selectedIndex : firstEnabled());
+        break;
+      case "Escape":
+        if (!open) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        break;
+      case "Tab":
+        setOpen(false);
+        break;
+      default: {
+        // Tippen springt zur nächsten Option mit diesem Anfangsbuchstaben.
+        if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return;
+        const needle = event.key.toLowerCase();
+        let index = open && active >= 0 ? active : -1;
+        for (let step = 0; step < options.length; step++) {
+          index = (index + 1) % options.length;
+          const option = options[index];
+          if (!option.disabled && option.label.toLowerCase().startsWith(needle)) {
+            if (!open) show(index);
+            else setActive(index);
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  return (
+    <div className={cx("relative", className)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => (open ? setOpen(false) : show(selectedIndex >= 0 ? selectedIndex : firstEnabled()))}
+        onKeyDown={onKeyDown}
+        className={cx(
+          "field flex items-center justify-between gap-2 text-left",
+          size === "sm" && "h-8 py-0 text-xs",
+          open && "border-accent/60 bg-white/[0.04] ring-2 ring-accent/20",
+        )}
+      >
+        <span className={cx("min-w-0 flex-1 truncate", !selected && "text-muted/70")}>{selected?.label ?? placeholder}</span>
+        <ChevronDown className={cx("h-3.5 w-3.5 shrink-0 text-muted transition-transform duration-100", open && "rotate-180")} />
+      </button>
+      {open &&
+        placement &&
+        createPortal(
+          <div
+            ref={menuRef}
+            id={listId}
+            role="listbox"
+            aria-label={ariaLabel}
+            style={{ left: placement.left, width: placement.width, maxHeight: placement.maxHeight, top: placement.top, bottom: placement.bottom }}
+            className="fixed z-[70] animate-fade-in overflow-y-auto rounded-lg border border-white/[0.09] bg-raised p-1 shadow-2xl shadow-black/60"
+          >
+            {options.map((option, index) => (
+              <button
+                key={option.value}
+                id={`${listId}-${index}`}
+                data-index={index}
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                disabled={option.disabled}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => choose(index)}
+                onMouseEnter={() => {
+                  if (!option.disabled) setActive(index);
+                }}
+                className={cx(
+                  "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition duration-100",
+                  index === active ? "bg-white/[0.07] text-ink" : "text-ink/90",
+                  option.disabled && "cursor-not-allowed opacity-40",
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                {option.value === value && <Check className="h-3.5 w-3.5 shrink-0 text-accent" />}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +58,10 @@ type Panel struct {
 	runningSchedules map[string]bool
 	warnedKeys       map[string]bool
 
+	releaseMu    sync.Mutex
+	releaseEntry *releaseCache
+	updateMu     sync.Mutex
+
 	viewMu sync.Mutex
 	views  map[string]viewEntry
 
@@ -83,6 +88,12 @@ type viewEntry struct {
 
 // New baut das Panel. web ist die Oberfläche (kann nil sein).
 func New(cfg Config, store *Store, logger *slog.Logger, web http.Handler) *Panel {
+	packsDir := ""
+	if cfg.DataDir != "" {
+		packsDir = filepath.Join(cfg.DataDir, "packs")
+	}
+	software.InitPackManager(packsDir)
+
 	return &Panel{
 		cfg: cfg, store: store, log: logger, web: web,
 		throttle: newThrottle(), sw: software.NewResolver(), modrinth: NewModrinth(),
@@ -124,18 +135,43 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/users/{id}", p.authenticate(p.deleteUser))
 	mux.HandleFunc("POST /api/users/{id}/password", p.authenticate(p.resetPassword))
 
+	// Admin-Bereich
+	mux.HandleFunc("GET /api/admin/overview", p.authenticate(p.adminOverview))
+	mux.HandleFunc("GET /api/admin/users", p.authenticate(p.adminListUsers))
+	mux.HandleFunc("GET /api/admin/users/{id}", p.authenticate(p.adminGetUser))
+	mux.HandleFunc("DELETE /api/admin/users/{id}/sessions", p.authenticate(p.adminDeleteUserSessions))
+	mux.HandleFunc("GET /api/admin/projects", p.authenticate(p.adminListProjects))
+
 	// Nodes und Software
 	mux.HandleFunc("GET /api/nodes", p.authenticate(p.listNodes))
 	mux.HandleFunc("POST /api/nodes", p.authenticate(p.createNode))
+	mux.HandleFunc("GET /api/nodes/{id}", p.authenticate(p.getNode))
 	mux.HandleFunc("PATCH /api/nodes/{id}", p.authenticate(p.updateNode))
 	mux.HandleFunc("DELETE /api/nodes/{id}", p.authenticate(p.deleteNode))
+	mux.HandleFunc("GET /api/playit/overview", p.authenticate(p.playitOverview))
 	mux.HandleFunc("GET /api/nodes/{id}/playit", p.authenticate(p.nodePlayit))
 	mux.HandleFunc("PUT /api/nodes/{id}/playit", p.authenticate(p.nodePlayit))
 	mux.HandleFunc("DELETE /api/nodes/{id}/playit", p.authenticate(p.nodePlayit))
+	mux.HandleFunc("POST /api/nodes/{id}/playit/claim", p.authenticate(p.nodePlayitClaim))
+	mux.HandleFunc("GET /api/nodes/{id}/playit/claim", p.authenticate(p.nodePlayitClaim))
+	mux.HandleFunc("POST /api/nodes/{id}/update", p.authenticate(p.triggerNodeUpdate))
+	mux.HandleFunc("POST /api/nodes/update-all", p.authenticate(p.triggerAllNodesUpdate))
+	mux.HandleFunc("GET /api/updates", p.authenticate(p.getUpdates))
+	mux.HandleFunc("POST /api/updates/check", p.authenticate(p.checkUpdatesNow))
+	mux.HandleFunc("PUT /api/updates/settings", p.authenticate(p.putUpdateSettings))
+	mux.HandleFunc("POST /api/panel/update", p.authenticate(p.triggerPanelUpdate))
 	mux.HandleFunc("GET /api/modpacks/search", p.authenticate(p.modpackSearch))
 	mux.HandleFunc("GET /api/modpacks/{project}", p.authenticate(p.modpackVersions))
 	mux.HandleFunc("GET /api/software", p.authenticate(p.listSoftware))
 	mux.HandleFunc("GET /api/software/{id}/versions", p.authenticate(p.softwareVersions))
+
+	// Position-Packs
+	mux.HandleFunc("GET /api/packs", p.authenticate(p.listPacks))
+	mux.HandleFunc("GET /api/packs/{id}", p.authenticate(p.getPack))
+	mux.HandleFunc("GET /api/packs/{id}/export", p.authenticate(p.exportPack))
+	mux.HandleFunc("POST /api/packs/upload", p.authenticate(p.uploadPack))
+	mux.HandleFunc("PUT /api/packs/{id}", p.authenticate(p.updatePack))
+	mux.HandleFunc("DELETE /api/packs/{id}", p.authenticate(p.deletePack))
 
 	// Projekte
 	mux.HandleFunc("GET /api/projects", p.authenticate(p.listProjects))
@@ -169,6 +205,10 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("POST /api/servers/{id}/addons/switch", p.authenticate(p.addonsSwitch))
 	mux.HandleFunc("PUT /api/servers/{id}/public-address", p.authenticate(p.putPublicAddress))
 	mux.HandleFunc("PUT /api/servers/{id}/auto-restart", p.authenticate(p.putAutoRestart))
+	mux.HandleFunc("GET /api/servers/{id}/tunnels", p.authenticate(p.listTunnels))
+	mux.HandleFunc("GET /api/servers/{id}/tunnels/options", p.authenticate(p.tunnelOptions))
+	mux.HandleFunc("POST /api/servers/{id}/tunnels", p.authenticate(p.createTunnel))
+	mux.HandleFunc("DELETE /api/servers/{id}/tunnels/{kind}", p.authenticate(p.deleteTunnel))
 	mux.HandleFunc("GET /api/projects/{id}/events", p.authenticate(p.listEvents))
 	mux.HandleFunc("PUT /api/projects/{id}/motd", p.authenticate(p.putMOTD))
 	mux.HandleFunc("PUT /api/projects/{id}/status", p.authenticate(p.putStatus))
@@ -259,7 +299,11 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 func decode(r *http.Request, into any) error {
-	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+	return decodeLimit(r, into, 1<<20)
+}
+
+func decodeLimit(r *http.Request, into any, limit int64) error {
+	decoder := json.NewDecoder(io.LimitReader(r.Body, limit))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(into); err != nil {
 		return fail(http.StatusBadRequest, "ungültige Anfrage: "+err.Error())
