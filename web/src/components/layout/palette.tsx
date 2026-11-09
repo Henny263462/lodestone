@@ -88,7 +88,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
               }
             }}
             placeholder="Projekt, Server oder Seite suchen"
-            className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+            className="h-12 flex-1 bg-transparent text-sm outline-hidden placeholder:text-muted"
           />
           <kbd className="rounded border border-white/[0.1] px-1.5 py-0.5 text-[10px] text-muted">Esc</kbd>
         </div>
