@@ -11,7 +11,7 @@ COPY web/ ./
 RUN --mount=type=cache,target=/src/web/.next/cache \
     npx next build
 
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
 # Release-Version für die Update-Prüfung; ohne Angabe meldet sich das Binary als „dev“ und gilt nie als veraltet.
