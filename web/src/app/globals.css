@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
 
 :root {
   --bg: 17 17 17;
@@ -16,8 +15,20 @@
   --info: 96 165 250;
 }
 
-* {
-  border-color: rgb(var(--line));
+@layer base {
+  *, ::before, ::after {
+    border-color: rgb(var(--line));
+  }
+
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Die bestehenden kleinen Schatten und Unschärfen behalten ihre bisherigen Werte. */
+@theme {
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --blur-sm: 4px;
 }
 
 html {
@@ -55,7 +66,7 @@ body {
 
 @layer components {
   .field {
-    @apply w-full rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-sm text-ink placeholder:text-muted/60 outline-none transition focus:border-accent/60 focus:bg-white/[0.04] focus:ring-2 focus:ring-accent/20 disabled:opacity-50;
+    @apply w-full rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-sm text-ink placeholder:text-muted/60 outline-hidden transition focus:border-accent/60 focus:bg-white/[0.04] focus:ring-2 focus:ring-accent/20 disabled:opacity-50;
   }
 
   .label {

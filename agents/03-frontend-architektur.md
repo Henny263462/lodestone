@@ -2,8 +2,12 @@
 
 ## 1. Technik (fest)
 
-Next.js 15 (App Router) mit `output: "export"` + `trailingSlash: true` → **statische Dateien**, die das Go-Panel aus dem Binary ausliefert
-(`internal/panel/webui/dist`). React 19, TypeScript (strikt), Tailwind 3, SWR, lucide-react, CodeMirror 6, qrcode.
+Next.js 16 (App Router) mit `output: "export"` + `trailingSlash: true` → **statische Dateien**, die das Go-Panel aus dem Binary ausliefert
+(`internal/panel/webui/dist`). React 19, TypeScript (strikt), Tailwind 4, SWR, lucide-react, CodeMirror 6, qrcode.
+Tailwind läuft über `@tailwindcss/postcss`. `globals.css` lädt `tailwind.config.ts` ausdrücklich per `@config`;
+Farben, Schriften und Animationen bleiben dort definiert. Die bisherigen Werte für `shadow-sm`, `backdrop-blur-sm`
+bleiben in `globals.css` festgehalten. Unsichtbare Konturen verwenden `outline-hidden`, damit sie im Modus
+für erzwungene Farben weiterhin erkennbar sind.
 Das hat Folgen:
 
 - Es gibt **keinen Next-Server**: keine API-Routen, keine Server Actions, keine Serverkomponenten mit Daten, kein `next/image`-Optimizer,

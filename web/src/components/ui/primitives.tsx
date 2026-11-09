@@ -247,7 +247,7 @@ export function SearchInput({ className, ...rest }: Omit<InputHTMLAttributes<HTM
       <input
         {...rest}
         type="search"
-        className="h-10 w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted/70 [&::-webkit-search-cancel-button]:hidden"
+        className="h-10 w-full bg-transparent text-sm text-ink outline-hidden placeholder:text-muted/70 [&::-webkit-search-cancel-button]:hidden"
       />
     </div>
   );
