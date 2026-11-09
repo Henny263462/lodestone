@@ -29,8 +29,9 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
     Prüfung macht das Backend.
 
 ## Frontend (Details: `03`)
-11. Next.js als **statischer Export**: keine Serverkomponenten, keine API-Routen, keine dynamischen Pfade wie `/server/[id]`.
-    Seiten haben `"use client"` und lesen IDs aus Suchparametern (`/server/?id=…`).
+11. Next.js als **statischer Export**: keine Serverkomponenten, keine API-Routen. Seiten nutzen saubere Pfade
+    (`/project/<id>/<bereich>/`, `/server/<id>/<bereich>/`, `/status/<kürzel>/`), damit Vor- und Zurück-Navigation im Browser
+    funktioniert. Das Go-Panel und der Demo-Server liefern den passenden SPA-Fallback aus; alte Suchparameter bleiben als Fallback erhalten.
 12. Daten nur über `useApi<T>(pfad)` (lesen) und `api.get/post/put/patch/delete` (schreiben) aus `@/lib/api`. Nie `fetch` direkt,
     außer in `lib/api.ts`. Typen der Schnittstelle stehen in `lib/types.ts` und spiegeln die JSON-Namen des Backends.
 13. Keine neue npm-Abhängigkeit, ohne dass es der Besitzer verlangt hat. Vorhanden sind: next, react, swr, lucide-react,

@@ -14,8 +14,8 @@ import (
 )
 
 // Der playit-Agent verbindet die Maschine mit playit.gg, damit Server ohne Portfreigabe im Router erreichbar sind.
-// Die Tunnel (welche öffentliche Adresse auf welchen lokalen Port zeigt) legt man im playit-Dashboard an; der Daemon
-// startet und überwacht nur den Agenten mit dem Schlüssel des Benutzers.
+// Der Daemon startet und überwacht den Agenten mit dem Schlüssel des Benutzers. Die Tunnel (welche öffentliche Adresse
+// auf welchen lokalen Port zeigt) legt er über die Schnittstelle von playit.gg selbst an (playit_api.go).
 
 const (
 	playitContainer = "lodestone-playit"
@@ -43,6 +43,13 @@ type PlayitStatus struct {
 
 type playitState struct {
 	mu sync.Mutex
+	// apiBase und pollEvery stehen nur zum Überschreiben in Tests da (leer bzw. 0 = Standard).
+	apiBase   string
+	pollEvery time.Duration
+
+	// claimMu schützt claimCode, den Code der gerade laufenden Verbindung mit playit (playit_claim.go).
+	claimMu   sync.Mutex
+	claimCode string
 }
 
 func (m *Manager) playitPath() string { return filepath.Join(m.cfg.DataDir, "playit.json") }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Cpu, LayoutDashboard, Network, Search, Server, UserCog, Users, ScrollText, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Cpu, FolderKanban, Network, Search, Server, ShieldCheck, UserCog, Users, ScrollText, type LucideIcon } from "lucide-react";
 import { cx } from "@/components/ui/primitives";
+import { useAppNavigation } from "@/components/layout/navigation";
 import type { Project, User } from "@/lib/types";
 
 interface Entry {
@@ -17,23 +17,26 @@ interface Entry {
 
 /** Strg+K: springt zu Projekten, Servern und Seiten. */
 export function CommandPalette({ projects, user, open, onClose }: { projects: Project[] | undefined; user: User; open: boolean; onClose: () => void }) {
-  const router = useRouter();
+  const navigation = useAppNavigation();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const input = useRef<HTMLInputElement>(null);
 
   const entries = useMemo<Entry[]>(() => {
-    const list: Entry[] = [{ key: "home", label: "Übersicht", hint: "Seite", href: "/", icon: LayoutDashboard }];
+    const list: Entry[] = [{ key: "home", label: "Projekte", hint: "Seite", href: "/", icon: FolderKanban }];
     for (const project of projects ?? []) {
-      list.push({ key: `p-${project.id}`, label: project.name, hint: project.kind === "network" ? "Netzwerk" : "Projekt", href: `/project/?id=${project.id}`, icon: project.kind === "network" ? Network : Server });
+      list.push({ key: `p-${project.id}`, label: project.name, hint: project.kind === "network" ? "Netzwerk" : "Projekt", href: `/project/${project.id}/`, icon: project.kind === "network" ? Network : Server });
       for (const server of project.servers) {
-        list.push({ key: `s-${server.id}`, label: server.name, hint: `Server in ${project.name}`, href: `/server/?id=${server.id}`, icon: Server });
+        list.push({ key: `s-${server.id}`, label: server.name, hint: `Server in ${project.name}`, href: `/server/${server.id}/`, icon: Server });
       }
     }
     list.push({ key: "nodes", label: "Nodes", hint: "Seite", href: "/nodes/", icon: Cpu });
     if (user.isAdmin) {
-      list.push({ key: "users", label: "Benutzer", hint: "Seite", href: "/users/", icon: Users });
-      list.push({ key: "audit", label: "Protokoll", hint: "Seite", href: "/audit/", icon: ScrollText });
+      list.push({ key: "admin", label: "Admin-Panel", hint: "Administration", href: "/admin/", icon: ShieldCheck });
+      list.push({ key: "users", label: "Benutzer", hint: "Administration", href: "/users/", icon: Users });
+      list.push({ key: "admin-projects", label: "Alle Projekte", hint: "Administration", href: "/admin/projects/", icon: FolderKanban });
+      list.push({ key: "admin-updates", label: "Updates", hint: "Administration", href: "/admin/updates/", icon: ArrowUpCircle });
+      list.push({ key: "audit", label: "Protokoll", hint: "Administration", href: "/audit/", icon: ScrollText });
     }
     list.push({ key: "account", label: "Konto, Zwei-Faktor, API-Schlüssel", hint: "Seite", href: "/account/", icon: UserCog });
     return list;
@@ -58,7 +61,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
   function go(entry: Entry | undefined) {
     if (!entry) return;
     onClose();
-    router.push(entry.href);
+    navigation.push(entry.href);
   }
 
   return createPortal(
