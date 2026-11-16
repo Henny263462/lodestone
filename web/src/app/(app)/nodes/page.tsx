@@ -34,7 +34,6 @@ import { StateBadge } from "@/components/status";
 import { api, useApi } from "@/lib/api";
 import { bytes, megabytes } from "@/lib/format";
 import type { NodeDetail, NodeInfo, PlayitStatus, Server } from "@/lib/types";
-import { AdminSidebar } from "@/components/admin-sidebar";
 
 export default function NodesPage() {
   return (
@@ -94,7 +93,6 @@ function NodesListView() {
 
   return (
     <>
-      {user.isAdmin && <AdminSidebar />}
       <PageHeader
         title="Nodes"
         description="Maschinen mit Docker, auf denen die Server laufen. Auf jeder läuft der Lodestone-Node-Daemon."
@@ -344,7 +342,6 @@ function NodeDetailView({ nodeId }: { nodeId: string }) {
   if (error) {
     return (
       <>
-        {user.isAdmin && <AdminSidebar />}
         <div className="mb-4">
           <Link href="/nodes/" className="inline-flex items-center gap-1.5 text-xs text-muted transition hover:text-ink">
             <ChevronLeft className="h-4 w-4" />
@@ -359,7 +356,6 @@ function NodeDetailView({ nodeId }: { nodeId: string }) {
   if (!node) {
     return (
       <>
-        {user.isAdmin && <AdminSidebar />}
         <Loading label="Node-Details werden geladen" />
       </>
     );
@@ -385,18 +381,8 @@ function NodeDetailView({ nodeId }: { nodeId: string }) {
 
   return (
     <>
-      {user.isAdmin && <AdminSidebar />}
-      <div>
-        <Link
-          href="/nodes/"
-          className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted transition hover:text-ink"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Zurück zu allen Nodes
-        </Link>
-      </div>
-
       <PageHeader
+        crumbs={[{ label: "Nodes", href: "/nodes/" }, { label: node.name }]}
         title={node.name}
         description={`Node-Daemon auf ${node.publicHost || node.url || "verbunden"}. Detaillierte Systemanalyse und Server auf diesem Node.`}
         action={

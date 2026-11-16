@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, Network, Plus, Server as ServerIcon, Trash2, UserPlus } from "lucide-react";
+import { Activity, AlertTriangle, ArrowDown, ArrowUp, Boxes, CalendarClock, Check, Copy, Network, Plus, Server as ServerIcon, Settings, Trash2, UserPlus, Users } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
-import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Select, Switch, Tabs } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, PageTabs, Select, Switch, type PageTab } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { AddServerDialog } from "@/components/add-server";
@@ -15,12 +14,12 @@ import { MotdCard } from "@/components/motd";
 import { StatusCard } from "@/components/status-settings";
 import { ChartCard, RangeTabs } from "@/components/server/stats";
 import { SeriesChart } from "@/components/ui/chart";
-import { PowerButtons, StateBadge } from "@/components/status";
+import { PowerButtons } from "@/components/status";
 import { useAppNavigation } from "@/components/layout/navigation";
 import { useUser } from "@/components/layout/shell";
-import { PixelAvatar } from "@/components/ui/mc";
+import { BlockIcon, PixelAvatar } from "@/components/ui/mc";
+import { RoleBadges, ServerRow } from "@/components/server-list";
 import { api, useApi } from "@/lib/api";
-import { megabytes } from "@/lib/format";
 import { roleLabel, roleRank, type Member, type Metrics, type Project, type Range, type Role, type Server, type SyncResult } from "@/lib/types";
 
 export default function ProjectPage() {
@@ -49,7 +48,6 @@ function parseProjectRoute(pathname: string, searchParams: URLSearchParams): { i
 }
 
 function ProjectView() {
-  const navigation = useAppNavigation();
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const { id, tab: routeTab } = parseProjectRoute(pathname, searchParams);
@@ -65,28 +63,38 @@ function ProjectView() {
   const network = project.kind === "network";
   const canAdd = canManage && (network || project.servers.length === 0);
 
-  const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: "servers", label: "Server", count: project.servers.length },
-    ...(network ? [{ id: "network" as const, label: "Netzwerk" }, { id: "groups" as const, label: "Gruppen", count: project.groups.length }] : []),
-    { id: "schedules", label: "Zeitpläne" },
-    { id: "events", label: "Ereignisse" },
-    { id: "members", label: "Mitglieder", count: project.members?.length },
-    ...(canManage ? [{ id: "settings" as const, label: "Einstellungen" }] : []),
+  const base = `/project/${project.id}/`;
+  const tabs: PageTab[] = [
+    { id: "servers", label: "Server", href: base, icon: <ServerIcon className="h-3.5 w-3.5" />, count: project.servers.length },
+    ...(network
+      ? [
+          { id: "network", label: "Netzwerk", href: `${base}network/`, icon: <Network className="h-3.5 w-3.5" /> },
+          { id: "groups", label: "Gruppen", href: `${base}groups/`, icon: <Boxes className="h-3.5 w-3.5" />, count: project.groups.length },
+        ]
+      : []),
+    { id: "schedules", label: "Zeitpläne", href: `${base}schedules/`, icon: <CalendarClock className="h-3.5 w-3.5" /> },
+    { id: "events", label: "Ereignisse", href: `${base}events/`, icon: <Activity className="h-3.5 w-3.5" /> },
+    { id: "members", label: "Mitglieder", href: `${base}members/`, icon: <Users className="h-3.5 w-3.5" />, count: project.members?.length },
+    ...(canManage ? [{ id: "settings", label: "Einstellungen", href: `${base}settings/`, icon: <Settings className="h-3.5 w-3.5" /> }] : []),
   ];
 
   const activeTab = tabs.some((t) => t.id === routeTab) ? routeTab : "servers";
-
-  function setTab(next: Tab) {
-    if (!id) return;
-    const target = next === "servers" ? `/project/${id}/` : `/project/${id}/${next}/`;
-    navigation.push(target);
-  }
+  const running = project.servers.filter((server) => server.view?.state === "running").length;
 
   return (
     <>
       <PageHeader
+        crumbs={[{ label: "Übersicht", href: "/" }, { label: project.name }]}
+        icon={<BlockIcon name={project.name} size={44} />}
         title={project.name}
-        description={project.description || (network ? "Netzwerk mit Velocity-Proxy" : "Einzelner Server")}
+        description={project.description || undefined}
+        meta={
+          <>
+            <Badge tone={network ? "accent" : "neutral"}>{network ? "Netzwerk mit Velocity" : "Einzelner Server"}</Badge>
+            {project.servers.length > 0 && <Badge tone={running > 0 ? "good" : "neutral"}>{running} von {project.servers.length} laufen</Badge>}
+            <span>Deine Rolle: {roleLabel[project.myRole]}</span>
+          </>
+        }
         action={
           canAdd && (
             <Button variant="primary" onClick={() => setAdding(true)}>
@@ -108,11 +116,9 @@ function ProjectView() {
         </div>
       )}
 
-      <div className="mb-5 overflow-x-auto">
-        <Tabs value={activeTab} onChange={setTab} items={tabs} />
-      </div>
+      <PageTabs value={activeTab} items={tabs} />
 
-      {/* Neuer Schlüssel pro Tab: Der Inhalt blendet beim Wechsel kurz ein */}
+      {/* Neuer Schlüssel pro Bereich: Der Inhalt blendet beim Wechsel kurz ein */}
       <div key={activeTab} className="animate-fade-in motion-reduce:animate-none">
         {activeTab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
         {activeTab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
@@ -137,58 +143,40 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
         <EmptyState
           icon={project.kind === "network" ? <Network className="h-6 w-6" /> : <ServerIcon className="h-6 w-6" />}
           title="Noch kein Server"
-          text={project.kind === "network" ? "Beginne mit dem Velocity-Proxy, danach kommen die Server dahinter." : "Lege den Server dieses Projekts an."}
+          text={
+            project.kind === "network"
+              ? "Beginne mit dem Velocity-Proxy, danach kommen die Server dahinter."
+              : onAdd
+                ? "Lege den Server dieses Projekts an."
+                : "Ein Administrator des Projekts muss den Server anlegen."
+          }
+          action={
+            onAdd && (
+              <Button variant="primary" onClick={onAdd}>
+                <Plus className="h-4 w-4" />
+                {project.kind === "network" ? "Proxy hinzufügen" : "Server anlegen"}
+              </Button>
+            )
+          }
         />
-        {onAdd && (
-          <div className="flex justify-center pb-10">
-            <Button variant="primary" onClick={onAdd}>
-              <Plus className="h-4 w-4" />
-              {project.kind === "network" ? "Proxy hinzufügen" : "Server anlegen"}
-            </Button>
-          </div>
-        )}
       </Card>
     );
   }
   const canOperate = roleRank[project.myRole] >= roleRank.operator;
   const groupName = (id?: string) => project.groups.find((group) => group.id === id)?.name;
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
+      <Card className="divide-y divide-white/[0.05] overflow-hidden">
+        {project.servers.map((server) => (
+          <ServerRow
+            key={server.id}
+            server={server}
+            badges={<RoleBadges server={server} groupName={groupName(server.groupId)} />}
+            actions={<PowerButtons server={server} onDone={refresh} enabled={canOperate} />}
+          />
+        ))}
+      </Card>
       <ProjectStats project={project} />
-      {project.servers.map((server) => (
-        <Card key={server.id} className="p-4">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link href={`/server/${server.id}/`} className="flex min-w-[200px] flex-1 items-center gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-muted">
-                <ServerIcon className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold hover:underline">{server.name}</p>
-                <p className="truncate text-xs text-muted">
-                  {server.software} {server.view?.version} · {server.view ? megabytes(server.view.memoryMB) : "–"} · {server.nodeName}
-                </p>
-              </div>
-            </Link>
-            <div className="flex items-center gap-2">
-              {server.role === "proxy" && <Badge tone="accent">Proxy</Badge>}
-              {server.role === "backend" && <Badge>{server.inTry ? `Beitritt #${server.tryPosition + 1}` : "Backend"}</Badge>}
-              {server.groupId && <Badge tone="info">Gruppe {groupName(server.groupId)}</Badge>}
-              {server.voicechat && <Badge tone="info">Voicechat</Badge>}
-              <StateBadge server={server} />
-            </div>
-            <div className="min-w-[150px] text-xs">
-              {server.address ? <span className="font-mono text-ink/80">{server.address}</span> : <span className="text-muted">{server.role === "backend" ? "nur im Netzwerk" : "–"}</span>}
-              {server.view?.stats && server.view.state === "running" && (
-                <p className="mt-0.5 text-muted">
-                  {server.view.stats.cpuPercent.toFixed(0)} % CPU · {Math.round(server.view.stats.memoryBytes / 1024 ** 2)} MB
-                </p>
-              )}
-            </div>
-            <PowerButtons server={server} onDone={refresh} enabled={canOperate} />
-          </div>
-          {server.view?.lastError && server.view.state === "offline" && <p className="mt-3 rounded-md border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">{server.view.lastError}</p>}
-        </Card>
-      ))}
     </div>
   );
 }

@@ -233,7 +233,7 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
       {!existing && (
         <div className="flex flex-wrap gap-2">
           {presets.map((preset) => (
-            <button key={preset.label} type="button" onClick={() => patch(preset.build())} className="rounded-full border border-white/[0.09] bg-white/[0.03] px-3 py-1 text-xs text-muted transition hover:border-white/[0.18] hover:text-ink">
+            <button key={preset.label} type="button" onClick={() => patch(preset.build())} className="rounded-md border border-white/[0.09] bg-black/20 px-3 py-1 text-xs text-muted transition hover:border-white/[0.18] hover:text-ink">
               {preset.label}
             </button>
           ))}

@@ -56,13 +56,16 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   falsche Java-Version, Plugin- und Mod-Konflikte)
 - **Arbeitsspeicher-Planer:** Der Node prüft vor dem Start, ob genug RAM frei ist (Reserve einstellbar), und die
   Nodes-Seite zeigt zugesagt gegen tatsächlich belegt
-- **Updates über das Panel:** Unter **Admin-Panel → Updates** sehen Administratoren den Versionsstand von Panel und Nodes und aktualisieren sie per Klick (Panel, einzelner Node oder alle Nodes). Optional prüft das Panel alle 6 Stunden auf ein neues GitHub-Release und installiert es selbst, erst die Nodes, zuletzt das Panel
+- **Updates über das Panel:** Unter **Verwaltung → Updates** sehen Administratoren den Versionsstand von Panel und Nodes und aktualisieren sie per Klick (Panel, einzelner Node oder alle Nodes). Optional prüft das Panel alle 6 Stunden auf ein neues GitHub-Release und installiert es selbst, erst die Nodes, zuletzt das Panel
 - **Konto-Sicherheit:** Zwei-Faktor-Anmeldung (TOTP mit QR-Code und Wiederherstellungscodes), **API-Schlüssel** für
   Skripte (`Authorization: Bearer lds_…`), Sitzungsliste mit Abmelden und ein **Protokoll** aller Änderungen
   (90 Tage, nur für Administratoren)
-- **Admin-Panel:** Für Administratoren gibt es einen eigenen Bereich mit Übersicht (Kennzahlen, letzte Aktivität),
-  Benutzerverwaltung (Suche, Zwei-Faktor zurücksetzen, Sitzungen beenden, Projekte je Benutzer), Liste aller Projekte,
-  Nodes und Protokoll – mit eigener Seitenleiste
+- **Verwaltung:** Administratoren sehen den Bereich „Verwaltung“ direkt in der Seitenleiste: System (Kennzahlen,
+  letzte Aktivität), Benutzerverwaltung (Suche, Zwei-Faktor zurücksetzen, Sitzungen beenden, Projekte je Benutzer),
+  alle Projekte, Position-Packs, playit.gg, Updates und Protokoll
+- **Oberfläche im Minecraft-Stil:** dunkel und blockig wie der Launcher, Pixel-Logo, Blocksymbole für Projekte und
+  Server, Serverliste mit Ping-Balken. Unter **Konto → Darstellung** wählt jeder Benutzer Schrift (Minecraft, Pixel
+  überall, Modern, System) und Akzentfarbe (Smaragd, Diamant, Lapislazuli, Amethyst, Kupfer)
 - **Anlegen:** Vorlagen (Survival, Lobby, Creative, Mods), **ZIP-Import** einer bestehenden Welt oder eines Servers
   und Strg+K als Schnellsuche
 
@@ -84,9 +87,9 @@ Lodestone-Images werden bei jedem Push auf GitHub automatisch per GitHub Actions
 
 ### Auto-Update über das Panel (empfohlen)
 
-Administratoren sehen unter **Admin-Panel → Updates** den Versionsstand von Panel und Nodes, prüfen auf neue Releases und starten Updates per Klick. Dort lässt sich auch das automatische Update einschalten (standardmäßig aus): Das Panel prüft alle 6 Stunden auf ein neues GitHub-Release und tauscht die Container aus, ohne die laufenden Minecraft-Server zu unterbrechen. Auf der Nodes-Seite steht bei jedem veralteten Node ein eigener Knopf.
+Administratoren sehen unter **Verwaltung → Updates** den Versionsstand von Panel und Nodes, prüfen auf neue Releases und starten Updates per Klick. Dort lässt sich auch das automatische Update einschalten (standardmäßig aus): Das Panel prüft alle 6 Stunden auf ein neues GitHub-Release und tauscht die Container aus, ohne die laufenden Minecraft-Server zu unterbrechen. Auf der Nodes-Seite steht bei jedem veralteten Node ein eigener Knopf.
 
-**Update-Kanal:** Unter Admin-Panel → Updates wählst du zwischen **Stabil** (nur veröffentlichte Releases) und **Dev** (immer der neueste *erfolgreich gebaute* Stand von `main`, also der letzte Commit). Der Wechsel gilt für Panel und Nodes, wirkt sofort auf das, was angeboten wird, und ändert nichts, bis du auf „Aktualisieren“ klickst (oder das automatische Update an ist). Ohne Wahl bleibt ein Dev-Build im Dev-Kanal und ein Release im stabilen. Das Panel fragt im Dev-Kanal den letzten grünen Lauf des Workflows *Docker Autobuild & Release* auf `main` bei GitHub ab; so wird nie ein Image angeboten, das noch gebaut wird.
+**Update-Kanal:** Unter Verwaltung → Updates wählst du zwischen **Stabil** (nur veröffentlichte Releases) und **Dev** (immer der neueste *erfolgreich gebaute* Stand von `main`, also der letzte Commit). Der Wechsel gilt für Panel und Nodes, wirkt sofort auf das, was angeboten wird, und ändert nichts, bis du auf „Aktualisieren“ klickst (oder das automatische Update an ist). Ohne Wahl bleibt ein Dev-Build im Dev-Kanal und ein Release im stabilen. Das Panel fragt im Dev-Kanal den letzten grünen Lauf des Workflows *Docker Autobuild & Release* auf `main` bei GitHub ab; so wird nie ein Image angeboten, das noch gebaut wird.
 
 So funktioniert es: Der Node (er hat Zugriff auf `docker.sock`) lädt das Image der Zielversion, zum Beispiel `ghcr.io/henny263462/lodestone-node:v0.3.0` oder `…:dev-1a2b3c4`, und ersetzt den Container mit derselben Konfiguration. Der alte Container bleibt unter anderem Namen erhalten, bis der neue läuft, und wird bei einem Fehler zurückgeholt. Das Panel wird von dem Node aktualisiert, auf dessen Maschine es als Docker-Container läuft; dabei ist es etwa 10 bis 30 Sekunden nicht erreichbar.
 

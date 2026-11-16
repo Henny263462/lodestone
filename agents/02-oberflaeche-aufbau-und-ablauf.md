@@ -5,32 +5,42 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 ## 1. Informationsarchitektur
 
 ```
-Übersicht (/)                      Projekte als Karten, Kennzahlen, Nodes
-Projekt (/project/<id>/)           Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
-  └─ Server (/server/<id>/<bereich>/) Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
-Nodes (/nodes/)                    Maschinen, Speicher, playit verbinden (Tunnel legt man beim Server an: Einstellungen → playit-Tunnel)
-Admin-Panel (/admin/)              nur Administratoren; Übersicht mit Kennzahlen. Zweite Seitenleiste (`AdminSidebar`) mit:
-  ├─ Benutzer (/users/)            Benutzerverwaltung (Zwei-Faktor, Sitzungen, Projekte je Benutzer)
-  ├─ Projekte (/admin/projects/)   alle Projekte mit Eigentümer, Mitgliedern, Servern
-  ├─ Nodes (/nodes/)               dieselbe Seite wie in der Hauptleiste
-  ├─ Updates (/admin/updates/)     Versionsstand von Panel und Nodes, Updates per Klick, Auto-Update
-  └─ Protokoll (/audit/)
-Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen
+Seitenleiste (immer da, globale Navigation)
+  Übersicht (/)                    Kennzahlen, alle Projekte als Karten mit ihren Servern (Serverliste)
+  Nodes (/nodes/)                  Maschinen, Speicher, playit verbinden; Detailseite /nodes/<id>/
+  Projekte                         jedes Projekt mit Blocksymbol; das aktive klappt seine Server auf
+    Projekt (/project/<id>/<bereich>/)   PageTabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
+      Server (/server/<id>/<bereich>/)   PageTabs: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
+  Verwaltung (nur Administratoren, direkt sichtbar)
+    System (/admin/)               Kennzahlen der Installation, letzte Aktivität, Hinweis auf Updates
+    Benutzer (/users/)             Benutzerverwaltung (Zwei-Faktor, Sitzungen, Projekte je Benutzer)
+    Alle Projekte (/admin/projects/)  alle Projekte mit Eigentümer, Mitgliedern, Servern
+    Position-Packs (/admin/packs/) Software-Vorlagen und Autokonfiguration als ZIP
+    playit.gg (/admin/playit/)     Tunnel und Agenten
+    Updates (/admin/updates/)      Versionsstand von Panel und Nodes, Updates per Klick, Auto-Update („Neu“ in der Leiste)
+    Protokoll (/audit/)
+  Konto (/account/, unten)         Darstellung (Schrift, Akzentfarbe), Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen
 Status (/status/<kürzel>/)         öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
 ```
 
 - **Projekt** ist die Ebene, auf der Rechte, Netzwerk, Gruppen, Zeitpläne und Webhooks liegen. **Server** ist die Ebene, auf der man
   mit einem einzelnen Minecraft-Server arbeitet. Neue Funktionen gehören auf die Ebene, zu der ihre Daten gehören.
-- Neue Hauptseiten sind selten. Bevor du eine anlegst: Passt es als Tab im Projekt, als Bereich im Server oder als Karte im Konto?
-  Eine neue Hauptseite braucht einen Eintrag in `shell.tsx` (Seitenleiste) **und** in `palette.tsx` (Strg+K).
-- Navigation innerhalb eines Servers/Projekts geschieht über Tabs bzw. die zweite Seitenleiste; der aktive Tab steht in der Adresse
-  (`?tab=…`), damit Neuladen und Links an derselben Stelle landen (siehe `server/page.tsx`).
+- **Zwei Navigationsebenen, nie doppelt:** Die Seitenleiste führt zu Seiten (global), `PageTabs` wechseln Bereiche **innerhalb** eines
+  Projekts oder Servers (lokal). Bereiche gehören nicht in die Seitenleiste, Seiten nicht in `PageTabs`.
+- Jede Seite unterhalb der Übersicht zeigt im `PageHeader` den Pfad (`crumbs`): Übersicht → Projekt → Server, Verwaltung → Benutzer,
+  Nodes → Node. Der vorletzte Eintrag ist ein Link eine Ebene zurück.
+- Neue Hauptseiten sind selten. Bevor du eine anlegst: Passt es als Bereich im Projekt, als Bereich im Server oder als Karte im Konto?
+  Eine neue Hauptseite braucht einen Eintrag in `shell.tsx` (`mainEntries` oder `adminEntries`) **und** in `palette.tsx` (Strg+K).
+- Der aktive Bereich steht in der Adresse (`/server/<id>/<bereich>/`, alte Form `?tab=…`), damit Neuladen und Links an derselben Stelle
+  landen (siehe `server/page.tsx`).
 
 ## 2. Seitenaufbau (Schablone)
 
 ```
-<PageHeader title="…" description="ein Satz, wofür die Seite da ist" action={<Button variant="primary">…</Button>} />
+<PageHeader crumbs={[…]} icon={…} title="…" description="ein Satz, wofür die Seite da ist" meta={…}
+            action={<Button variant="primary">…</Button>} />
+[PageTabs, wenn die Seite Bereiche hat (Projekt, Server)]
 [Hinweis-/Fehlerkästen, falls nötig]
 [Kennzahlen: grid mit StatCard]
 [Hauptinhalt: Cards mit CardHeader]
@@ -51,7 +61,7 @@ if (data.length === 0) return <EmptyState icon={…} title="Noch keine …" text
 return …                                                                   // 4. voll
 ```
 
-- **Leer** erklärt in einem Satz, was das hier ist, und bietet nach Möglichkeit den Knopf zum Anlegen an (nur wenn der Benutzer darf;
+- **Leer** erklärt in einem Satz, was das hier ist, und bietet nach Möglichkeit den Knopf zum Anlegen an (`EmptyState action={…}`, nur wenn der Benutzer darf;
   sonst: „Ein Administrator muss …“).
 - **Fehler** zeigt die Meldung des Backends (die ist schon deutsch und erklärt). Nie selbst „Fehler 500“ ausgeben.
 - Live-Daten (Zustand, Konsole, Spielerzahl) aktualisieren sich selbst: `useApi(…, { refreshInterval: 3000–15000 })`, Websocket nur für

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ArrowUpRight, Cable, Check, Copy, ExternalLink, Globe, Layers, Radio, RefreshCw, Server, Terminal, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { AdminSidebar } from "@/components/admin-sidebar";
 import { Badge, Button, Card, Dot, EmptyState, PageHeader, StatCard } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
@@ -25,7 +24,6 @@ export default function AdminPlayitPage() {
   if (error) {
     return (
       <>
-        <AdminSidebar />
         <ErrorState error={error} retry={() => mutate()} />
       </>
     );
@@ -34,7 +32,6 @@ export default function AdminPlayitPage() {
   if (!data) {
     return (
       <>
-        <AdminSidebar />
         <Loading label="playit.gg-Übersicht wird geladen" />
       </>
     );
@@ -56,8 +53,8 @@ export default function AdminPlayitPage() {
 
   return (
     <>
-      <AdminSidebar />
       <PageHeader
+        crumbs={[{ label: "Verwaltung" }, { label: "playit.gg" }]}
         title="playit.gg"
         description="Macht Minecraft-Server und Voicechat ohne Router-Portfreigaben über sichere, globale Anycast-Tunnel weltweit erreichbar."
         action={

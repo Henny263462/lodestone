@@ -2,7 +2,6 @@
 
 import { ArrowUpCircle, Cpu, ExternalLink, RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { AdminSidebar } from "@/components/admin-sidebar";
 import { useUser } from "@/components/layout/shell";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { Badge, Button, Card, CardHeader, Dot, EmptyState, PageHeader, Switch, Tabs } from "@/components/ui/primitives";
@@ -43,7 +42,6 @@ export default function AdminUpdatesPage() {
   if (error) {
     return (
       <>
-        <AdminSidebar />
         <ErrorState error={error} retry={() => mutate()} />
       </>
     );
@@ -51,7 +49,6 @@ export default function AdminUpdatesPage() {
   if (!data) {
     return (
       <>
-        <AdminSidebar />
         <Loading />
       </>
     );
@@ -69,8 +66,8 @@ export default function AdminUpdatesPage() {
 
   return (
     <>
-      <AdminSidebar />
       <PageHeader
+        crumbs={[{ label: "Verwaltung" }, { label: "Updates" }]}
         title="Updates"
         description="Versionsstand von Panel und Nodes. Updates laufen über Docker; laufende Minecraft-Server bleiben unberührt."
         action={

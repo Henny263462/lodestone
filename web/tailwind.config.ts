@@ -14,18 +14,29 @@ const config: Config = {
         muted: withAlpha("--muted"),
         ink: withAlpha("--ink"),
         accent: withAlpha("--accent"),
+        // Textfarbe auf einer Fläche in Akzentfarbe (hell auf dunklen Akzenten, dunkel auf hellen)
+        "accent-ink": withAlpha("--accent-ink"),
         good: withAlpha("--good"),
         warn: withAlpha("--warn"),
         bad: withAlpha("--bad"),
         info: withAlpha("--info"),
       },
+      // Die Schriften kommen aus Variablen, damit jeder Benutzer sie unter Konto → Darstellung umstellen kann (globals.css)
       fontFamily: {
-        sans: ["Geist", "Inter", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+        sans: ["var(--font-body)"],
+        display: ["var(--font-display)"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
+      // Blockiger Stil wie in Minecraft: Kanten statt weicher Schatten
       boxShadow: {
-        glow: "0 6px 20px -8px rgb(var(--accent) / 0.55)",
-        panel: "0 1px 0 0 rgb(255 255 255 / 0.02) inset",
+        // Knopf: helle Oberkante, dunkle Unterkante (wie ein Block, der leicht hervorsteht)
+        bevel: "inset 0 1px 0 0 rgb(255 255 255 / 0.16), inset 0 -3px 0 0 rgb(0 0 0 / 0.32)",
+        // Gedrückter Knopf: die Unterkante wird schmaler, der Knopf wirkt eingedrückt
+        "bevel-pressed": "inset 0 1px 0 0 rgb(255 255 255 / 0.08), inset 0 -1px 0 0 rgb(0 0 0 / 0.32)",
+        // Karte: feine Lichtkante oben, harte Schattenkante unten
+        panel: "inset 0 1px 0 0 rgb(255 255 255 / 0.04), 0 2px 0 0 rgb(0 0 0 / 0.35)",
+        // Eingabefeld: leicht vertieft
+        sunken: "inset 0 2px 0 0 rgb(0 0 0 / 0.25)",
       },
       // Alle Bewegungen sind kurz (120–220 ms) und benutzen dieselbe Kurve: schnell los, weich aus
       transitionTimingFunction: {

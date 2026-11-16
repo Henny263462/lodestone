@@ -98,11 +98,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             onClick={() => dismiss(toast.id)}
             title="Schließen"
             className={cx(
-              "pointer-events-auto flex cursor-pointer items-start gap-3 rounded-lg border bg-raised px-4 py-3 text-sm shadow-2xl shadow-black/50",
-              toast.tone === "good" ? "border-good/40" : "border-bad/40",
+              "pointer-events-auto relative flex cursor-pointer items-start gap-3 overflow-hidden rounded-md border border-black/50 bg-raised py-3 pl-5 pr-4 text-sm shadow-panel",
               toast.leaving ? "pointer-events-none animate-toast-out" : "animate-toast-in",
             )}
           >
+            <span aria-hidden className={cx("absolute inset-y-0 left-0 w-[3px]", toast.tone === "good" ? "bg-good" : "bg-bad")} />
             {toast.tone === "good" ? (
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-good" />
             ) : (
@@ -152,28 +152,28 @@ export function Dialog({
   // Über ein Portal direkt unter body, damit weder Animationen noch Scroll-Container die Position verschieben
   return createPortal(
     <div className={cx("fixed inset-0 z-50 flex items-center justify-center p-4", leaving && "pointer-events-none")}>
-      <div className={cx("absolute inset-0 bg-black/60 backdrop-blur-sm", leaving ? "animate-overlay-out" : "animate-overlay-in")} onClick={onClose} />
+      <div className={cx("absolute inset-0 bg-black/70", leaving ? "animate-overlay-out" : "animate-overlay-in")} onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={content.title}
         className={cx(
-          "relative max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-xl border border-white/[0.09] bg-surface shadow-2xl shadow-black/60",
+          "relative max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-xl border border-black/50 bg-surface shadow-panel",
           wide ? "max-w-2xl" : "max-w-md",
           leaving ? "animate-pop-out" : "animate-pop-in",
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] px-5 py-4">
           <div>
-            <h3 className="text-base font-semibold">{content.title}</h3>
+            <h3 className="font-display text-base font-medium tracking-wide">{content.title}</h3>
             {content.description && <p className="mt-0.5 text-xs text-muted">{content.description}</p>}
           </div>
-          <button onClick={onClose} className="rounded-md p-1 text-muted transition duration-100 hover:bg-raised hover:text-ink active:scale-90" aria-label="Schließen">
+          <button onClick={onClose} className="rounded-md p-1 text-muted transition duration-100 hover:bg-white/[0.06] hover:text-ink active:scale-90" aria-label="Schließen">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="space-y-4 px-5 py-4">{content.children}</div>
-        {content.footer && <div className="flex justify-end gap-2 border-t px-5 py-3">{content.footer}</div>}
+        {content.footer && <div className="flex justify-end gap-2 border-t border-white/[0.06] bg-black/15 px-5 py-3">{content.footer}</div>}
       </div>
     </div>,
     document.body,

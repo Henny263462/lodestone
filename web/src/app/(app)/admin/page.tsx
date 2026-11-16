@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ArrowRight, ArrowUpCircle, Cpu, FolderKanban, Package, ScrollText, Server, ShieldCheck, Users } from "lucide-react";
-import { AdminSidebar } from "@/components/admin-sidebar";
+import { Activity, ArrowRight, Cpu, FolderKanban, ScrollText, Server, ShieldCheck, Users } from "lucide-react";
 import { useUser } from "@/components/layout/shell";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { Badge, Card, CardHeader, EmptyState, PageHeader, StatCard } from "@/components/ui/primitives";
@@ -31,7 +30,6 @@ export default function AdminOverviewPage() {
   if (overviewError) {
     return (
       <>
-        <AdminSidebar />
         <ErrorState error={overviewError} retry={() => mutateOverview()} />
       </>
     );
@@ -40,59 +38,17 @@ export default function AdminOverviewPage() {
   if (!overview) {
     return (
       <>
-        <AdminSidebar />
         <Loading />
       </>
     );
   }
 
-  const quickLinks = [
-    {
-      href: "/users/",
-      title: "Benutzerverwaltung",
-      description: "Benutzerkonten anlegen, Kennwörter setzen, sperren und Rollen prüfen",
-      icon: Users,
-    },
-    {
-      href: "/admin/projects/",
-      title: "Projekte",
-      description: "Alle Projekte im System mit Eigentümern, Mitgliedern und Servern einsehen",
-      icon: FolderKanban,
-    },
-    {
-      href: "/nodes/",
-      title: "Nodes",
-      description: "Host-Maschinen verwalten, Speicherauslastung prüfen und playit verbinden",
-      icon: Cpu,
-    },
-    {
-      href: "/admin/packs/",
-      title: "Position-Packs",
-      description: "Server-Software-Vorlagen, Autokonfigurationen und Skripte als ZIP verwalten",
-      icon: Package,
-    },
-    {
-      href: "/admin/updates/",
-      title: "Updates",
-      description: updates?.updateAvailable
-        ? `Version ${updates.latestVersion} ist verfügbar`
-        : "Versionsstand von Panel und Nodes prüfen und Updates einspielen",
-      icon: ArrowUpCircle,
-    },
-    {
-      href: "/audit/",
-      title: "Protokoll",
-      description: "Audit-Log aller administrativen Aktionen und Sicherheitsereignisse durchsuchen",
-      icon: ScrollText,
-    },
-  ];
-
   return (
     <>
-      <AdminSidebar />
       <PageHeader
-        title="Admin-Panel"
-        description="Zentrale Übersicht über das System, Kennzahlen und letzte Aktivitäten."
+        crumbs={[{ label: "Verwaltung" }, { label: "System" }]}
+        title="System"
+        description="Kennzahlen der ganzen Installation und die letzten Aktionen. Alle Verwaltungsseiten findest du links unter „Verwaltung“."
       />
 
       {updates?.updateAvailable && (
@@ -153,7 +109,7 @@ export default function AdminOverviewPage() {
         />
       </div>
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
+      <div className="mt-8">
         <Card>
           <CardHeader
             title="Letzte Aktivität"
@@ -199,32 +155,6 @@ export default function AdminOverviewPage() {
           )}
         </Card>
 
-        <Card>
-          <CardHeader
-            title="Schnellzugriff"
-            description="Direkte Links zu den Verwaltungsbereichen"
-          />
-          <div className="divide-y divide-white/[0.05]">
-            {quickLinks.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center justify-between gap-4 px-5 py-3.5 transition duration-100 hover:bg-white/[0.03]"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-muted">
-                    <item.icon className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-ink">{item.title}</p>
-                    <p className="text-xs text-muted">{item.description}</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted" />
-              </Link>
-            ))}
-          </div>
-        </Card>
       </div>
     </>
   );

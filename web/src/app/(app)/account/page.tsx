@@ -8,6 +8,7 @@ import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
 import { PixelAvatar } from "@/components/ui/mc";
+import { AppearanceCard } from "@/components/appearance-settings";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
 import type { ApiKeyInfo, Me, SessionInfo } from "@/lib/types";
@@ -16,15 +17,14 @@ export default function AccountPage() {
   const user = useUser();
   return (
     <>
-      <PageHeader title="Konto" description="Anmeldung, Sicherheit und Zugriff für Skripte." />
-      <div className="max-w-2xl space-y-5">
-        <Card className="flex items-center gap-4 p-5">
-          <PixelAvatar name={user.username} size={48} />
-          <div>
-            <p className="text-sm font-semibold">{user.username}</p>
-            {user.isAdmin ? <Badge tone="accent">Administrator</Badge> : <p className="text-xs text-muted">Benutzer</p>}
-          </div>
-        </Card>
+      <PageHeader
+        title={user.username}
+        description="Dein Konto: Darstellung, Anmeldung, Sicherheit und Zugriff für Skripte."
+        icon={<PixelAvatar name={user.username} size={44} />}
+        meta={user.isAdmin ? <Badge tone="accent">Administrator</Badge> : <Badge>Benutzer</Badge>}
+      />
+      <div className="max-w-3xl space-y-5">
+        <AppearanceCard />
         <PasswordCard />
         <TwoFactorCard />
         <KeysCard />

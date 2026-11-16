@@ -815,9 +815,9 @@ function staticFile(res, pathname) {
       return fs.createReadStream(file).pipe(res);
     }
   }
-  // SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/..., /status/<slug>/... und /admin/...
+  // SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/..., /status/<slug>/..., /admin/... und /nodes/<id>/
   const first = clean.split(/[\\/]/)[0];
-  if (first === "project" || first === "server" || first === "status" || first === "admin") {
+  if (first === "project" || first === "server" || first === "status" || first === "admin" || first === "nodes") {
     const isTxt = clean.endsWith(".txt");
     const fallback = path.join(root, first, isTxt ? "index.txt" : "index.html");
     if (fs.existsSync(fallback) && fs.statSync(fallback).isFile()) {

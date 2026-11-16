@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { FolderKanban } from "lucide-react";
 import { useState } from "react";
-import { AdminSidebar } from "@/components/admin-sidebar";
 import { useUser } from "@/components/layout/shell";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { PixelAvatar } from "@/components/ui/mc";
@@ -27,7 +26,6 @@ export default function AdminProjectsPage() {
   if (error) {
     return (
       <>
-        <AdminSidebar />
         <ErrorState error={error} retry={() => mutate()} />
       </>
     );
@@ -36,7 +34,6 @@ export default function AdminProjectsPage() {
   if (!data) {
     return (
       <>
-        <AdminSidebar />
         <Loading />
       </>
     );
@@ -55,9 +52,9 @@ export default function AdminProjectsPage() {
 
   return (
     <>
-      <AdminSidebar />
       <PageHeader
-        title="Projekte"
+        crumbs={[{ label: "Verwaltung" }, { label: "Alle Projekte" }]}
+        title="Alle Projekte"
         description="Alle Projekte im System mit Eigentümern, Mitgliedern und zugewiesenen Servern."
       />
 

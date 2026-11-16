@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Archive, BarChart3, FolderOpen, Puzzle, Settings, Terminal, Users, type LucideIcon } from "lucide-react";
 import { Suspense } from "react";
 import { useAppNavigation } from "@/components/layout/navigation";
-import { cx } from "@/components/ui/primitives";
+import { Badge, PageHeader, PageTabs, type PageTab } from "@/components/ui/primitives";
+import { BlockIcon } from "@/components/ui/mc";
+import { softwareName } from "@/components/server-list";
 import { ErrorState, Loading } from "@/components/ui/async";
-import { PowerButtons, StateBadge } from "@/components/status";
+import { CopyAddress, PowerButtons, StateBadge } from "@/components/status";
 import { AddonsTab } from "@/components/server/addons";
 import { BackupsTab } from "@/components/server/backups";
 import { ConsoleTab } from "@/components/server/console";
@@ -59,12 +60,6 @@ function ServerView() {
   const { data, error, mutate } = useApi<{ server: Server; myRole: Role }>(id ? `/servers/${id}` : null, { refreshInterval: 3000 });
   const { data: project } = useApi<Project>(data ? `/projects/${data.server.projectId}` : null);
 
-  function setTab(next: Tab) {
-    if (!id) return;
-    const target = next === "console" ? `/server/${id}/` : `/server/${id}/${next}/`;
-    navigation.push(target);
-  }
-
   if (!id) return <ErrorState error={new Error("Kein Server angegeben")} />;
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!data) return <Loading />;
@@ -75,6 +70,7 @@ function ServerView() {
   const state = view?.state;
   const extensions = server.software === "fabric" || server.software === "neoforge" || server.software === "forge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
 
+  const base = `/server/${server.id}/`;
   const entries: Entry[] = [
     { id: "console", label: "Konsole", icon: Terminal },
     { id: "stats", label: "Statistiken", icon: BarChart3 },
@@ -85,41 +81,34 @@ function ServerView() {
     ...(rank >= roleRank.admin ? [{ id: "settings" as const, label: "Einstellungen", icon: Settings }] : []),
   ];
   const active = entries.some((entry) => entry.id === routeTab) ? routeTab : "console";
+  const tabs: PageTab[] = entries.map((entry) => ({
+    id: entry.id,
+    label: entry.label,
+    href: entry.id === "console" ? base : `${base}${entry.id}/`,
+    icon: <entry.icon className="h-3.5 w-3.5" />,
+  }));
 
   return (
     <>
-      {/* Auf Mobilgeräten Reiterleiste oben anzeigen */}
-      <div className="mb-5 flex gap-1 overflow-x-auto pb-2 border-b border-white/[0.06] lg:hidden">
-        {entries.map((entry) => (
-          <button
-            key={entry.id}
-            onClick={() => setTab(entry.id)}
-            className={cx(
-              "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-left text-[12.5px] transition duration-100 active:scale-[0.97]",
-              active === entry.id ? "border-white/[0.07] bg-white/[0.07] text-ink font-medium" : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
-            )}
-          >
-            <entry.icon className={cx("h-3.5 w-3.5 shrink-0", active === entry.id ? "text-ink" : "text-muted")} />
-            {entry.label}
-          </button>
-        ))}
-      </div>
+      <PageHeader
+        crumbs={[{ label: "Übersicht", href: "/" }, { label: project?.name ?? "Projekt", href: `/project/${server.projectId}/` }, { label: server.name }]}
+        icon={<BlockIcon name={server.name} size={44} />}
+        title={server.name}
+        meta={
+          <>
+            <StateBadge server={server} />
+            {server.role === "proxy" && <Badge tone="accent">Proxy</Badge>}
+            <span>
+              {softwareName(server.software)} {view?.version}
+              {view && ` · ${megabytes(view.memoryMB)}`} · Node {server.nodeName}
+            </span>
+            {server.address && <CopyAddress address={server.address} />}
+          </>
+        }
+        action={<PowerButtons server={server} onDone={() => mutate()} size="md" enabled={rank >= roleRank.operator} />}
+      />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{entries.find((entry) => entry.id === active)?.label}</h1>
-          <p className="mt-1 text-[13px] text-muted">
-            {server.name} · {view ? megabytes(view.memoryMB) : "–"} · Node {server.nodeName}
-            {server.address && (
-              <>
-                {" · "}
-                <span className="font-mono text-ink/80">{server.address}</span>
-              </>
-            )}
-          </p>
-        </div>
-        <PowerButtons server={server} onDone={() => mutate()} size="md" enabled={rank >= roleRank.operator} />
-      </div>
+      <PageTabs value={active} items={tabs} />
 
       <ModpackBanner server={server} />
       {view?.lastError && state === "offline" && <p className="mb-5 rounded-lg border border-bad/25 bg-bad/10 px-4 py-3 text-xs text-bad">{view.lastError}</p>}
