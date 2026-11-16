@@ -37,7 +37,7 @@ web/src/
     api.ts                          request/api/useApi/upload/downloadUrl/fetchText/putText, wsBase
     types.ts                        Typen der Schnittstelle + roleRank
     format.ts                       bytes, megabytes, dateTime, ago, uptime, compact, stateTone …
-    audit.ts, crash.ts              reine Hilfen (Beschriftungen, Fehlererkennung)
+    audit.ts, crash.ts, editor.ts   reine Hilfen (Beschriftungen, Fehlererkennung, Dateitypen des Editors)
 web/demo/server.mjs                 Schein-Backend für die Demo (Port 3100)
 ```
 
@@ -67,6 +67,9 @@ mutate();
 - 401 leitet automatisch zur Anmeldung. 204 liefert `undefined`.
 - Dateien: `upload()` (mit Fortschritt), `downloadUrl(pfad)` für Download-Links, `fetchText/putText` für Textdateien.
 - Konsole: Websocket über `wsBase()`; nur dort.
+- `prefetch(pfad)` startet eine Abfrage vorab (z. B. die Projektliste parallel zur Anmeldeprüfung); `useApi` übernimmt sie dann.
+- Große Bibliotheken (CodeMirror) nur über `next/dynamic` laden, damit sie nicht im Paket jeder Seite landen. Reine Hilfen dazu
+  gehören nach `lib/` (Vorbild: `lib/editor.ts` und `components/server/files.tsx`).
 - Kein globaler Store (kein Redux/Zustand). Serverdaten = SWR-Cache, Formularzustand = `useState` in der Komponente, URL = Tabs/IDs.
 - Eigene Hooks nur, wenn sie mindestens zweimal gebraucht werden (Beispiel `usePlayerActions` in `components/server/player-admin.tsx`).
 

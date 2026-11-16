@@ -38,12 +38,12 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Meter, cx, loadTone } from "@/components/ui/primitives";
+import { Meter, cx, loadTone, usePresence } from "@/components/ui/primitives";
 import { LodestoneLogo, PixelAvatar, Wordmark } from "@/components/ui/mc";
 import { Loading } from "@/components/ui/async";
 import { StateBadge } from "@/components/status";
 import { CommandPalette } from "./palette";
-import { api, useApi } from "@/lib/api";
+import { api, prefetch, useApi } from "@/lib/api";
 import { roleRank, type AuthStatus, type Project, type User } from "@/lib/types";
 
 type Icon = ComponentType<{ className?: string }>;
@@ -63,6 +63,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    // Die Projektliste braucht die Shell sofort; sie lädt parallel zur Anmeldeprüfung statt danach
+    prefetch("/projects");
     api
       .get<AuthStatus>("/auth/status")
       .then((status) => {
@@ -128,6 +130,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = normalize(usePathname() ?? "/");
   const params = useSearchParams();
   const [open, setOpen] = useState(false);
+  const drawer = usePresence(open, 160);
   const [folded, setFolded] = useState(false);
   const [palette, setPalette] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(true);
@@ -835,23 +838,23 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
       <div className="min-h-screen bg-bg lg:h-screen lg:overflow-hidden">
         <aside
           className={cx(
-            "fixed inset-y-0 left-0 z-30 hidden transition-[width] duration-200 lg:block",
+            "fixed inset-y-0 left-0 z-30 hidden transition-[width] duration-200 ease-snappy lg:block",
             folded ? "w-[68px]" : "w-[240px]",
           )}
         >
           {sidebar(folded)}
         </aside>
 
-        {open && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} />
-            <aside className="relative h-full w-[264px] border-r border-white/[0.07] bg-bg">{sidebar(false)}</aside>
+        {drawer.mounted && (
+          <div className={cx("fixed inset-0 z-40 lg:hidden", drawer.leaving && "pointer-events-none")}>
+            <div className={cx("absolute inset-0 bg-black/70 backdrop-blur-sm", drawer.leaving ? "animate-overlay-out" : "animate-overlay-in")} onClick={() => setOpen(false)} />
+            <aside className={cx("relative h-full w-[264px] border-r border-white/[0.07] bg-bg", drawer.leaving ? "animate-drawer-out" : "animate-drawer-in")}>{sidebar(false)}</aside>
           </div>
         )}
 
         <div
           className={cx(
-            "min-h-screen p-0 transition-[padding] duration-200 lg:h-screen lg:min-h-0 lg:p-2",
+            "min-h-screen p-0 transition-[padding] duration-200 ease-snappy lg:h-screen lg:min-h-0 lg:p-2",
             folded ? "lg:pl-[68px]" : "lg:pl-[240px]",
           )}
         >
