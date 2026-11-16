@@ -1,6 +1,6 @@
 "use client";
 
-import useSWR, { type SWRConfiguration } from "swr";
+import useSWR, { preload, type SWRConfiguration } from "swr";
 
 /** Fehler der Schnittstelle mit der Meldung des Panels. */
 export class ApiError extends Error {
@@ -116,4 +116,9 @@ export function useApi<T>(path: string | null, config?: SWRConfiguration<T, ApiE
     keepPreviousData: true,
     ...config,
   });
+}
+
+/** Startet eine Abfrage vorab; ein späteres `useApi` mit demselben Pfad übernimmt die laufende Antwort. */
+export function prefetch(path: string): void {
+  preload(path, (key: string) => api.get(key)).catch(() => undefined);
 }

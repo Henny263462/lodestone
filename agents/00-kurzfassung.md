@@ -18,7 +18,8 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
    **Baue keine eigene Variante davon.**
 6. Eckig-weich: Karten `rounded-xl`, Knöpfe/Eingaben `rounded-lg`, Abzeichen `rounded-full`. Rahmen immer `border-white/[0.07]`
    (Karten) bzw. `border-white/[0.08]` (Eingaben). **Keine Schatten außer** `shadow-panel` und dem `shadow-glow` des primären Knopfs.
-7. Keine Verläufe, Leuchteffekte oder Animationen außer dem, was `primitives.tsx` schon mitbringt.
+7. Keine Verläufe oder Leuchteffekte. Animationen nur die festen aus `tailwind.config.ts` (`animate-fade-in`, `-pop-in/-out`, `-overlay-*`,
+   `-drawer-*`, `-toast-*`), kurz (120–220 ms), über `usePresence` zum Ausblenden. Keine eigenen Keyframes in Seiten.
 
 ## Ablauf (Details: `02`)
 8. Jede Aktion bekommt eine Rückmeldung: `toast.run(() => api…, "Erledigt")`. Gefährliches (Löschen, Zurücksetzen, Überschreiben)
