@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, ChevronDown, Loader2, Search } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -31,28 +32,31 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean;
 };
 
+// Knöpfe sind kleine Blöcke: helle Oberkante, dunkle Unterkante; beim Drücken sinken sie ein (wie im Spielmenü)
+const buttonVariants = {
+  primary: "bg-accent font-display text-accent-ink text-pixel-shadow shadow-bevel hover:brightness-110 active:shadow-bevel-pressed",
+  secondary: "border border-black/40 bg-raised font-display text-ink text-pixel-shadow shadow-bevel hover:brightness-125 active:shadow-bevel-pressed",
+  ghost: "text-muted hover:bg-white/[0.06] hover:text-ink",
+  danger: "border border-bad/50 bg-bad/20 font-display text-bad shadow-bevel hover:bg-bad/30 active:shadow-bevel-pressed",
+};
+
+const buttonSizes = {
+  sm: "h-8 px-3 text-xs",
+  md: "h-9 px-4 text-sm",
+  lg: "h-11 px-5 text-sm",
+  icon: "h-10 w-10",
+  "icon-sm": "h-8 w-8",
+};
+
 export function Button({ variant = "secondary", size = "md", loading, className, children, disabled, ...rest }: ButtonProps) {
-  const variants = {
-    primary: "bg-accent text-white hover:bg-accent/90 shadow-glow",
-    secondary: "border border-white/[0.09] bg-white/[0.03] text-ink hover:border-white/[0.16] hover:bg-white/[0.06]",
-    ghost: "text-muted hover:bg-white/[0.05] hover:text-ink",
-    danger: "border border-bad/30 bg-bad/10 text-bad hover:bg-bad/20",
-  };
-  const sizes = {
-    sm: "h-8 px-3 text-xs",
-    md: "h-9 px-4 text-sm",
-    lg: "h-10 px-4 text-sm",
-    icon: "h-10 w-10",
-    "icon-sm": "h-8 w-8",
-  };
   return (
     <button
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        "inline-flex select-none items-center justify-center gap-2 rounded-lg font-medium transition duration-100 ease-out active:scale-[0.95] active:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 disabled:active:brightness-100",
-        variants[variant],
-        sizes[size],
+        "inline-flex select-none items-center justify-center gap-2 rounded-md font-medium tracking-wide transition duration-100 ease-out active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0",
+        buttonVariants[variant],
+        buttonSizes[size],
         className,
       )}
     >
@@ -73,9 +77,9 @@ export function Card({ className, children, ...rest }: HTMLAttributes<HTMLDivEle
 export function CardHeader({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] px-5 py-4">
-      <div>
-        <h2 className="text-[13px] font-semibold tracking-tight text-ink">{title}</h2>
-        {description && <p className="mt-0.5 text-[11px] text-muted">{description}</p>}
+      <div className="min-w-0">
+        <h2 className="font-display text-sm font-medium tracking-wide text-ink">{title}</h2>
+        {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
       </div>
       {action}
     </div>
@@ -85,96 +89,163 @@ export function CardHeader({ title, description, action }: { title: string; desc
 type Tone = "neutral" | "good" | "warn" | "bad" | "info" | "accent";
 
 const tones: Record<Tone, string> = {
-  neutral: "border-white/[0.08] bg-white/[0.04] text-muted",
-  good: "border-good/25 bg-good/10 text-good",
-  warn: "border-warn/25 bg-warn/10 text-warn",
-  bad: "border-bad/25 bg-bad/10 text-bad",
-  info: "border-info/25 bg-info/10 text-info",
-  accent: "border-accent/25 bg-accent/10 text-accent",
+  neutral: "border-white/[0.1] bg-white/[0.05] text-muted",
+  good: "border-good/30 bg-good/10 text-good",
+  warn: "border-warn/30 bg-warn/10 text-warn",
+  bad: "border-bad/30 bg-bad/10 text-bad",
+  info: "border-info/30 bg-info/10 text-info",
+  accent: "border-accent/30 bg-accent/10 text-accent",
 };
 
 export function Badge({ tone = "neutral", children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium", tones[tone], className)}>
+    <span className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[10.5px] font-medium", tones[tone], className)}>
       {children}
     </span>
   );
 }
 
-export function Dot({ tone }: { tone: "good" | "bad" | "warn" | "neutral" }) {
-  const colors = { good: "bg-good", bad: "bg-bad", warn: "bg-warn", neutral: "bg-muted" };
-  return <span className={cx("inline-block h-1.5 w-1.5 rounded-full", colors[tone], tone === "good" && "shadow-[0_0_8px] shadow-good/60")} />;
+/** Zustandspunkt: ein kleines Quadrat, wie eine Lampe im Spiel. */
+export function Dot({ tone }: { tone: "good" | "bad" | "warn" | "neutral" | "info" }) {
+  const colors = { good: "bg-good", bad: "bg-bad", warn: "bg-warn", neutral: "bg-muted/70", info: "bg-info" };
+  return <span aria-hidden className={cx("inline-block h-1.5 w-1.5 shrink-0", colors[tone])} />;
 }
 
-export function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+export function Switch({ checked, onChange, disabled, label }: { checked: boolean; onChange: (value: boolean) => void; disabled?: boolean; label?: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cx(
-        "group relative h-6 w-11 shrink-0 rounded-full border transition duration-100 active:scale-95 disabled:opacity-50",
-        checked ? "border-accent/60 bg-accent" : "border-white/[0.08] bg-white/[0.07]",
+        "relative h-6 w-11 shrink-0 rounded-md border shadow-sunken transition duration-100 disabled:opacity-50",
+        checked ? "border-black/40 bg-accent" : "border-white/[0.1] bg-black/30",
       )}
     >
       <span
         className={cx(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all duration-150 group-active:w-6",
-          checked ? "left-[22px] group-active:left-[18px]" : "left-0.5",
+          "absolute top-0.5 h-[18px] w-[18px] rounded-sm bg-ink shadow-bevel transition-[left] duration-150 ease-snappy",
+          checked ? "left-[21px]" : "left-0.5",
         )}
       />
     </button>
   );
 }
 
-export function PageHeader({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
+export interface Crumb {
+  label: string;
+  href?: string;
+}
+
+/** Pfad über dem Seitentitel: zeigt, wo man ist, und führt eine Ebene zurück. */
+export function Breadcrumbs({ items }: { items: Crumb[] }) {
   return (
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-1 text-[13px] text-muted">{description}</p>}
+    <nav aria-label="Pfad" className="mb-2 flex min-w-0 items-center gap-1 text-xs text-muted">
+      {items.map((item, index) => (
+        <Fragment key={`${item.label}-${index}`}>
+          {index > 0 && <ChevronRight className="h-3 w-3 shrink-0 text-muted/60" />}
+          {item.href ? (
+            <Link href={item.href} className="truncate transition hover:text-ink">
+              {item.label}
+            </Link>
+          ) : (
+            <span className="truncate text-ink/80">{item.label}</span>
+          )}
+        </Fragment>
+      ))}
+    </nav>
+  );
+}
+
+export function PageHeader({
+  title,
+  description,
+  action,
+  crumbs,
+  icon,
+  meta,
+}: {
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  /** Pfad über dem Titel, z. B. Übersicht → Survival */
+  crumbs?: Crumb[];
+  /** Bild links vom Titel (BlockIcon, PixelAvatar) */
+  icon?: ReactNode;
+  /** Zeile mit Abzeichen unter dem Titel (Zustand, Software, Adresse) */
+  meta?: ReactNode;
+}) {
+  return (
+    <div className="mb-6">
+      {crumbs && crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          {icon}
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-2xl font-medium tracking-wide text-pixel-shadow">{title}</h1>
+            {description && <p className="mt-1 text-[13px] text-muted">{description}</p>}
+            {meta && <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">{meta}</div>}
+          </div>
+        </div>
+        {action && <div className="flex flex-wrap items-center gap-2">{action}</div>}
       </div>
-      {action}
     </div>
+  );
+}
+
+export interface PageTab {
+  id: string;
+  label: string;
+  href: string;
+  icon?: ReactNode;
+  count?: number;
+}
+
+/**
+ * Bereiche einer Seite (Projekt, Server) als Leiste mit Links. Der aktive Bereich steht in der Adresse, damit Neuladen,
+ * Zurück und geteilte Links an derselben Stelle landen. Für Umschalter innerhalb einer Karte gibt es `Tabs`.
+ */
+export function PageTabs({ items, value }: { items: PageTab[]; value: string }) {
+  return (
+    <nav aria-label="Bereiche" className="no-scrollbar -mx-4 mb-6 flex gap-1 overflow-x-auto border-b border-white/[0.07] px-4 lg:mx-0 lg:px-0">
+      {items.map((item) => {
+        const active = item.id === value;
+        return (
+          <Link
+            key={item.id}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            className={cx(
+              "relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3 pb-3 pt-2 font-display text-[13px] tracking-wide transition duration-100",
+              active ? "text-ink" : "text-muted hover:text-ink",
+            )}
+          >
+            {item.icon && <span className={cx("shrink-0", active ? "text-accent" : "text-muted")}>{item.icon}</span>}
+            {item.label}
+            {item.count !== undefined && item.count > 0 && (
+              <span className="rounded-sm bg-white/[0.07] px-1.5 text-[10.5px] tabular-nums text-muted">{item.count}</span>
+            )}
+            {active && <span aria-hidden className="absolute inset-x-2 -bottom-px h-[3px] bg-accent" />}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
 export type StatTone = "green" | "blue" | "violet" | "amber" | "red" | "neutral";
 
-// Farbig getönte Karten mit passendem Rand, wie in modernen Cloud-Dashboards
-const statTones: Record<StatTone, { card: string; icon: string; value: string }> = {
-  green: {
-    card: "border-emerald-500/40 bg-gradient-to-br from-emerald-500/[0.14] via-emerald-500/[0.05] to-emerald-500/[0.02]",
-    icon: "text-emerald-400",
-    value: "text-emerald-400",
-  },
-  blue: {
-    card: "border-sky-500/40 bg-gradient-to-br from-sky-500/[0.14] via-sky-500/[0.05] to-sky-500/[0.02]",
-    icon: "text-sky-400",
-    value: "text-ink",
-  },
-  violet: {
-    card: "border-violet-500/40 bg-gradient-to-br from-violet-500/[0.16] via-violet-500/[0.05] to-violet-500/[0.02]",
-    icon: "text-violet-400",
-    value: "text-ink",
-  },
-  amber: {
-    card: "border-amber-500/40 bg-gradient-to-br from-amber-500/[0.14] via-amber-500/[0.05] to-amber-500/[0.02]",
-    icon: "text-amber-400",
-    value: "text-ink",
-  },
-  red: {
-    card: "border-red-500/40 bg-gradient-to-br from-red-500/[0.14] via-red-500/[0.05] to-red-500/[0.02]",
-    icon: "text-red-400",
-    value: "text-red-400",
-  },
-  neutral: {
-    card: "border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.01]",
-    icon: "text-muted",
-    value: "text-ink",
-  },
+// Kennzahlen: dunkle Karte, die Farbe tragen nur das Symbol und der Streifen links
+const statTones: Record<StatTone, { bar: string; icon: string; value: string }> = {
+  green: { bar: "bg-good", icon: "border-good/30 bg-good/10 text-good", value: "text-ink" },
+  blue: { bar: "bg-info", icon: "border-info/30 bg-info/10 text-info", value: "text-ink" },
+  violet: { bar: "bg-accent", icon: "border-accent/30 bg-accent/10 text-accent", value: "text-ink" },
+  amber: { bar: "bg-warn", icon: "border-warn/30 bg-warn/10 text-warn", value: "text-ink" },
+  red: { bar: "bg-bad", icon: "border-bad/30 bg-bad/10 text-bad", value: "text-bad" },
+  neutral: { bar: "bg-white/[0.12]", icon: "border-white/[0.1] bg-white/[0.05] text-muted", value: "text-ink" },
 };
 
 export function StatCard({
@@ -192,23 +263,25 @@ export function StatCard({
 }) {
   const style = statTones[tone];
   return (
-    <div className={cx("rounded-xl border p-5", style.card)}>
+    <div className="relative overflow-hidden rounded-xl border border-white/[0.07] bg-surface p-5 shadow-panel">
+      <span aria-hidden className={cx("absolute inset-y-0 left-0 w-[3px]", style.bar)} />
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[13px] text-ink/80">{label}</p>
-        <span className={style.icon}>{icon}</span>
+        <p className="text-[13px] text-muted">{label}</p>
+        <span className={cx("grid h-8 w-8 place-items-center rounded-md border", style.icon)}>{icon}</span>
       </div>
-      <p className={cx("mt-5 text-[26px] font-semibold leading-none tracking-tight", style.value)}>{value}</p>
-      {hint && <p className="mt-3 truncate text-xs text-ink/55">{hint}</p>}
+      <p className={cx("mt-3 font-display text-[28px] font-normal leading-none tracking-wide tabular-nums", style.value)}>{value}</p>
+      {hint && <p className="mt-2.5 truncate text-xs text-muted">{hint}</p>}
     </div>
   );
 }
 
-export function EmptyState({ icon, title, text }: { icon: ReactNode; title: string; text?: string }) {
+export function EmptyState({ icon, title, text, action }: { icon: ReactNode; title: string; text?: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
-      <div className="mb-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3 text-muted">{icon}</div>
-      <p className="text-sm font-medium">{title}</p>
+      <div className="mb-3 rounded-md border border-white/[0.08] bg-black/20 p-3 text-muted shadow-sunken">{icon}</div>
+      <p className="font-display text-sm font-medium tracking-wide">{title}</p>
       {text && <p className="mt-1 max-w-sm text-xs text-muted">{text}</p>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
@@ -235,24 +308,25 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
   }, [value, items.length]);
 
   return (
-    <div ref={list} role="tablist" className="relative inline-flex rounded-lg border border-white/[0.07] bg-white/[0.025] p-0.5">
+    <div ref={list} role="tablist" className="relative inline-flex rounded-md border border-white/[0.08] bg-black/25 p-0.5 shadow-sunken">
       {marker && (
         <span
           aria-hidden
-          className={cx("absolute inset-y-0.5 rounded-md bg-white/[0.09] shadow-sm", marker.animate && "transition-[left,width] duration-200 ease-snappy")}
+          className={cx("absolute inset-y-0.5 rounded-sm bg-raised shadow-bevel", marker.animate && "transition-[left,width] duration-200 ease-snappy")}
           style={{ left: marker.left, width: marker.width }}
         />
       )}
       {items.map((item) => (
         <button
           key={item.id}
+          type="button"
           role="tab"
           aria-selected={value === item.id}
           onClick={() => onChange(item.id)}
           className={cx(
-            "relative rounded-md px-3 py-1.5 text-xs font-medium transition duration-150 active:scale-95",
+            "relative rounded-sm px-3 py-1.5 text-xs font-medium transition duration-150",
             value === item.id ? "text-ink" : "text-muted hover:text-ink",
-            !marker && value === item.id && "bg-white/[0.09] shadow-sm",
+            !marker && value === item.id && "bg-raised shadow-bevel",
           )}
         >
           {item.label}
@@ -263,12 +337,13 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
   );
 }
 
+/** Balken wie die Erfahrungsleiste: ein vertiefter Kanal, darin die gefüllte Fläche. */
 export function Meter({ value, max, tone = "accent" }: { value: number; max: number; tone?: "accent" | "good" | "warn" | "bad" }) {
   const percent = max <= 0 ? 0 : Math.min(100, Math.max(0, (value / max) * 100));
   const colors = { accent: "bg-accent", good: "bg-good", warn: "bg-warn", bad: "bg-bad" };
   return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-      <div className={cx("h-full rounded-full transition-[width,background-color] duration-500 ease-snappy", colors[tone])} style={{ width: `${percent}%` }} />
+    <div className="h-2 overflow-hidden rounded-sm border border-black/40 bg-black/30">
+      <div className={cx("h-full transition-[width,background-color] duration-500 ease-snappy", colors[tone])} style={{ width: `${percent}%` }} />
     </div>
   );
 }
@@ -282,7 +357,7 @@ export function SearchInput({ className, ...rest }: Omit<InputHTMLAttributes<HTM
   return (
     <div
       className={cx(
-        "flex items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 transition focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/20",
+        "flex items-center gap-2.5 rounded-md border border-white/[0.1] bg-black/25 px-3 shadow-sunken transition focus-within:border-accent/70 focus-within:ring-2 focus-within:ring-accent/20",
         className,
       )}
     >
@@ -500,7 +575,7 @@ export function Select({
         className={cx(
           "field flex items-center justify-between gap-2 text-left",
           size === "sm" && "h-8 py-0 text-xs",
-          open && "border-accent/60 bg-white/[0.04] ring-2 ring-accent/20",
+          open && "border-accent/70 bg-black/35 ring-2 ring-accent/20",
         )}
       >
         <span className={cx("min-w-0 flex-1 truncate", !selected && "text-muted/70")}>{selected?.label ?? placeholder}</span>
@@ -515,7 +590,7 @@ export function Select({
             role="listbox"
             aria-label={ariaLabel}
             style={{ left: placement.left, width: placement.width, maxHeight: placement.maxHeight, top: placement.top, bottom: placement.bottom }}
-            className="fixed z-[70] animate-fade-in overflow-y-auto rounded-lg border border-white/[0.09] bg-raised p-1 shadow-2xl shadow-black/60"
+            className="fixed z-[70] animate-fade-in overflow-y-auto rounded-md border border-black/50 bg-raised p-1 shadow-panel"
           >
             {options.map((option, index) => (
               <button
@@ -532,8 +607,8 @@ export function Select({
                   if (!option.disabled) setActive(index);
                 }}
                 className={cx(
-                  "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition duration-100",
-                  index === active ? "bg-white/[0.07] text-ink" : "text-ink/90",
+                  "flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition duration-100",
+                  index === active ? "bg-white/[0.08] text-ink" : "text-ink/90",
                   option.disabled && "cursor-not-allowed opacity-40",
                 )}
               >
@@ -560,8 +635,8 @@ export function Checkbox({ checked, onChange, label }: { checked: boolean; onCha
         onChange(!checked);
       }}
       className={cx(
-        "grid h-4 w-4 shrink-0 place-items-center rounded border transition duration-100 active:scale-75",
-        checked ? "border-accent bg-accent text-white" : "border-white/[0.18] bg-transparent hover:border-white/40",
+        "grid h-4 w-4 shrink-0 place-items-center rounded-sm border transition duration-100 active:scale-90",
+        checked ? "border-black/40 bg-accent text-accent-ink" : "border-white/[0.2] bg-black/25 hover:border-white/40",
       )}
     >
       {checked && <Check className="h-3 w-3" strokeWidth={3} />}
@@ -606,7 +681,7 @@ export function RowMenu({ items, label = "Aktionen" }: { items: (MenuItem | "sep
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="grid h-8 w-8 place-items-center rounded-lg text-muted transition duration-100 hover:bg-white/[0.06] hover:text-ink active:scale-90 active:bg-white/[0.1]"
+        className="grid h-8 w-8 place-items-center rounded-md text-muted transition duration-100 hover:bg-white/[0.06] hover:text-ink active:scale-90 active:bg-white/[0.1]"
       >
         <span className="text-lg leading-none tracking-widest">···</span>
       </button>
@@ -614,7 +689,7 @@ export function RowMenu({ items, label = "Aktionen" }: { items: (MenuItem | "sep
         <div
           role="menu"
           className={cx(
-            "absolute right-0 top-9 z-30 min-w-[210px] origin-top-right rounded-lg border border-white/[0.09] bg-raised p-1 shadow-2xl shadow-black/60",
+            "absolute right-0 top-9 z-30 min-w-[210px] origin-top-right rounded-md border border-black/50 bg-raised p-1 shadow-panel",
             leaving ? "pointer-events-none animate-pop-out" : "animate-pop-in",
           )}
         >
@@ -633,8 +708,8 @@ export function RowMenu({ items, label = "Aktionen" }: { items: (MenuItem | "sep
                   item.onClick();
                 }}
                 className={cx(
-                  "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition duration-100 active:scale-[0.98] active:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100",
-                  item.danger ? "text-bad hover:bg-bad/10" : "text-ink hover:bg-white/[0.06]",
+                  "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left text-[13px] transition duration-100 active:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40",
+                  item.danger ? "text-bad hover:bg-bad/10" : "text-ink hover:bg-white/[0.07]",
                 )}
               >
                 {item.icon && <span className="text-muted">{item.icon}</span>}

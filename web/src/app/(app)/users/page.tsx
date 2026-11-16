@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { KeyRound, LogOut, Plus, ShieldCheck, ShieldOff, Trash2, Users, UserX } from "lucide-react";
 import { useState } from "react";
-import { AdminSidebar } from "@/components/admin-sidebar";
 import { Badge, Button, Card, EmptyState, PageHeader, RowMenu, SearchInput, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
@@ -29,7 +28,6 @@ export default function UsersPage() {
   if (error) {
     return (
       <>
-        <AdminSidebar />
         <ErrorState error={error} retry={() => mutate()} />
       </>
     );
@@ -37,7 +35,6 @@ export default function UsersPage() {
   if (!data) {
     return (
       <>
-        <AdminSidebar />
         <Loading />
       </>
     );
@@ -53,8 +50,8 @@ export default function UsersPage() {
 
   return (
     <>
-      <AdminSidebar />
       <PageHeader
+        crumbs={[{ label: "Verwaltung" }, { label: "Benutzer" }]}
         title="Benutzer"
         description="Wer sich am Panel anmelden darf. Zugriff auf Projekte vergibst du im jeweiligen Projekt unter „Mitglieder“."
         action={

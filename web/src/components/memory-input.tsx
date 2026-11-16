@@ -70,7 +70,7 @@ export function MemoryInput({
       </div>
       <input
         type="range"
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/[0.09] outline-hidden transition focus-visible:ring-2 focus-visible:ring-accent/20 disabled:cursor-not-allowed [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-accent [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-glow"
+        className="h-2 w-full cursor-pointer appearance-none rounded-sm border border-black/40 bg-black/30 outline-hidden transition focus-visible:ring-2 focus-visible:ring-accent/20 disabled:cursor-not-allowed [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:rounded-sm [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:shadow-bevel [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-sm [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-bevel"
         value={Math.min(max, Math.max(min, value))}
         min={min}
         max={max}

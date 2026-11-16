@@ -164,7 +164,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
           {templates
             .filter((template) => options.some((item) => item.id === template.software))
             .map((template) => (
-              <button key={template.id} type="button" onClick={() => applyTemplate(template)} className="rounded-full border border-white/[0.1] px-2.5 py-1 text-xs text-muted transition hover:bg-white/[0.06] hover:text-ink">
+              <button key={template.id} type="button" onClick={() => applyTemplate(template)} className="rounded-md border border-white/[0.1] bg-black/20 px-2.5 py-1 text-xs text-muted transition hover:bg-white/[0.06] hover:text-ink">
                 {template.label}
               </button>
             ))}

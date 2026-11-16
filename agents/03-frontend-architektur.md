@@ -22,22 +22,26 @@ Das hat Folgen:
 ```
 web/src/
   app/
-    layout.tsx, globals.css         Wurzel, Design-Variablen
+    layout.tsx, globals.css         Wurzel (Schriften über next/font, lädt /appearance.js), Design-Variablen
     login/page.tsx                  ohne Shell
     status/page.tsx                 öffentlich, ohne Shell
     (app)/                          alles mit Anmeldung + Shell (layout.tsx prüft die Anmeldung)
       page.tsx                      Übersicht
-      project/page.tsx, server/page.tsx, nodes/, users/, audit/, account/
+      project/page.tsx, server/page.tsx, nodes/, users/, audit/, account/, admin/ (System, Projekte, Packs, playit, Updates)
   components/
     ui/                             Grundbausteine (primitives, feedback, async, chart, mc)  ← hier KEINE Fachlogik
-    layout/                         shell.tsx (Seitenleisten), palette.tsx (Strg+K)
+    layout/                         shell.tsx (Seitenleiste), palette.tsx (Strg+K), navigation.tsx (saubere Pfade)
     server/                         Bereiche eines Servers (console, files, addons, backups, players, settings, stats …)
-    *.tsx                           Fachkomponenten auf Projektebene (add-server, groups, schedules, events, motd, status-settings, status)
+    *.tsx                           Fachkomponenten auf Projektebene (add-server, groups, schedules, events, motd, status-settings, status,
+                                    server-list = Serverzeile, appearance-settings = Konto → Darstellung)
   lib/
     api.ts                          request/api/useApi/upload/downloadUrl/fetchText/putText, wsBase
     types.ts                        Typen der Schnittstelle + roleRank
     format.ts                       bytes, megabytes, dateTime, ago, uptime, compact, stateTone …
     audit.ts, crash.ts, editor.ts   reine Hilfen (Beschriftungen, Fehlererkennung, Dateitypen des Editors)
+    appearance.ts                   Darstellung des Benutzers (Schrift, Akzent) lesen, speichern, anwenden
+    pixel-art.ts                    Pixelgrafiken (Logo, Blocksymbole, Avatare) als Zellenlisten
+web/public/appearance.js            setzt data-font/data-accent vor dem ersten Zeichnen (dieselben Schlüssel wie lib/appearance.ts)
 web/demo/server.mjs                 Schein-Backend für die Demo (Port 3100)
 ```
 
@@ -95,14 +99,16 @@ mutate();
 1. Datei `web/src/app/(app)/<name>/page.tsx`, `"use client"`.
 2. Typen in `lib/types.ts`, Daten mit `useApi`.
 3. Aufbau nach `02` (PageHeader → Zustände → Karten). Rechte: `const user = useUser();` (aus `components/layout/shell`) für `isAdmin`.
-4. Link in der Seitenleiste (`shell.tsx`, im passenden Abschnitt, mit lucide-Icon) **und** Eintrag in `palette.tsx`.
+4. Link in der Seitenleiste (`shell.tsx`: `mainEntries` für alle, `adminEntries` für Administratoren, mit lucide-Icon) **und** Eintrag
+   in `palette.tsx`. Verwaltungsseiten bekommen `crumbs={[{ label: "Verwaltung" }, { label: "…" }]}`.
 5. Demo: Endpunkte in `web/demo/server.mjs` ergänzen, damit die Seite dort funktioniert.
 6. Prüfen: `npx tsc --noEmit`, `npx next build`.
 
 ## 7. Rezept: neuer Bereich im Server oder neuer Tab im Projekt
 
 Vorbild `components/server/backups.tsx` (einfach) oder `players.tsx` (mit Diagrammen). Komponente `XyzTab({ server | project, canWrite })`,
-Eintrag im `entries`-Array von `server/page.tsx` (Rang beachten) bzw. im Tab-Array von `project/page.tsx`, Anzeige per `{active === "xyz" && <XyzTab … />}`.
+Eintrag im `entries`-Array von `server/page.tsx` (Rang beachten) bzw. im `tabs`-Array (`PageTab[]` mit `href`) von `project/page.tsx`,
+Anzeige per `{active === "xyz" && <XyzTab … />}`. Die Seitenleiste bleibt unverändert: Bereiche stehen nur in den `PageTabs`.
 
 ## 8. Nicht tun
 
@@ -110,5 +116,6 @@ Eintrag im `entries`-Array von `server/page.tsx` (Rang beachten) bzw. im Tab-Arr
 - Kein `fetch` außerhalb von `lib/api.ts`. Keine API-Adressen mit festem Host.
 - Kein Inline-`style`, außer für berechnete Werte (Breite eines Balkens, Pixelgrößen von Avataren).
 - Keine Server-Komponenten, `generateStaticParams`, `useRouter().push` auf dynamische Pfade.
+- Keine Schrift über `@import` oder `<link>` von fremden Servern laden: Schriften kommen über `next/font` (wird beim Bauen eingebettet).
 - Kein Umbenennen oder Verschieben bestehender Basisrouten (Lesezeichen und bestehende Adressen wie `/status/?p=` müssen als Fallback weiter funktionieren).
 - Keine Texte in Englisch, keine Zahlenformatierung von Hand (`lib/format`).

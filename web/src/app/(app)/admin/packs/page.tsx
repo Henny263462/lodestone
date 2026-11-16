@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Download, FileArchive, Package, Plus, Trash2, Upload, Wrench } from "lucide-react";
-import { AdminSidebar } from "@/components/admin-sidebar";
 import { useUser } from "@/components/layout/shell";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
@@ -36,7 +35,6 @@ export default function PositionPacksPage() {
   if (error) {
     return (
       <>
-        <AdminSidebar />
         <ErrorState error={error} retry={() => mutate()} />
       </>
     );
@@ -45,7 +43,6 @@ export default function PositionPacksPage() {
   if (isLoading || !packs) {
     return (
       <>
-        <AdminSidebar />
         <Loading />
       </>
     );
@@ -88,17 +85,17 @@ export default function PositionPacksPage() {
 
   return (
     <>
-      <AdminSidebar />
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <PageHeader
-          title="Position-Packs"
-          description="Verwalte Minecraft-Server-Software, Autokonfigurationen und Skripte als modulare ZIP-Pakete."
-        />
-        <Button variant="primary" onClick={() => setUploadOpen(true)} className="shrink-0 self-start sm:self-auto">
-          <Upload className="h-4 w-4" />
-          Pack hochladen
-        </Button>
-      </div>
+      <PageHeader
+        crumbs={[{ label: "Verwaltung" }, { label: "Position-Packs" }]}
+        title="Position-Packs"
+        description="Verwalte Minecraft-Server-Software, Autokonfigurationen und Skripte als modulare ZIP-Pakete."
+        action={
+          <Button variant="primary" onClick={() => setUploadOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Pack hochladen
+          </Button>
+        }
+      />
 
       <SearchInput
         value={filter}
@@ -259,7 +256,7 @@ export default function PositionPacksPage() {
                 <span>Wird hochgeladen...</span>
                 <span>{Math.round(uploadProgress * 100)} %</span>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
+              <div className="h-2 w-full overflow-hidden rounded-sm border border-black/40 bg-black/30">
                 <div
                   className="h-full bg-accent transition-all duration-150"
                   style={{ width: `${uploadProgress * 100}%` }}

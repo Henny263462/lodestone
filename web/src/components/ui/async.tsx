@@ -15,11 +15,11 @@ export function Loading({ label = "Daten werden geladen" }: { label?: string }) 
 export function ErrorState({ error, retry }: { error: Error; retry?: () => void }) {
   return (
     <Card className="flex animate-fade-in flex-col items-center gap-3 px-6 py-12 text-center">
-      <span className="rounded-xl border border-bad/30 bg-bad/10 p-3 text-bad">
+      <span className="rounded-md border border-bad/30 bg-bad/10 p-3 text-bad">
         <AlertTriangle className="h-5 w-5" />
       </span>
       <div>
-        <p className="text-sm font-medium">Daten konnten nicht geladen werden</p>
+        <p className="font-display text-sm font-medium tracking-wide">Daten konnten nicht geladen werden</p>
         <p className="mx-auto mt-1 max-w-md text-xs text-muted">{error.message}</p>
       </div>
       {retry && (

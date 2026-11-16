@@ -281,7 +281,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
         {!follow && (
           <button
             onClick={() => setFollow(true)}
-            className="absolute bottom-3 right-5 inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-raised px-3 py-1.5 text-xs shadow-lg transition hover:bg-white/[0.08]"
+            className="absolute bottom-3 right-5 inline-flex items-center gap-1.5 rounded-md border border-black/50 bg-raised px-3 py-1.5 text-xs shadow-panel transition hover:bg-white/[0.08]"
           >
             <ArrowDownToLine className="h-3.5 w-3.5" />
             Nach unten

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUpCircle, Cpu, FolderKanban, Network, Search, Server, ShieldCheck, UserCog, Users, ScrollText, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Cable, Cpu, FolderKanban, LayoutDashboard, LayoutGrid, Network, Package, Palette, Search, Server, UserCog, Users, ScrollText, type LucideIcon } from "lucide-react";
 import { cx, usePresence } from "@/components/ui/primitives";
 import { useAppNavigation } from "@/components/layout/navigation";
 import type { Project, User } from "@/lib/types";
@@ -24,7 +24,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
   const { mounted, leaving } = usePresence(open, 120);
 
   const entries = useMemo<Entry[]>(() => {
-    const list: Entry[] = [{ key: "home", label: "Projekte", hint: "Seite", href: "/", icon: FolderKanban }];
+    const list: Entry[] = [{ key: "home", label: "Übersicht", hint: "Seite", href: "/", icon: LayoutGrid }];
     for (const project of projects ?? []) {
       list.push({ key: `p-${project.id}`, label: project.name, hint: project.kind === "network" ? "Netzwerk" : "Projekt", href: `/project/${project.id}/`, icon: project.kind === "network" ? Network : Server });
       for (const server of project.servers) {
@@ -33,13 +33,16 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
     }
     list.push({ key: "nodes", label: "Nodes", hint: "Seite", href: "/nodes/", icon: Cpu });
     if (user.isAdmin) {
-      list.push({ key: "admin", label: "Admin-Panel", hint: "Administration", href: "/admin/", icon: ShieldCheck });
-      list.push({ key: "users", label: "Benutzer", hint: "Administration", href: "/users/", icon: Users });
-      list.push({ key: "admin-projects", label: "Alle Projekte", hint: "Administration", href: "/admin/projects/", icon: FolderKanban });
-      list.push({ key: "admin-updates", label: "Updates", hint: "Administration", href: "/admin/updates/", icon: ArrowUpCircle });
-      list.push({ key: "audit", label: "Protokoll", hint: "Administration", href: "/audit/", icon: ScrollText });
+      list.push({ key: "admin", label: "System", hint: "Verwaltung", href: "/admin/", icon: LayoutDashboard });
+      list.push({ key: "users", label: "Benutzer", hint: "Verwaltung", href: "/users/", icon: Users });
+      list.push({ key: "admin-projects", label: "Alle Projekte", hint: "Verwaltung", href: "/admin/projects/", icon: FolderKanban });
+      list.push({ key: "admin-packs", label: "Position-Packs", hint: "Verwaltung", href: "/admin/packs/", icon: Package });
+      list.push({ key: "admin-playit", label: "playit.gg", hint: "Verwaltung", href: "/admin/playit/", icon: Cable });
+      list.push({ key: "admin-updates", label: "Updates", hint: "Verwaltung", href: "/admin/updates/", icon: ArrowUpCircle });
+      list.push({ key: "audit", label: "Protokoll", hint: "Verwaltung", href: "/audit/", icon: ScrollText });
     }
     list.push({ key: "account", label: "Konto, Zwei-Faktor, API-Schlüssel", hint: "Seite", href: "/account/", icon: UserCog });
+    list.push({ key: "appearance", label: "Darstellung: Schrift und Akzentfarbe", hint: "Konto", href: "/account/#darstellung", icon: Palette });
     return list;
   }, [projects, user.isAdmin]);
 
@@ -71,7 +74,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
       onMouseDown={onClose}
     >
       <div
-        className={cx("mx-auto w-full max-w-lg overflow-hidden rounded-xl border border-white/[0.1] bg-surface shadow-2xl", leaving ? "animate-pop-out" : "animate-pop-in")}
+        className={cx("mx-auto w-full max-w-lg overflow-hidden rounded-xl border border-black/50 bg-surface shadow-panel", leaving ? "animate-pop-out" : "animate-pop-in")}
         role="dialog"
         aria-label="Schnellsuche"
         onMouseDown={(event) => event.stopPropagation()}
@@ -108,7 +111,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
               key={entry.key}
               onMouseMove={() => setIndex(position)}
               onClick={() => go(entry)}
-              className={cx("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-75", position === index ? "bg-white/[0.08] text-ink" : "text-muted")}
+              className={cx("flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors duration-75", position === index ? "bg-white/[0.08] text-ink" : "text-muted")}
             >
               <entry.icon className="h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1 truncate">{entry.label}</span>

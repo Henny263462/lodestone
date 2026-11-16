@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, RotateCw, Skull, Square } from "lucide-react";
+import { Check, Copy, Play, RotateCw, Skull, Square } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Dot } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
@@ -40,21 +40,22 @@ export function PowerButtons({ server, onDone, size = "sm", enabled = true }: { 
   const canRestart = usable && state === "running";
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Button size={size} variant="secondary" disabled={!canStart} loading={busy === "start"} onClick={() => power("start", "Server startet")}>
+    <div className="flex flex-wrap items-center gap-1.5">
+      {/* Auf schmalen Bildschirmen nur die Symbole, damit die Knöpfe in eine Zeile passen */}
+      <Button size={size} variant="secondary" disabled={!canStart} loading={busy === "start"} onClick={() => power("start", "Server startet")} aria-label="Start" title="Start">
         <Play className="h-3.5 w-3.5 text-good" />
-        Start
+        <span className="hidden sm:inline">Start</span>
       </Button>
-      <Button size={size} variant="secondary" disabled={!canRestart} loading={busy === "restart"} onClick={() => power("restart", "Server startet neu")}>
+      <Button size={size} variant="secondary" disabled={!canRestart} loading={busy === "restart"} onClick={() => power("restart", "Server startet neu")} aria-label="Neustart" title="Neustart">
         <RotateCw className="h-3.5 w-3.5" />
-        Neustart
+        <span className="hidden sm:inline">Neustart</span>
       </Button>
-      <Button size={size} variant="secondary" disabled={!canStop} loading={busy === "stop"} onClick={() => power("stop", "Server wird gestoppt")}>
+      <Button size={size} variant="secondary" disabled={!canStop} loading={busy === "stop"} onClick={() => power("stop", "Server wird gestoppt")} aria-label="Stopp" title="Stopp">
         <Square className="h-3.5 w-3.5 text-bad" />
-        Stopp
+        <span className="hidden sm:inline">Stopp</span>
       </Button>
       {usable && (state === "running" || state === "starting" || state === "stopping") && (
-        <Button size={size} variant="ghost" onClick={() => setKilling(true)} title="Beendet den Server sofort, ungespeicherte Daten gehen verloren">
+        <Button size={size} variant="ghost" onClick={() => setKilling(true)} aria-label="Sofort beenden" title="Beendet den Server sofort, ungespeicherte Daten gehen verloren">
           <Skull className="h-3.5 w-3.5" />
         </Button>
       )}
@@ -74,4 +75,29 @@ export function PowerButtons({ server, onDone, size = "sm", enabled = true }: { 
 export function ServerAddress({ server }: { server: Server }) {
   if (!server.address) return <span className="text-muted">–</span>;
   return <span className="font-mono text-xs">{server.address}</span>;
+}
+
+/** Adresse zum Beitreten; ein Klick kopiert sie. */
+export function CopyAddress({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        navigator.clipboard
+          .writeText(address)
+          .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          })
+          .catch(() => null)
+      }
+      title="Adresse kopieren"
+      className="group inline-flex max-w-full items-center gap-1.5 rounded-sm font-mono text-xs text-ink/85 transition hover:text-ink"
+    >
+      <span className="truncate">{address}</span>
+      {copied ? <Check className="h-3 w-3 shrink-0 text-good" /> : <Copy className="h-3 w-3 shrink-0 text-muted opacity-60 transition group-hover:opacity-100" />}
+      <span className="sr-only">{copied ? "Kopiert" : "Kopieren"}</span>
+    </button>
+  );
 }

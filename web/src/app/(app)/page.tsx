@@ -1,29 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { FolderPlus, Network, Plus, Server as ServerIcon, Users } from "lucide-react";
+import { ChevronRight, Cpu, FolderKanban, FolderPlus, MemoryStick, Network, Plus, Server as ServerIcon } from "lucide-react";
 import { useState } from "react";
 import { useAppNavigation } from "@/components/layout/navigation";
-import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui/primitives";
+import { Badge, Button, Card, EmptyState, PageHeader, StatCard, cx } from "@/components/ui/primitives";
+import { BlockIcon } from "@/components/ui/mc";
+import { useUser } from "@/components/layout/shell";
+import { ServerRow } from "@/components/server-list";
 import { Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
-import { StateBadge } from "@/components/status";
 import { api, useApi } from "@/lib/api";
-import { roleLabel, type Project } from "@/lib/types";
+import { bytes } from "@/lib/format";
+import { roleLabel, type NodeInfo, type Project } from "@/lib/types";
 
 export default function OverviewPage() {
   const navigation = useAppNavigation();
+  const user = useUser();
   const { data: projects, error, mutate } = useApi<Project[]>("/projects", { refreshInterval: 5000 });
+  const { data: nodes } = useApi<NodeInfo[]>("/nodes", { refreshInterval: 30000 });
   const [creating, setCreating] = useState(false);
 
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!projects) return <Loading />;
 
+  const servers = projects.flatMap((project) => project.servers);
+  const running = servers.filter((server) => server.view?.state === "running");
+  const memoryInUse = running.reduce((sum, server) => sum + (server.view?.stats?.memoryBytes ?? 0), 0);
+  const nodesOnline = nodes?.filter((node) => node.online).length;
+
   return (
     <>
       <PageHeader
-        title="Projekte"
-        description="Deine Minecraft-Server und -Netzwerke."
+        title="Übersicht"
+        description={`Hallo ${user.username}! Hier siehst du alle Projekte und Server, auf die du Zugriff hast.`}
         action={
           <Button variant="primary" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
@@ -32,56 +42,41 @@ export default function OverviewPage() {
         }
       />
 
-      <div className="mt-2">
-        {projects.length === 0 ? (
-          <Card>
-            <EmptyState
-              icon={<FolderPlus className="h-6 w-6" />}
-              title="Noch kein Projekt"
-              text="Lege dein erstes Projekt an: ein einzelner Server oder ein Netzwerk mit Velocity."
-            />
-            <div className="flex justify-center pb-10">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Projekte" value={projects.length} hint={`${projects.filter((project) => project.kind === "network").length} davon Netzwerke`} icon={<FolderKanban className="h-4 w-4" />} tone="violet" />
+        <StatCard label="Server laufen" value={`${running.length}/${servers.length}`} hint={servers.length === 0 ? "noch keine Server" : `${servers.length - running.length} aus oder beschäftigt`} icon={<ServerIcon className="h-4 w-4" />} tone="green" />
+        <StatCard label="Arbeitsspeicher belegt" value={bytes(memoryInUse)} hint="von laufenden Servern" icon={<MemoryStick className="h-4 w-4" />} tone="blue" />
+        <StatCard
+          label="Nodes erreichbar"
+          value={nodes ? `${nodesOnline}/${nodes.length}` : "–"}
+          hint={nodes && nodesOnline !== nodes.length ? "mindestens ein Node antwortet nicht" : "Maschinen, auf denen Server laufen"}
+          icon={<Cpu className="h-4 w-4" />}
+          tone={nodes && nodesOnline !== nodes.length ? "red" : "neutral"}
+        />
+      </div>
+
+      <h2 className="mb-3 font-display text-base tracking-wide text-pixel-shadow">Projekte</h2>
+      {projects.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<FolderPlus className="h-6 w-6" />}
+            title="Noch kein Projekt"
+            text="Lege dein erstes Projekt an: ein einzelner Server oder ein Netzwerk mit Velocity."
+            action={
               <Button variant="primary" onClick={() => setCreating(true)}>
                 <Plus className="h-4 w-4" />
                 Projekt anlegen
               </Button>
-            </div>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => {
-              const live = project.servers.filter((server) => server.view?.state === "running").length;
-              const first = project.servers[0];
-              return (
-                <Link key={project.id} href={`/project/${project.id}/`} className="group">
-                  <Card className="h-full p-5 transition duration-100 group-hover:border-white/[0.16] group-active:scale-[0.99]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-muted">
-                          {project.kind === "network" ? <Network className="h-4 w-4" /> : <ServerIcon className="h-4 w-4" />}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">{project.name}</p>
-                          <p className="text-xs text-muted">{project.kind === "network" ? "Netzwerk" : "Einzelner Server"}</p>
-                        </div>
-                      </div>
-                      {project.kind === "server" && first ? <StateBadge server={first} /> : <Badge tone={live > 0 ? "good" : "neutral"}>{live}/{project.servers.length} laufen</Badge>}
-                    </div>
-                    {project.description && <p className="mt-3 line-clamp-2 text-xs text-muted">{project.description}</p>}
-                    <div className="mt-4 flex items-center gap-3 text-xs text-muted">
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5" />
-                        {roleLabel[project.myRole]}
-                      </span>
-                      {first?.address && <span className="truncate font-mono">{first.address}</span>}
-                    </div>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 2xl:grid-cols-2">
+          {projects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
+        </div>
+      )}
 
       <NewProjectDialog
         open={creating}
@@ -92,6 +87,39 @@ export default function OverviewPage() {
         }}
       />
     </>
+  );
+}
+
+function ProjectCard({ project }: { project: Project }) {
+  const live = project.servers.filter((server) => server.view?.state === "running").length;
+  return (
+    <Card className="overflow-hidden">
+      <Link href={`/project/${project.id}/`} className="group flex items-center gap-3.5 border-b border-white/[0.06] px-5 py-4 transition hover:bg-white/[0.03]">
+        <BlockIcon name={project.name} size={36} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-base tracking-wide text-pixel-shadow group-hover:underline">{project.name}</p>
+          <p className="truncate text-xs text-muted">
+            {project.kind === "network" ? "Netzwerk" : "Einzelner Server"} · {roleLabel[project.myRole]}
+            {project.description && ` · ${project.description}`}
+          </p>
+        </div>
+        {project.servers.length > 0 && (
+          <Badge tone={live > 0 ? "good" : "neutral"}>
+            {live}/{project.servers.length} laufen
+          </Badge>
+        )}
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-ink" />
+      </Link>
+      {project.servers.length === 0 ? (
+        <p className="px-5 py-4 text-xs text-muted">Noch kein Server. Öffne das Projekt, um einen anzulegen.</p>
+      ) : (
+        <div className="divide-y divide-white/[0.05]">
+          {project.servers.map((server) => (
+            <ServerRow key={server.id} server={server} dense badges={server.role === "proxy" ? <Badge tone="accent">Proxy</Badge> : undefined} />
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -144,10 +172,13 @@ function NewProjectDialog({ open, onClose, onCreated }: { open: boolean; onClose
             key={option.id}
             type="button"
             onClick={() => setKind(option.id)}
-            className={`rounded-lg border p-3 text-left transition active:scale-[0.98] ${kind === option.id ? "border-accent/60 bg-accent/10" : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16]"}`}
+            className={cx(
+              "rounded-lg border p-3 text-left transition active:translate-y-px",
+              kind === option.id ? "border-accent/70 bg-accent/10" : "border-white/[0.08] bg-black/20 hover:border-white/[0.16]",
+            )}
           >
-            <option.icon className="mb-2 h-4 w-4 text-muted" />
-            <p className="text-sm font-medium">{option.title}</p>
+            <option.icon className={cx("mb-2 h-4 w-4", kind === option.id ? "text-accent" : "text-muted")} />
+            <p className="font-display text-sm tracking-wide">{option.title}</p>
             <p className="mt-1 text-xs text-muted">{option.text}</p>
           </button>
         ))}
