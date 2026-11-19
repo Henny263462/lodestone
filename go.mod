@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/containerd/errdefs v1.0.0
-	github.com/moby/moby/api v1.56.1
+	github.com/moby/moby/api v1.57.0
 	github.com/moby/moby/client v0.6.2
 	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/crypto v0.58.0
