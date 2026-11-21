@@ -42,6 +42,15 @@ Oberfläche `components/server/modpack.tsx`.
 4. Oberfläche und Demo wie in A/B.
 5. Dauert die Aktion: Fortschritt als Status-Endpunkt (`state: idle|running|done|failed`, `done`, `total`) und in der Oberfläche per `refreshInterval` abfragen.
 
+### C1. Zustand, den der Node dauerhaft vom Panel braucht (Beispiel SFTP-Zugänge)
+
+Vorbild: `internal/panel/handlers_sftp.go` (`sftpTargets`, `sftpLoop`) und `internal/node/sftp_access.go`. Der Node kann das Panel
+nicht anrufen. Deshalb: Das Panel rechnet den **vollständigen** Sollzustand aus der Datenbank aus (reine Funktion, gut testbar),
+schickt ihn per `PUT` zum Node, merkt sich einen Hash je Ziel und schickt nur bei Änderung erneut. Eine Schleife (in `Maintain`
+gestartet) gleicht regelmäßig ab und fragt den Node nach einer Start-Kennung (`bootId`): Neustart oder „wieder erreichbar“ heißt
+alles neu schicken. Der Node speichert den Zustand neben `spec.json`, prüft streng und weist bei jeder Nutzung erneut nach.
+Die Node-Route steht **nicht** in `requiredRank`, damit der Browser sie nie erreicht.
+
 ## D. Neue Hauptseite
 
 Siehe `03` §6. Vorbild: `app/(app)/audit/page.tsx` (Liste mit Filter) oder `nodes/page.tsx` (Karten).

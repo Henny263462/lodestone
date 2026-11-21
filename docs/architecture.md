@@ -74,9 +74,10 @@ sie mit dem Panel verbindet. Datenbank hinter einer Schnittstelle, SQLite für k
 
 ## Betrieb (Panel-Schleifen)
 
-Das Panel startet beim Hochfahren vier Hintergrundschleifen (`maintain.go`): Messwerte (`sampleLoop`), Autoscaler der Gruppen
+Das Panel startet beim Hochfahren fünf Hintergrundschleifen (`maintain.go`): Messwerte (`sampleLoop`), Autoscaler der Gruppen
 (`scaleLoop`), Wächter (`watchLoop`, alle 10 s: Abstürze über den Exit-Code des Nodes, Auto-Restart, Node offline/online, wenig
-Arbeitsspeicher; Ergebnisse als Ereignisse und Webhooks) und Zeitpläne (`scheduleLoop`, mit Nachholen bis zu einer Stunde).
+Arbeitsspeicher; Ergebnisse als Ereignisse und Webhooks), Zeitpläne (`scheduleLoop`, mit Nachholen bis zu einer Stunde) und den
+SFTP-Abgleich (`sftpLoop`, siehe „SFTP“).
 Webhooks nutzen einen eigenen HTTP-Client, der Verbindungen in interne Netze sperrt (auch bei Weiterleitungen).
 
 Sicherheit (`security.go`, `auth.go`): TOTP-Geheimnisse liegen mit AES-GCM verschlüsselt in der Datenbank (Schlüssel
@@ -85,6 +86,22 @@ verändernde Anfrage landet im Protokoll (Muster und Pfad, ohne Inhalt).
 
 Der Node prüft vor jedem Start den freien Arbeitsspeicher (`/proc/meminfo`, Reserve `LODESTONE_NODE_MEMORY_RESERVE_MB`) und
 meldet beim Beenden eines Containers den Exit-Code mit dem Merkmal „angefordert“; so unterscheidet das Panel Absturz und Stopp.
+
+## SFTP
+
+Jeder Node bietet SFTP an (`internal/node/sftp*.go`, `golang.org/x/crypto/ssh` + `github.com/pkg/sftp`, Port
+`LODESTONE_NODE_SFTP_LISTEN`, Standard `:2022`). Der Node kann das Panel nicht anrufen, deshalb ist das **Panel die einzige
+Autorität**: `handlers_sftp.go` rechnet aus Mitgliedern, Rollen (ab Operator, globale Administratoren überall), gesperrten
+Benutzern und den SFTP-Daten aus dem Konto (`store_sftp.go`: Passwort-Hash, Passwort-Login an/aus, SSH-Schlüssel, „Operatoren
+nur lesend“ je Server) für jeden Server die vollständige Liste der Zugänge und schickt sie mit `PUT /api/servers/{id}/sftp-access`
+zum Node. Die Schleife `sftpLoop` vergleicht alle 5 s einen Hash je Server und schickt nur Änderungen; Änderungen über die
+SFTP-Routen stoßen sie sofort an. Alle 15 s fragt sie `GET /api/sftp` ab: Ist ein Node wieder erreichbar oder hat er eine neue
+Start-Kennung (`bootId`), bekommen alle seine Server die Zugänge neu; neue Anmeldungen landen im Protokoll.
+
+Der Node speichert die Liste je Server in `sftp-access.json` neben `spec.json` (außerhalb der Serverdateien, geht mit dem
+Server), prüft beim Anmelden Passwort (argon2id im Format des Panels) oder Schlüssel und **vor jeder Dateioperation erneut**, ob
+der Zugang noch besteht und schreiben darf; widerrufene Zugänge trennen offene Verbindungen. Dateizugriff nur über das `os.Root`
+des Servers. Benutzername: `<benutzer>.<erste 8 Zeichen der Server-ID>`.
 
 ## Grenzen in v0.1
 

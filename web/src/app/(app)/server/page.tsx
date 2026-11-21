@@ -12,6 +12,7 @@ import { AddonsTab } from "@/components/server/addons";
 import { BackupsTab } from "@/components/server/backups";
 import { ConsoleTab } from "@/components/server/console";
 import { FilesTab } from "@/components/server/files";
+import { SftpCard } from "@/components/server/sftp";
 import { ModpackBanner } from "@/components/server/modpack";
 import { PlayersTab } from "@/components/server/players";
 import { SettingsTab } from "@/components/server/settings";
@@ -157,7 +158,12 @@ function ServerView() {
       <div key={active} className="animate-fade-in">
         {active === "console" && <ConsoleTab serverId={server.id} canCommand={rank >= roleRank.operator} state={state} />}
         {active === "stats" && <StatsTab server={server} />}
-        {active === "files" && <FilesTab serverId={server.id} canWrite={rank >= roleRank.operator} />}
+        {active === "files" && (
+          <div className="space-y-4">
+            <FilesTab serverId={server.id} canWrite={rank >= roleRank.operator} />
+            <SftpCard serverId={server.id} />
+          </div>
+        )}
         {active === "addons" && extensions && <AddonsTab serverId={server.id} canWrite={rank >= roleRank.operator} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />}
         {active === "players" && <PlayersTab server={server} canOperate={rank >= roleRank.operator} />}
         {active === "backups" && <BackupsTab serverId={server.id} canWrite={rank >= roleRank.operator} offline={state === "offline"} />}
