@@ -54,6 +54,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [ ] **Konsole und Logs (M).** Suche und Filter, Log-Dateien durchblättern und herunterladen, gespeicherte Befehle/Makros, Teilen über mclo.gs, einfache Absturzanalyse (häufige Fehler erklären). 
   - *Teilweise erledigt:* Suche, Stufenfilter, Log-Download, Erklärung häufiger Fehler. Offen: ältere Logs durchblättern, Makros, mclo.gs.
 - [ ] **Dateimanager (M).** Verlauf und Rückgängig bei Konfigurationsänderungen (Diff), Suche in Dateien, Upload mit Wiederaufnahme, **SFTP-Zugang** pro Server.
+  - *Teilweise erledigt:* SFTP-Zugang pro Server (Passwort und SSH-Schlüssel, nur lesen für Operatoren, Protokoll). Offen: Verlauf/Diff, Suche, Upload mit Wiederaufnahme.
 - [ ] **Welten (M).** Welt hoch- und herunterladen, zurücksetzen, wechseln; Chunky-Vorberechnung mit einem Klick; BlueMap oder Dynmap über das Panel erreichbar.
 - [ ] **Öffentliche Statusseite (M).** Pro Projekt: online/offline, Spielerzahl, MOTD, einbettbar (Widget) – plus Hilfe für **Domain und SRV-Eintrag** (Cloudflare-DNS-Anbindung: `mc.deine-domain.de` automatisch). 
   - *Teilweise erledigt:* Seite, Einbettung und JSON-Schnittstelle. Offen: Domain- und SRV-Hilfe / DNS-Anbindung.

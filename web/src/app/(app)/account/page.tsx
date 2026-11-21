@@ -8,6 +8,7 @@ import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
 import { PixelAvatar } from "@/components/ui/mc";
+import { SftpAccountCard } from "@/components/sftp-account";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
 import type { ApiKeyInfo, Me, SessionInfo } from "@/lib/types";
@@ -28,6 +29,7 @@ export default function AccountPage() {
         <PasswordCard />
         <TwoFactorCard />
         <KeysCard />
+        <SftpAccountCard />
         <SessionsCard />
       </div>
     </>

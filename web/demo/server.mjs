@@ -270,6 +270,7 @@ async function api(req, res, url) {
   const body = ["POST", "PUT", "PATCH"].includes(method) ? await readBody(req) : {};
   const [a, b, c, d] = parts;
   if (rechteApi(res, method, body, a, b, c, d)) return;
+  if (sftpDemo(res, method, body, a, b, c, d)) return;
 
   if (a === "auth") {
     if (b === "status") return send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin" });
@@ -670,6 +671,62 @@ function rechteApi(res, method, body, a, b, c, d) {
     }
     Object.assign(member, { role, permissions: same ? template : custom, customPermissions: !same });
     return send(res, 200, project.members), true;
+  }
+  return false;
+}
+
+// --- sftp
+
+let sftpAccount = {
+  passwordSet: true,
+  passwordLogin: true,
+  keys: [{ id: "sk1", name: "Laptop", publicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoDemoDemoDemoDemoDemoDemoDemoDemoDemo", fingerprint: "SHA256:k3Yp0Demo9mQz1vT4bXcR7nLwE2sFhJ8uA6oG5iKdNc", createdAt: now() - 12 * 24 * HOUR, lastUsed: now() - 2 * HOUR }],
+};
+const sftpReadOnly = {};
+
+function sftpDemo(res, method, body, a, b, c, d) {
+  if (a === "me" && b === "sftp") {
+    if (!c) return send(res, 200, sftpAccount), true;
+    if (c === "password") {
+      if (method === "PUT" && String(body.password ?? "").length < 8) return send(res, 400, { error: "Das SFTP-Passwort ist ungültig: das Passwort braucht mindestens 8 Zeichen." }), true;
+      sftpAccount = { ...sftpAccount, passwordSet: method === "PUT" };
+      return send(res, 200, sftpAccount), true;
+    }
+    if (c === "password-login") {
+      sftpAccount = { ...sftpAccount, passwordLogin: !!body.enabled };
+      return send(res, 200, sftpAccount), true;
+    }
+    if (c === "keys" && method === "POST") {
+      const text = String(body.publicKey ?? "").trim();
+      if (!/^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp\d+) [A-Za-z0-9+/=]+/.test(text)) return send(res, 400, { error: "Das ist kein öffentlicher SSH-Schlüssel. Füge den Inhalt der .pub-Datei ein (beginnt mit ssh-ed25519, ecdsa-sha2-… oder ssh-rsa)." }), true;
+      const key = { id: id(), name: body.name || text.split(" ")[2] || "SSH-Schlüssel", publicKey: text.split(" ").slice(0, 2).join(" "), fingerprint: "SHA256:Demo" + Math.random().toString(36).slice(2, 12), createdAt: now(), lastUsed: 0 };
+      sftpAccount = { ...sftpAccount, keys: [...sftpAccount.keys, key] };
+      return send(res, 201, key), true;
+    }
+    if (c === "keys" && d && method === "DELETE") {
+      sftpAccount = { ...sftpAccount, keys: sftpAccount.keys.filter((key) => key.id !== d) };
+      return send(res, 204), true;
+    }
+    return false;
+  }
+  if (a === "servers" && c === "sftp") {
+    if (!findServer(b)) return send(res, 404, { error: "nicht gefunden" }), true;
+    if (method === "PUT") {
+      sftpReadOnly[b] = !!body.operatorsReadOnly;
+      return send(res, 200, { operatorsReadOnly: sftpReadOnly[b] }), true;
+    }
+    return send(res, 200, {
+      enabled: true,
+      host: "mc.example.org",
+      port: 2022,
+      username: `${user.username}.${b.slice(0, 8)}`,
+      fingerprint: "SHA256:Qm9vdERlbW9Ib3N0S2V5RmluZ2VycHJpbnQxMjM0NTY",
+      readOnly: false,
+      operatorsReadOnly: !!sftpReadOnly[b],
+      canConfigure: true,
+      passwordReady: sftpAccount.passwordSet && sftpAccount.passwordLogin,
+      keyCount: sftpAccount.keys.length,
+    }), true;
   }
   return false;
 }

@@ -11,7 +11,7 @@ Projekt (/project/?id=)            Tabs: Server · Netzwerk · Gruppen (nur Netz
 Nodes (/nodes/)                    Maschinen, Speicher, playit
 Benutzer (/users/)                 nur Administratoren
 Protokoll (/audit/)                nur Administratoren
-Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, Sitzungen
+Konto (/account/)                  Passwort, Zwei-Faktor, API-Schlüssel, SFTP-Zugang, Sitzungen
 Status (/status/?p=)               öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
 ```

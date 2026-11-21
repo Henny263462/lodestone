@@ -43,6 +43,8 @@ type Config struct {
 	MemoryReserveMB int `json:"memoryReserveMB"`
 	// PlayitImage ist das Docker-Image des playit-Agenten (leer = das offizielle).
 	PlayitImage string `json:"playitImage,omitempty"`
+	// SFTPListen ist die Adresse des SFTP-Zugangs (Standard ":2022", leer = aus).
+	SFTPListen string `json:"sftpListen"`
 }
 
 // DefaultConfig liefert die Standardwerte (ohne Token).
@@ -55,6 +57,7 @@ func DefaultConfig() Config {
 		MaxUploadMB:     512,
 		Network:         "lodestone",
 		MemoryReserveMB: 1024,
+		SFTPListen:      ":2022",
 		PullHosts: []string{"cdn.modrinth.com", "github.com", "githubusercontent.com", "hangarcdn.papermc.io",
 			"fill-data.papermc.io", "api.papermc.io", "maven.fabricmc.net", "meta.fabricmc.net", "maven.neoforged.net", "cdn.discordapp.com"},
 	}
@@ -106,6 +109,7 @@ func (c *Config) applyEnvironment() {
 	text("LODESTONE_NODE_NETWORK", &c.Network)
 	text("DOCKER_HOST_OVERRIDE", &c.DockerHost)
 	text("LODESTONE_NODE_PLAYIT_IMAGE", &c.PlayitImage)
+	c.applySFTPEnvironment()
 	if value := os.Getenv("LODESTONE_NODE_MEMORY_RESERVE_MB"); value != "" {
 		var megabytes int
 		if _, err := fmt.Sscanf(value, "%d", &megabytes); err == nil && megabytes >= 0 {

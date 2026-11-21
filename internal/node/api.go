@@ -34,6 +34,7 @@ type API struct {
 	sw      Software
 	log     *slog.Logger
 	version string
+	sftp    *SFTPService
 }
 
 // NewAPI baut die Schnittstelle.
@@ -103,6 +104,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/servers/{id}/files", a.server(a.removeFile))
 	mux.HandleFunc("POST /api/servers/{id}/files/upload", a.server(a.upload))
 	mux.HandleFunc("GET /api/servers/{id}/files/download", a.server(a.download))
+	a.registerSFTPRoutes(mux)
 
 	return a.authenticate(mux)
 }

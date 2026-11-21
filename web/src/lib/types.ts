@@ -499,3 +499,35 @@ export interface ServerAccess {
 export function can(permissions: Permission[] | undefined, ...needed: Permission[]): boolean {
   return needed.every((permission) => permissions?.includes(permission) ?? false);
 }
+
+// --- sftp
+
+export interface SftpKey {
+  id: string;
+  name: string;
+  publicKey: string;
+  fingerprint: string;
+  createdAt: number;
+  lastUsed: number;
+}
+
+/** SFTP-Zugang des angemeldeten Benutzers (GET /me/sftp). Der Passwort-Hash kommt nie an. */
+export interface SftpAccount {
+  passwordSet: boolean;
+  passwordLogin: boolean;
+  keys: SftpKey[];
+}
+
+/** Karte „SFTP“ im Dateien-Tab (GET /servers/{id}/sftp). */
+export interface ServerSftp {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  fingerprint: string;
+  readOnly: boolean;
+  operatorsReadOnly: boolean;
+  canConfigure: boolean;
+  passwordReady: boolean;
+  keyCount: number;
+}

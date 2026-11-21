@@ -26,6 +26,11 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Konsole live** (Websocket, mit Verlauf und ANSI-Farben), Start/Stopp/Neustart/Kill, CPU-/RAM-Anzeige
 - **Dateien** mit Editor und Syntax-Highlight (JSON, YAML, TOML, XML, Properties, Markdown …), Upload per Drag & Drop,
   Verschieben, Archivieren (`.zip`, `.tar.gz`), Entpacken und Mehrfachauswahl (Verschieben, Archivieren, Löschen)
+- **SFTP-Zugang pro Server** (FileZilla, WinSCP, `sftp`): ab der Rolle Operator, mit eigenem SFTP-Passwort und/oder
+  **SSH-Schlüsseln** unter *Konto*, Passwort-Anmeldung abschaltbar. Benutzername `<benutzer>.<server-kurz-id>`, Host, Port und
+  Fingerabdruck stehen mit Kopierknöpfen im Dateien-Tab. Admins können Operatoren eines Servers auf „nur lesen“ stellen.
+  Das Panel entscheidet allein und schiebt die Zugänge zum Node (Änderungen wirken nach wenigen Sekunden, auch auf offene
+  Verbindungen); Anmeldungen stehen im Protokoll und in der Konsole
 - **Plugins und Mods:** installierte anzeigen (Name, Version), von **Modrinth** suchen und installieren (nur passende
   zu Software und Version, inklusive benötigter Abhängigkeiten), Updates prüfen und einspielen, Jar hochladen,
   aktivieren/deaktivieren. Zu jeder installierten Datei zeigt das Panel **Modrinth-Seite, Version, Lizenz und
@@ -149,8 +154,12 @@ Für schlanke Maschinen: `sh scripts/package.sh` baut Linux-Binaries nach `dist/
 | `LODESTONE_WEBHOOK_ALLOW_INTERNAL` | `true` erlaubt Webhooks an Adressen im internen Netz (Standard: gesperrt) |
 
 Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_PORT_RANGE` (z. B. `28000-28099`),
-`_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`
-– oder `config.json` (siehe unten).
+`_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`,
+`_SFTP_LISTEN` (Adresse des SFTP-Zugangs, Standard `:2022`; leer oder `off` schaltet SFTP ab)
+– oder `config.json` (siehe unten). Der Host-Schlüssel für SFTP wird beim ersten Start im Datenordner des Nodes angelegt
+(`sftp_host_ed25519_key`) und danach nie geändert. Im Compose-Setup ist der Port über `LODESTONE_SFTP_PORT` (Standard 2022)
+veröffentlicht; zum Abschalten `LODESTONE_NODE_SFTP_LISTEN: ""` setzen und den `ports`-Eintrag des Nodes entfernen. Lässt sich
+SFTP nicht starten (Port belegt, Schlüssel nicht schreibbar), läuft der Node ohne SFTP weiter und schreibt den Grund ins Log.
 
 ## Sicherheit
 
@@ -162,6 +171,9 @@ Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_P
 - Optional **Zwei-Faktor** (TOTP, TOTP-Geheimnisse mit AES-GCM verschlüsselt abgelegt), API-Schlüssel nur als Hash
   gespeichert und ohne Zugriff auf Konto-Einstellungen; Änderungen werden im **Protokoll** festgehalten
 - Das Token des Nodes verlässt das Panel nie; die Node-API gehört nur ins interne Netz oder hinter TLS/VPN
+- SFTP: nur das Subsystem `sftp` (keine Shell, keine Befehle, keine Weiterleitungen), Zugriff strikt im Serverordner über
+  `os.Root` (auch Symlinks), keine neuen Symlinks, Upload-Grenze wie im Panel, Passwörter nur als argon2id-Hash, Drosselung
+  nach 8 Fehlversuchen je Adresse in 10 Minuten
 - Container laufen ohne Root-Rechte des Hosts, mit `no-new-privileges`, abgeschalteten Capabilities, Prozess-,
   Speicher- und CPU-Limit; Dateizugriffe bleiben im Serverordner (`os.Root`, auch über Symlinks hinweg)
 - **Java2Shell/Java4Shell (CVE-2026-114938):** Jeder Server bekommt `JAVA_TOOL_OPTIONS=-XX:-UseBASE64Intrinsics`
@@ -197,7 +209,8 @@ standardmäßig nur auf `127.0.0.1:8480`.
   "containerUser": "",
   "portRangeStart": 25565,
   "portRangeEnd": 25999,
-  "maxUploadMB": 512
+  "maxUploadMB": 512,
+  "sftpListen": ":2022"
 }
 ```
 
@@ -235,6 +248,8 @@ curl -H "$H" "localhost:8480/api/software/paper/versions"
 | GET, PUT, DELETE | `/api/servers/{id}/files`, `/files/content` | Dateien listen, lesen, schreiben, löschen |
 | POST | `/api/servers/{id}/files/mkdir`, `/rename`, `/upload` | Ordner, Umbenennen, Upload |
 | GET | `/api/servers/{id}/files/download` | Herunterladen |
+| GET | `/api/sftp?after=<seq>` | SFTP an/aus, Port, Fingerabdruck, Start-Kennung, Anmeldungen seit `seq` |
+| PUT | `/api/servers/{id}/sftp-access` | vollständige Liste der SFTP-Zugänge des Servers (setzt nur das Panel) |
 
 Websocket: Die erste Nachricht ist `hello` mit Zustand und Verlauf, danach `line`, `state` und `stats`. Zum Senden
 schickt der Client `{"type":"command","data":"say hi"}`.

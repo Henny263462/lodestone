@@ -61,7 +61,24 @@ func run(configPath string, logger *slog.Logger) error {
 	defer stop()
 	go manager.KeepReconciling(ctx)
 
+	sftpService, err := node.NewSFTPService(config, manager, logger)
+	if err != nil {
+		// SFTP ist eine Zusatzfunktion: Ohne gültige Adresse oder Host-Schlüssel läuft der Node ohne SFTP weiter.
+		logger.Error("SFTP bleibt aus", "error", err)
+		withoutSFTP := config
+		withoutSFTP.SFTPListen = ""
+		if sftpService, err = node.NewSFTPService(withoutSFTP, manager, logger); err != nil {
+			return err
+		}
+	}
 	api := node.NewAPI(config, manager, runtime, resolver, logger, version)
+	api.SetSFTP(sftpService)
+	go func() {
+		// SFTP ist eine Zusatzfunktion: Scheitert es (Port belegt), laufen die Server trotzdem weiter.
+		if err := sftpService.ListenAndServe(ctx); err != nil {
+			logger.Error("SFTP läuft nicht", "error", err)
+		}
+	}()
 	server := &http.Server{
 		Addr:              config.Listen,
 		Handler:           api.Handler(),
