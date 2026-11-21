@@ -321,6 +321,8 @@ async function api(req, res, url) {
     return send(res, 200, hook);
   }
   if (a === "users") return send(res, method === "GET" ? 200 : 204, method === "GET" ? users : undefined);
+  const linked = nodeLinkDemo(method, parts, body);
+  if (linked) return send(res, linked.status, linked.body);
   if (a === "nodes" && c === "playit") {
     if (method === "PUT") playit = { configured: true, running: true, image: playit.image, logs: ["[playit] agent started", "[playit] tunnel ready: survival.playit.gg"] };
     else if (method === "DELETE") playit = { configured: false, running: false, image: playit.image, logs: [] };
@@ -604,3 +606,47 @@ sockets.on("connection", (ws, serverId) => {
 });
 
 server.listen(port, "127.0.0.1", () => console.log(`Lodestone-Demo läuft auf http://localhost:${port}`));
+
+// --- nodelink
+// Nodes, die sich selbst zum Panel verbinden: ein verbundener Beispiel-Node, Join-Tokens und der Verbindungszustand.
+
+nodes.push({
+  id: "n3", name: "zuhause-nat", publicHost: "mc3.example.org", online: true, linked: true, version: "0.3.0", serverCount: 0,
+  system: { dockerVersion: "29.6.2", os: "Debian 13", architecture: "aarch64", cpus: 4, memoryBytes: 8 * 1024 ** 3 },
+  memoryAvailable: 6.1 * 1024 ** 3, memoryCommitted: 0,
+});
+const nodeLinks = [{ nodeId: "n3", connected: true, connectedAt: now() - 3 * HOUR, remote: "198.51.100.40", version: "0.3.0", insecure: false, joinedAt: now() - 3 * 24 * HOUR }];
+
+function demoJoinToken(node) {
+  const expiresAt = now() + 24 * HOUR;
+  const link = nodeLinks.find((entry) => entry.nodeId === node.id);
+  if (link) link.joinExpiresAt = expiresAt;
+  else nodeLinks.push({ nodeId: node.id, connected: false, insecure: false, joinExpiresAt: expiresAt });
+  return { node: { id: node.id, name: node.name, publicHost: node.publicHost, online: false, serverCount: 0, linked: true }, token: "ldj_" + "0123456789abcdef".repeat(4), expiresAt };
+}
+
+/** Antwortet auf die Routen der Node-Verbindung oder liefert null. */
+function nodeLinkDemo(method, parts, body) {
+  const [a, b, c] = parts;
+  if (a !== "nodes") return null;
+  if (b === "link" && method === "GET") return { status: 200, body: nodeLinks };
+  if (b === "link" && method === "POST") {
+    if (!body.name?.trim()) return { status: 400, body: { error: "der Name braucht 1 bis 48 Zeichen" } };
+    if (nodes.some((node) => node.name.toLowerCase() === body.name.trim().toLowerCase())) return { status: 409, body: { error: "gibt es schon: der Name ist vergeben" } };
+    const node = { id: id(), name: body.name.trim(), publicHost: body.publicHost ?? "", online: false, linked: true, serverCount: 0, error: "der Node ist nicht erreichbar: der Node ist gerade nicht mit dem Panel verbunden" };
+    nodes.push(node);
+    return { status: 201, body: demoJoinToken(node) };
+  }
+  if (b && c === "join-token" && method === "POST") {
+    const node = nodes.find((entry) => entry.id === b);
+    if (!node) return { status: 404, body: { error: "nicht gefunden" } };
+    if (!node.linked) return { status: 400, body: { error: "dieser Node wird direkt über seine Adresse angesprochen und braucht kein Join-Token" } };
+    return { status: 200, body: demoJoinToken(node) };
+  }
+  if (b && !c && method === "DELETE") {
+    const index = nodes.findIndex((entry) => entry.id === b);
+    if (index >= 0 && nodes[index].serverCount === 0) nodes.splice(index, 1);
+    return { status: 204 };
+  }
+  return null;
+}

@@ -17,11 +17,24 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 - **Panel-Oberfläche** (`web/`, Next.js als statischer Export, ins Panel-Binary eingebettet; Konsole mit ANSI-Farben,
   Datei-Editor mit CodeMirror 6, Plugins/Mods, Backups, Spieler). *Fertig (v0.1).* Das Panel liefert Text-Dateien gzip-
   komprimiert aus (`internal/panel/webui`, einmal gepackt und im Speicher gehalten); CodeMirror lädt erst beim Öffnen einer Datei.
-- **Verbindung Panel ↔ Node (v0.1):** Das Panel ruft die HTTP-Schnittstelle des Nodes direkt auf (Bearer-Token); die
-  Node-API gehört deshalb ins interne Netz oder hinter TLS/VPN. **Später:** Die Node verbindet **nach außen** zum Panel
-  (eine Websocket-Verbindung, über die alles läuft). Dann braucht sie keine offenen Ports und funktioniert hinter NAT.
-  Der Daemon-Handler ist ein normaler `http.Handler`, deshalb lässt sich die jetzige Schnittstelle unverändert durch
-  diese Verbindung tunneln.
+- **Verbindung Panel ↔ Node:** zwei Wege.
+  - *Direkt:* Das Panel ruft die HTTP-Schnittstelle des Nodes auf (Bearer-Token); die Node-API gehört ins interne Netz
+    oder hinter TLS/VPN.
+  - *Node verbindet sich selbst* (`internal/nodelink`, empfohlen): Der Node baut einen Websocket zu
+    `/api/node-link/connect` auf; yamux bündelt darin beliebig viele Datenströme. Das Panel öffnet für jede Anfrage einen
+    Strom und spricht darüber gewöhnliches HTTP; der Node bedient ihn mit seinem unveränderten `http.Handler`
+    (`internal/node/nodelink.go` setzt dabei sein eigenes Token ein). Im Panel bekommt der `NodeClient` eines solchen
+    Nodes (in der Datenbank ohne Adresse) einen `http.Transport`, der statt TCP einen Strom wählt
+    (`internal/panel/nodelink.go`); `Do`, `Raw`, `Proxy` (Down-/Uploads als Strom) und `DialWS` (Konsole) laufen so
+    ohne Sonderfall. Je Node gilt höchstens eine Verbindung, eine neue ersetzt die alte. Der Node kann keine Ströme
+    zum Panel öffnen (werden sofort geschlossen); Websocket-Nachrichten über 1 MiB beenden die Verbindung.
+  - *Kopplung:* „Node hinzufügen“ legt den Node an und erzeugt ein Join-Token (`ldj_…`, 24 h, einmalig, nur als Hash in
+    `node_join_tokens`). Der Node tauscht es an `/api/node-link/join` gegen ID und Geheimnis (`ldn_…`, im Panel nur als
+    Hash in `nodes.link_secret_hash`, beim Node in `panel-link.json`). „Neu koppeln“ erzeugt ein neues Join-Token; wird
+    es eingelöst, verliert das alte Geheimnis seine Gültigkeit. Beide Routen sind ohne Benutzeranmeldung erreichbar und
+    je IP gedrosselt.
+  - *Ausfall:* Der Node verbindet sich mit Backoff (1 s bis 60 s, bei Ablehnung 5 min) neu. Ohne Verbindung schlagen
+    Anfragen sofort mit „nicht erreichbar“ fehl; der Wächter meldet das wie bei direkten Nodes als `node_offline`.
 
 ## Datenmodell
 
@@ -89,7 +102,8 @@ meldet beim Beenden eines Containers den Exit-Code mit dem Merkmal „angeforder
 ## Grenzen in v0.1
 
 - Ein Netzwerk liegt auf **einem** Node (die Server erreichen sich über das Docker-Netz `lodestone`).
-- Das Panel greift per HTTP auf die Nodes zu (kein Tunnel nach außen).
+- Netzwerke über mehrere Nodes gibt es noch nicht: Die Verbindung nach außen trägt nur Anfragen des Panels an den Node,
+  keinen Verkehr zwischen Servern auf verschiedenen Nodes.
 - Backups liegen auf der Maschine des Nodes (begrenzte Aufbewahrung); Zeitpläne lösen sie aus, ein externes Ziel fehlt.
 - Die Weboberfläche liefert kein TLS selbst – Reverse-Proxy davor setzen.
 

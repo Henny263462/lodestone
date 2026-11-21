@@ -83,6 +83,8 @@ var moreColumns = []struct{ table, name, definition string }{
 	{"projects", "status_public", "INTEGER NOT NULL DEFAULT 0"},
 	{"projects", "status_slug", "TEXT NOT NULL DEFAULT ''"},
 	{"projects", "motd", "TEXT NOT NULL DEFAULT ''"},
+	{"nodes", "link_secret_hash", "TEXT NOT NULL DEFAULT ''"},
+	{"nodes", "link_joined_at", "INTEGER NOT NULL DEFAULT 0"},
 }
 
 // ---------------------------------------------------------------- Zeitpläne

@@ -67,6 +67,12 @@ func LoadConfig(path string) (config Config, created bool, err error) {
 	switch {
 	case errors.Is(err, os.ErrNotExist) && os.Getenv("LODESTONE_NODE_TOKEN") != "":
 		// Läuft der Daemon im Container, kommt alles aus der Umgebung und es wird keine Datei angelegt
+	case errors.Is(err, os.ErrNotExist) && os.Getenv("LODESTONE_NODE_PANEL_URL") != "":
+		// Verbindet sich der Node selbst zum Panel, braucht er kein festes Token: Anfragen über die Verbindung gelten als
+		// angemeldet. Für die eigene Schnittstelle gibt es ein zufälliges Token, das nur im Speicher liegt.
+		if config.Token, err = randomToken(); err != nil {
+			return config, false, err
+		}
 	case errors.Is(err, os.ErrNotExist):
 		token, tokenErr := randomToken()
 		if tokenErr != nil {

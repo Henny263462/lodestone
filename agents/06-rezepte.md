@@ -42,6 +42,10 @@ Oberfläche `components/server/modpack.tsx`.
 4. Oberfläche und Demo wie in A/B.
 5. Dauert die Aktion: Fortschritt als Status-Endpunkt (`state: idle|running|done|failed`, `done`, `total`) und in der Oberfläche per `refreshInterval` abfragen.
 
+Gilt auch für Nodes, die sich selbst zum Panel verbinden: Alles, was über `NodeClient` läuft, geht automatisch durch
+ihren Tunnel (`internal/panel/nodelink.go`). Im Test genügt `fakeNode`; einen Tunnel-Test mit Strömen und Konsole zeigt
+`internal/panel/nodelink_test.go`.
+
 ## D. Neue Hauptseite
 
 Siehe `03` §6. Vorbild: `app/(app)/audit/page.tsx` (Liste mit Filter) oder `nodes/page.tsx` (Karten).

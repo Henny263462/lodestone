@@ -440,3 +440,32 @@ export interface PublicStatus {
   servers: { name: string; online: boolean; players: number; maxPlayers?: number }[];
   updated: number;
 }
+
+// --- nodelink
+// Nodes, die sich selbst zum Panel verbinden (Websocket-Tunnel statt direkter Adresse).
+
+export interface NodeInfo {
+  /** Der Node verbindet sich selbst zum Panel und hat deshalb keine Adresse. */
+  linked?: boolean;
+}
+
+/** Verbindungszustand eines solchen Nodes (GET /nodes/link, nur Administratoren). */
+export interface NodeLink {
+  nodeId: string;
+  connected: boolean;
+  connectedAt?: number;
+  remote?: string;
+  version?: string;
+  /** Unverschlüsselte Verbindung (ws:// statt wss://). */
+  insecure: boolean;
+  joinedAt?: number;
+  /** Gesetzt, solange ein Join-Token offen ist. */
+  joinExpiresAt?: number;
+}
+
+/** Einmaliges Join-Token (POST /nodes/link, POST /nodes/{id}/join-token). Es erscheint nur in dieser Antwort. */
+export interface JoinToken {
+  node: NodeInfo;
+  token: string;
+  expiresAt: number;
+}

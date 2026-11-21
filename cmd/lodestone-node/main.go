@@ -62,6 +62,13 @@ func run(configPath string, logger *slog.Logger) error {
 	go manager.KeepReconciling(ctx)
 
 	api := node.NewAPI(config, manager, runtime, resolver, logger, version)
+	if linkConfig, ok := node.LinkConfigFromEnv(config); ok {
+		link, err := node.NewLink(linkConfig, config.Token, api.Handler(), logger, version)
+		if err != nil {
+			return err
+		}
+		go link.Run(ctx)
+	}
 	server := &http.Server{
 		Addr:              config.Listen,
 		Handler:           api.Handler(),
