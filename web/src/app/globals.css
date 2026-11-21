@@ -35,6 +35,25 @@ body {
   background: rgb(var(--accent) / 0.35);
 }
 
+@layer base {
+  /* Ein einheitlicher Fokusrahmen für die Tastatur statt des Browser-Standards; Eingaben (.field) haben ihren eigenen Ring */
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent) / 0.6);
+    outline-offset: 2px;
+  }
+}
+
+/* Wer im System weniger Bewegung eingestellt hat, bekommt Zustandswechsel ohne Animation (der Lade-Kringel dreht weiter) */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;

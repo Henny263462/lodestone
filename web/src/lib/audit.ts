@@ -25,6 +25,8 @@ const rules: [RegExp, string][] = [
   [/^PATCH \/api\/servers\/\{id\}$/, "Server-Einstellungen geändert"],
   [/^DELETE \/api\/servers\/\{id\}$/, "Server gelöscht"],
   [/^PUT \/api\/servers\/\{id\}\/public-address/, "Öffentliche Adresse geändert"],
+  [/^POST \/api\/servers\/\{id\}\/tunnel/, "Tunnel erstellt"],
+  [/^DELETE \/api\/servers\/\{id\}\/tunnel/, "Tunnel entfernt"],
   [/^PUT \/api\/servers\/\{id\}\/auto-restart/, "Auto-Restart umgestellt"],
   [/^POST \/api\/servers\/\{id\}\/modrinth\/install/, "Modrinth: installiert"],
   [/^POST \/api\/servers\/\{id\}\/addons/, "Plugins/Mods aktualisiert"],

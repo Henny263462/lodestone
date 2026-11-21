@@ -86,13 +86,16 @@ function ProjectView() {
         <Tabs value={tab} onChange={setTab} items={tabs} />
       </div>
 
-      {tab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
-      {tab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
-      {tab === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
-      {tab === "schedules" && <SchedulesTab project={project} />}
-      {tab === "events" && <EventsTab project={project} />}
-      {tab === "members" && <MembersTab project={project} refresh={() => mutate()} />}
-      {tab === "settings" && canManage && <SettingsTab project={project} refresh={() => mutate()} />}
+      {/* Neuer Schlüssel pro Tab: Der Inhalt blendet beim Wechsel kurz ein */}
+      <div key={tab} className="animate-fade-in">
+        {tab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
+        {tab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
+        {tab === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
+        {tab === "schedules" && <SchedulesTab project={project} />}
+        {tab === "events" && <EventsTab project={project} />}
+        {tab === "members" && <MembersTab project={project} refresh={() => mutate()} />}
+        {tab === "settings" && canManage && <SettingsTab project={project} refresh={() => mutate()} />}
+      </div>
 
       <AddServerDialog project={project} open={adding} onClose={() => setAdding(false)} onCreated={() => mutate()} />
     </>

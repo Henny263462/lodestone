@@ -89,6 +89,7 @@ export interface Server {
   address?: string;
   voiceAddress?: string;
   publicAddress?: string;
+  publicVoiceAddress?: string;
   modpack?: ModpackInfo;
   autoRestart: boolean;
   view: NodeView | null;
@@ -125,6 +126,18 @@ export interface ModpackVersion {
   gameVersions: string[];
 }
 
+export interface PlayitTunnel {
+  id: string;
+  name: string;
+  tunnelType: string;
+  portType: string;
+  localIp: string;
+  localPort: number;
+  publicAddress: string;
+  enabled: boolean;
+  createdAt?: number;
+}
+
 export interface PlayitStatus {
   configured: boolean;
   running: boolean;
@@ -132,6 +145,7 @@ export interface PlayitStatus {
   logs: string[];
   error?: string;
   since?: number;
+  tunnels?: PlayitTunnel[];
 }
 
 export interface AddonDetail {

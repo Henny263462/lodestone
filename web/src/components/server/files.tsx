@@ -1,14 +1,21 @@
 "use client";
 
 import { Archive, ArrowLeft, ChevronRight, Download, File as FileIcon, FilePlus, Folder, FolderInput, FolderPlus, PackageOpen, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, Checkbox, EmptyState, RowMenu } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
-import { CodeEditor, isEditable, languageFor } from "./code-editor";
 import { api, downloadUrl, fetchText, putText, upload, useApi } from "@/lib/api";
+import { isEditable, languageFor } from "@/lib/editor";
 import { bytes, dateTime, joinPath, parentPath } from "@/lib/format";
 import type { FileEntry } from "@/lib/types";
+
+// CodeMirror ist groß und wird nur zum Bearbeiten gebraucht; so lädt die Serverseite ohne ihn
+const CodeEditor = dynamic(() => import("./code-editor").then((module) => module.CodeEditor), {
+  ssr: false,
+  loading: () => <Loading label="Editor wird geladen" />,
+});
 
 export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: boolean }) {
   const toast = useToast();
@@ -365,6 +372,11 @@ function FileEditor({ serverId, path, canWrite, onClose }: { serverId: string; p
   const [failure, setFailure] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+
+  // Den Editor schon laden, während die Datei noch unterwegs ist
+  useEffect(() => {
+    void import("./code-editor");
+  }, []);
   const name = path.split("/").pop() ?? path;
   const dirty = original !== null && text !== original;
 

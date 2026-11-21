@@ -3,6 +3,7 @@ package panel
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -32,6 +33,7 @@ type fakeNode struct {
 	removed      []string
 	modpacks     []node.ModpackRequest
 	playitSecret string
+	playitTunnels []node.PlayitTunnel
 }
 
 func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
@@ -194,13 +196,54 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	mux.HandleFunc("GET /api/playit", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		configured := fake.playitSecret != ""
+		tunnels := append([]node.PlayitTunnel(nil), fake.playitTunnels...)
 		fake.mu.Unlock()
-		writeJSON(w, 200, node.PlayitStatus{Configured: configured, Image: "ghcr.io/playit-cloud/playit-agent:0.15", Logs: []string{}})
+		writeJSON(w, 200, node.PlayitStatus{Configured: configured, Image: "ghcr.io/playit-cloud/playit-agent:0.15", Logs: []string{}, Tunnels: tunnels})
 	})
 	mux.HandleFunc("DELETE /api/playit", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		fake.playitSecret = ""
+		fake.playitTunnels = nil
 		fake.mu.Unlock()
+		w.WriteHeader(204)
+	})
+	mux.HandleFunc("GET /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		list := append([]node.PlayitTunnel(nil), fake.playitTunnels...)
+		writeJSON(w, 200, list)
+	})
+	mux.HandleFunc("POST /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
+		var req node.CreateTunnelRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		idx := len(fake.playitTunnels) + 1
+		addr := fmt.Sprintf("test-%d.ply.gg:%d", idx, 10000+idx)
+		tun := node.PlayitTunnel{
+			ID:            fmt.Sprintf("tun-%d", idx),
+			Name:          req.Name,
+			TunnelType:    req.TunnelType,
+			PortType:      req.PortType,
+			LocalIP:       req.LocalIP,
+			LocalPort:     req.LocalPort,
+			PublicAddress: addr,
+			Enabled:       true,
+		}
+		fake.playitTunnels = append(fake.playitTunnels, tun)
+		writeJSON(w, 201, tun)
+	})
+	mux.HandleFunc("DELETE /api/playit/tunnels/{tunnelId}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("tunnelId")
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		var rem []node.PlayitTunnel
+		for _, t := range fake.playitTunnels {
+			if t.ID != id {
+				rem = append(rem, t)
+			}
+		}
+		fake.playitTunnels = rem
 		w.WriteHeader(204)
 	})
 	mux.HandleFunc("PUT /api/servers/{id}/autoconfig", func(w http.ResponseWriter, r *http.Request) {
@@ -478,4 +521,92 @@ func TestNetworkLifecycle(t *testing.T) {
 		t.Errorf("auf dem Node bleiben Server: %v", fake.servers)
 	}
 	fake.mu.Unlock()
+}
+
+func TestServerTunnelAndNodePlayitTunnels(t *testing.T) {
+	_, web, fake, nodeID := setupPanel(t)
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+
+	// Node Playit Tunnels abfragen
+	admin.expect(200, "GET", "/api/nodes/"+nodeID+"/playit/tunnels", nil)
+
+	// Eigenen Tunnel anlegen
+	createReq := map[string]any{
+		"name":       "Test-Tunnel",
+		"tunnelType": "minecraft-java",
+		"portType":   "tcp",
+		"localPort":  25565,
+	}
+	var createdTunnel node.PlayitTunnel
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/nodes/"+nodeID+"/playit/tunnels", createReq), &createdTunnel)
+	if createdTunnel.ID == "" || createdTunnel.PublicAddress == "" {
+		t.Fatalf("Tunnel nicht angelegt: %+v", createdTunnel)
+	}
+
+	// Tunnel löschen
+	admin.expect(204, "DELETE", "/api/nodes/"+nodeID+"/playit/tunnels/"+createdTunnel.ID, nil)
+
+	// Server für automatische Tunnelerstellung anlegen
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Tunnel-Projekt", "kind": "server"}), &project)
+
+	var server ServerDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{
+		Name:     "Survival",
+		NodeID:   nodeID,
+		Software: "paper",
+		Version:  "1.21.4",
+		EULA:     true,
+	}), &server)
+
+	// 1) Automatisch Minecraft Java Tunnel erstellen
+	var resp struct {
+		Tunnel node.PlayitTunnel `json:"tunnel"`
+		Server ServerDTO         `json:"server"`
+	}
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/servers/"+server.ID+"/tunnel", map[string]string{"type": "server"}), &resp)
+	if resp.Server.PublicAddress == "" || resp.Tunnel.PublicAddress == "" {
+		t.Errorf("PublicAddress wurde nicht gesetzt: %+v", resp)
+	}
+
+	// 2) Für Voicechat Port auf dem Node hinterlegen
+	fake.mu.Lock()
+	srvView := fake.servers[server.ID]
+	srvView.Ports = append(srvView.Ports, node.PortMapping{Container: 24454, Host: 24454, Protocol: "udp"})
+	fake.servers[server.ID] = srvView
+	fake.mu.Unlock()
+
+	// Voicechat Tunnel erstellen
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/servers/"+server.ID+"/tunnel", map[string]string{"type": "voice"}), &resp)
+	if resp.Server.PublicVoiceAddress == "" || resp.Tunnel.PublicAddress == "" {
+		t.Errorf("PublicVoiceAddress wurde nicht gesetzt: %+v", resp)
+	}
+
+	// 3) Manuelle Adressänderung über PUT /api/servers/{id}/public-address
+	var updated ServerDTO
+	_ = json.Unmarshal(admin.expect(200, "PUT", "/api/servers/"+server.ID+"/public-address", map[string]string{
+		"address":      "play.example.org:25565",
+		"voiceAddress": "voice.example.org:24454",
+	}), &updated)
+	if updated.PublicAddress != "play.example.org:25565" || updated.PublicVoiceAddress != "voice.example.org:24454" {
+		t.Errorf("Adressen wurden nicht aktualisiert: %+v", updated)
+	}
+
+	// 4) Tunnel über DELETE /api/servers/{id}/tunnel löschen
+	var delResp struct {
+		Server ServerDTO `json:"server"`
+	}
+	_ = json.Unmarshal(admin.expect(200, "DELETE", "/api/servers/"+server.ID+"/tunnel?type=voice", nil), &delResp)
+	if delResp.Server.PublicVoiceAddress != "" {
+		t.Errorf("PublicVoiceAddress wurde nicht geleert: %+v", delResp)
+	}
+
+	delResp = struct {
+		Server ServerDTO `json:"server"`
+	}{}
+	_ = json.Unmarshal(admin.expect(200, "DELETE", "/api/servers/"+server.ID+"/tunnel?type=server", nil), &delResp)
+	if delResp.Server.PublicAddress != "" {
+		t.Errorf("PublicAddress wurde nicht geleert: %+v", delResp)
+	}
 }

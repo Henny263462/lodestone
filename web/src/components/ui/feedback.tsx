@@ -2,9 +2,9 @@
 
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 import { createPortal } from "react-dom";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type Context, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Context, type ReactNode } from "react";
 import { ApiError } from "@/lib/api";
-import { Button, cx } from "./primitives";
+import { Button, cx, usePresence } from "./primitives";
 
 // ---------------------------------------------------------------- Meldungen
 
@@ -12,7 +12,11 @@ interface Toast {
   id: number;
   tone: "good" | "bad";
   text: string;
+  leaving?: boolean;
 }
+
+const TOAST_TIME = 4500;
+const TOAST_EXIT = 160;
 
 interface ToastApi {
   success: (text: string) => void;
@@ -50,11 +54,20 @@ export function useToast(): ToastApi {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const push = useCallback((tone: Toast["tone"], text: string) => {
-    const id = Date.now() + Math.random();
-    setToasts((current) => [...current, { id, tone, text }]);
-    setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), 4500);
+  // Erst ausblenden, dann entfernen
+  const dismiss = useCallback((id: number) => {
+    setToasts((current) => current.map((toast) => (toast.id === id ? { ...toast, leaving: true } : toast)));
+    setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), TOAST_EXIT);
   }, []);
+
+  const push = useCallback(
+    (tone: Toast["tone"], text: string) => {
+      const id = Date.now() + Math.random();
+      setToasts((current) => [...current, { id, tone, text }]);
+      setTimeout(() => dismiss(id), TOAST_TIME);
+    },
+    [dismiss],
+  );
 
   const api = useMemo<ToastApi>(
     () => ({
@@ -81,9 +94,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
+            role={toast.tone === "bad" ? "alert" : "status"}
+            onClick={() => dismiss(toast.id)}
+            title="Schließen"
             className={cx(
-              "pointer-events-auto flex items-start gap-3 rounded-lg border bg-raised px-4 py-3 text-sm shadow-2xl shadow-black/50",
+              "pointer-events-auto flex cursor-pointer items-start gap-3 rounded-lg border bg-raised px-4 py-3 text-sm shadow-2xl shadow-black/50",
               toast.tone === "good" ? "border-good/40" : "border-bad/40",
+              toast.leaving ? "pointer-events-none animate-toast-out" : "animate-toast-in",
             )}
           >
             {toast.tone === "good" ? (
@@ -118,6 +135,11 @@ export function Dialog({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const { mounted, leaving } = usePresence(open);
+  // Beim Ausblenden den letzten Inhalt zeigen: Die Seite hat die Daten dafür oft schon geleert
+  const shown = useRef({ title, description, children, footer });
+  if (open) shown.current = { title, description, children, footer };
+
   useEffect(() => {
     if (!open) return;
     const handler = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -125,23 +147,33 @@ export function Dialog({
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
+  const content = shown.current;
   // Über ein Portal direkt unter body, damit weder Animationen noch Scroll-Container die Position verschieben
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className={cx("relative max-h-[calc(100vh-2rem)] w-full animate-fade-in overflow-y-auto rounded-xl border border-white/[0.09] bg-surface shadow-2xl shadow-black/60", wide ? "max-w-2xl" : "max-w-md")}>
+    <div className={cx("fixed inset-0 z-50 flex items-center justify-center p-4", leaving && "pointer-events-none")}>
+      <div className={cx("absolute inset-0 bg-black/60 backdrop-blur-sm", leaving ? "animate-overlay-out" : "animate-overlay-in")} onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={content.title}
+        className={cx(
+          "relative max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-xl border border-white/[0.09] bg-surface shadow-2xl shadow-black/60",
+          wide ? "max-w-2xl" : "max-w-md",
+          leaving ? "animate-pop-out" : "animate-pop-in",
+        )}
+      >
         <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
           <div>
-            <h3 className="text-base font-semibold">{title}</h3>
-            {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
+            <h3 className="text-base font-semibold">{content.title}</h3>
+            {content.description && <p className="mt-0.5 text-xs text-muted">{content.description}</p>}
           </div>
-          <button onClick={onClose} className="rounded-md p-1 text-muted hover:bg-raised hover:text-ink" aria-label="Schließen">
+          <button onClick={onClose} className="rounded-md p-1 text-muted transition duration-100 hover:bg-raised hover:text-ink active:scale-90" aria-label="Schließen">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-4 px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t px-5 py-3">{footer}</div>}
+        <div className="space-y-4 px-5 py-4">{content.children}</div>
+        {content.footer && <div className="flex justify-end gap-2 border-t px-5 py-3">{content.footer}</div>}
       </div>
     </div>,
     document.body,

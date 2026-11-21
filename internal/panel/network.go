@@ -142,17 +142,25 @@ func proxyAutoconfig(secret string, backends []NetServer, proxy NetServer, voice
 	if proxy.MOTD != "" {
 		edits[0].Set = append(edits[0].Set, node.SetOp{Path: []string{"motd"}, Value: proxy.MOTD})
 	}
-	if voiceProxy && proxy.VoiceHostPort > 0 && proxy.PublicHost != "" {
-		// Der Proxy nimmt den Voicechat aller Server über einen UDP-Port an und reicht ihn weiter
-		edits = append(edits, node.Edit{
-			File:   "plugins/voicechat/voicechat-proxy.properties",
-			Format: "properties",
-			Create: true,
-			Set: []node.SetOp{
-				{Path: []string{"port"}, Value: -1},
-				{Path: []string{"voice_host"}, Value: proxy.PublicHost + ":" + strconv.Itoa(proxy.VoiceHostPort)},
-			},
-		})
+	if voiceProxy {
+		voiceHostVal := ""
+		if proxy.Row.PublicVoiceAddress != "" {
+			voiceHostVal = proxy.Row.PublicVoiceAddress
+		} else if proxy.VoiceHostPort > 0 && proxy.PublicHost != "" {
+			voiceHostVal = proxy.PublicHost + ":" + strconv.Itoa(proxy.VoiceHostPort)
+		}
+		if voiceHostVal != "" {
+			// Der Proxy nimmt den Voicechat aller Server über einen UDP-Port an und reicht ihn weiter
+			edits = append(edits, node.Edit{
+				File:   "plugins/voicechat/voicechat-proxy.properties",
+				Format: "properties",
+				Create: true,
+				Set: []node.SetOp{
+					{Path: []string{"port"}, Value: -1},
+					{Path: []string{"voice_host"}, Value: voiceHostVal},
+				},
+			})
+		}
 	}
 	return node.Autoconfig{
 		Edits:   edits,
@@ -199,15 +207,23 @@ func backendAutoconfig(secret string, server NetServer, voiceProxy bool) (node.A
 		return node.Autoconfig{}, false
 	}
 
-	if !voiceProxy && server.Row.Voicechat && server.VoiceHostPort > 0 && server.PublicHost != "" {
-		edits = append(edits, node.Edit{
-			File:   voiceFile,
-			Format: "properties",
-			Set: []node.SetOp{
-				{Path: []string{"port"}, Value: voicePort},
-				{Path: []string{"voice_host"}, Value: server.PublicHost + ":" + strconv.Itoa(server.VoiceHostPort)},
-			},
-		})
+	if !voiceProxy && server.Row.Voicechat {
+		voiceHostVal := ""
+		if server.Row.PublicVoiceAddress != "" {
+			voiceHostVal = server.Row.PublicVoiceAddress
+		} else if server.VoiceHostPort > 0 && server.PublicHost != "" {
+			voiceHostVal = server.PublicHost + ":" + strconv.Itoa(server.VoiceHostPort)
+		}
+		if voiceHostVal != "" {
+			edits = append(edits, node.Edit{
+				File:   voiceFile,
+				Format: "properties",
+				Set: []node.SetOp{
+					{Path: []string{"port"}, Value: voicePort},
+					{Path: []string{"voice_host"}, Value: voiceHostVal},
+				},
+			})
+		}
 	}
 	return node.Autoconfig{Edits: edits, Restart: true}, true
 }

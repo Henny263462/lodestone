@@ -99,7 +99,17 @@ Fehlt dir ein Baustein: erst prüfen, ob sich der Bedarf mit den vorhandenen lö
 - Jedes klickbare Element hat Hover (`hover:bg-white/[0.05]`) und Druckeffekt (`active:scale-[0.95–0.97]`) – wie die Bausteine.
 - Fokus: Eingaben zeigen `focus:border-accent/60 focus:ring-2 focus:ring-accent/20` (Klasse `field`). Nie `outline-none` ohne Ersatz.
 - Deaktiviert: `disabled:opacity-50` (macht `Button`), plus kurzer Grund als Text oder `title`, wenn nicht offensichtlich.
-- Übergänge: `transition duration-100` bis `200`. Seiten blenden mit `animate-fade-in` ein (Shell). Keine weiteren Animationen.
+- Übergänge: `transition duration-100` bis `200`, für gleitende Bewegungen `ease-snappy` (schnell los, weich aus).
+- Animationen (alle in `tailwind.config.ts`, alle 120–220 ms, keine anderen erfinden):
+  - `animate-fade-in`: Seiten (Shell, Schlüssel = Pfad + `id`) und Tab-/Bereichsinhalte (`<div key={tab} className="animate-fade-in">`).
+  - `animate-pop-in` / `animate-pop-out`: Dialoge, Schnellsuche, `RowMenu`; `animate-overlay-in/-out`: der abgedunkelte Hintergrund dazu.
+  - `animate-drawer-in/-out`: das Handy-Menü. `animate-toast-in/-out`: Meldungen.
+  - `animate-fade-in-late`: `Loading` erscheint erst nach 180 ms, damit schnelle Antworten keinen Kringel aufblitzen lassen.
+- Ausblenden: `usePresence(open)` aus `ui/primitives` hält ein Element nach dem Schließen kurz im Baum (`leaving` → `*-out`-Klasse,
+  `pointer-events-none`). `Dialog` zeigt dabei den letzten Inhalt weiter, die Seite darf ihre Daten also sofort leeren.
+- `Tabs` haben einen gleitenden Marker unter dem aktiven Tab; `Meter`-Balken gleiten (500 ms) statt zu springen.
+- Bei „Bewegung reduzieren“ im System schaltet `globals.css` alle Animationen ab (außer dem Lade-Kringel).
+- Tastaturfokus: einheitlicher Rahmen über `:focus-visible` in `globals.css` (Akzent, 2 px); Eingaben behalten ihren Ring aus `field`.
 - Mindest-Klickfläche: Icon-Knöpfe `h-8 w-8` (`icon-sm`) oder `h-10 w-10` (`icon`).
 
 ## 7. Layout-Muster

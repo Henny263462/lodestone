@@ -79,6 +79,22 @@ func TestBuildAutoconfigs(t *testing.T) {
 		t.Errorf("voice_host = %v", got)
 	}
 
+	// Test mit PublicVoiceAddress
+	serversWithVoice := []NetServer{
+		{Row: ServerRow{ID: "aaa", Name: "Proxy", Slug: "proxy", Role: RoleProxy, Software: "velocity", PublicVoiceAddress: "proxy-voice.ply.gg:12345"}, InternalPort: 25565},
+		{Row: ServerRow{ID: "bbb", Name: "Survival", Slug: "survival", Role: RoleBackend, Software: "paper", Voicechat: true, PublicVoiceAddress: "survival-voice.ply.gg:54321"}},
+	}
+	proxyVoiceConfigs := BuildAutoconfigs("geheim", serversWithVoice, true)
+	proxyVoiceEdit := editFor(t, proxyVoiceConfigs["aaa"], "plugins/voicechat/voicechat-proxy.properties")
+	if got := setValue(t, proxyVoiceEdit, "voice_host"); got != "proxy-voice.ply.gg:12345" {
+		t.Errorf("proxy voice_host mit PublicVoiceAddress = %v", got)
+	}
+	backendVoiceConfigs := BuildAutoconfigs("geheim", serversWithVoice, false)
+	backendVoiceEdit := editFor(t, backendVoiceConfigs["bbb"], "plugins/voicechat/voicechat-server.properties")
+	if got := setValue(t, backendVoiceEdit, "voice_host"); got != "survival-voice.ply.gg:54321" {
+		t.Errorf("backend voice_host mit PublicVoiceAddress = %v", got)
+	}
+
 	fabric := configs["ccc"]
 	lite := editFor(t, fabric, "config/FabricProxy-Lite.toml")
 	if !lite.Create || setValue(t, lite, "secret") != "geheim" {

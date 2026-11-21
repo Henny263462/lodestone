@@ -159,3 +159,43 @@ func (a *API) putPlayit(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, a.manager.PlayitStatus(ctx))
 }
+
+func (a *API) getPlayitTunnels(w http.ResponseWriter, r *http.Request) {
+	refresh := r.URL.Query().Get("refresh") == "true"
+	tunnels, err := a.manager.PlayitTunnels(r.Context(), refresh)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if tunnels == nil {
+		tunnels = []PlayitTunnel{}
+	}
+	writeJSON(w, http.StatusOK, tunnels)
+}
+
+func (a *API) postPlayitTunnel(w http.ResponseWriter, r *http.Request) {
+	var body CreateTunnelRequest
+	if err := decode(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	tunnel, err := a.manager.CreatePlayitTunnel(r.Context(), body)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, tunnel)
+}
+
+func (a *API) deletePlayitTunnel(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, badRequest("Tunnel-ID fehlt"))
+		return
+	}
+	if err := a.manager.DeletePlayitTunnel(r.Context(), id); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

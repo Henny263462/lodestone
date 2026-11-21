@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/lodestone-mc/lodestone/internal/node"
+	"github.com/lodestone-mc/lodestone/internal/software"
 )
 
 // ---------------------------------------------------------------- Modpacks
@@ -318,34 +319,95 @@ func (p *Panel) putPublicAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Address string `json:"address"`
+		Address      *string `json:"address"`
+		VoiceAddress *string `json:"voiceAddress"`
 	}
 	if err := decode(r, &body); err != nil {
 		writeError(w, err)
 		return
 	}
-	address := strings.ToLower(strings.TrimSpace(body.Address))
-	if address != "" {
+	validateAddr := func(raw string) (string, error) {
+		address := strings.ToLower(strings.TrimSpace(raw))
+		if address == "" {
+			return "", nil
+		}
 		portless := address
 		if cut := strings.LastIndex(address, ":"); cut >= 0 {
 			port, err := strconv.Atoi(address[cut+1:])
 			if err != nil || port < 1 || port > 65535 {
-				writeError(w, fail(http.StatusBadRequest, "ungültiger Port in der Adresse"))
-				return
+				return "", fail(http.StatusBadRequest, "ungültiger Port in der Adresse")
 			}
 			portless = address[:cut]
 		}
 		if !addressPattern.MatchString(address) || portless == "" {
-			writeError(w, fail(http.StatusBadRequest, "ungültige Adresse (erlaubt ist z. B. mc.example.org oder abc.joinmc.link:12345)"))
+			return "", fail(http.StatusBadRequest, "ungültige Adresse (erlaubt ist z. B. mc.example.org oder abc.joinmc.link:12345)")
+		}
+		return address, nil
+	}
+
+	voiceChanged := false
+	if body.Address != nil {
+		addr, err := validateAddr(*body.Address)
+		if err != nil {
+			writeError(w, err)
 			return
 		}
+		row.PublicAddress = addr
 	}
-	row.PublicAddress = address
+	if body.VoiceAddress != nil {
+		voiceAddr, err := validateAddr(*body.VoiceAddress)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		if row.PublicVoiceAddress != voiceAddr {
+			voiceChanged = true
+			row.PublicVoiceAddress = voiceAddr
+		}
+	}
 	if err := p.store.UpdateServer(row); err != nil {
 		writeError(w, err)
 		return
 	}
+	if voiceChanged {
+		p.syncServerVoice(r.Context(), row)
+	}
 	writeJSON(w, http.StatusOK, p.serverDTOs(r.Context(), []ServerRow{row})[0])
+}
+
+func (p *Panel) syncServerVoice(ctx context.Context, row ServerRow) {
+	if row.Role == RoleProxy || row.Role == RoleBackend {
+		_, _ = p.syncNetwork(ctx, row.ProjectID)
+		return
+	}
+	if row.Role == RoleStandalone && row.Voicechat {
+		var voiceFile string
+		if IsPaperFamily(software.ID(row.Software)) {
+			voiceFile = "plugins/voicechat/voicechat-server.properties"
+		} else if row.Software == "fabric" {
+			voiceFile = "config/voicechat/voicechat-server.properties"
+		}
+		if voiceFile != "" {
+			config := node.Autoconfig{
+				Edits: []node.Edit{{
+					File:   voiceFile,
+					Format: "properties",
+					Create: true,
+					Set: []node.SetOp{
+						{Path: []string{"port"}, Value: voicePort},
+						{Path: []string{"voice_host"}, Value: row.PublicVoiceAddress},
+					},
+				}},
+			}
+			client, _, err := p.client(row.NodeID)
+			if err == nil {
+				var answer struct {
+					Pending bool `json:"pending"`
+				}
+				_ = client.Do(ctx, http.MethodPut, "/api/servers/"+row.ID+"/autoconfig", config, &answer)
+			}
+		}
+	}
 }
 
 // ---------------------------------------------------------------- playit (Verwaltung des Agenten pro Node)
@@ -391,4 +453,225 @@ func (p *Panel) nodePlayit(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func (p *Panel) nodePlayitTunnels(w http.ResponseWriter, r *http.Request) {
+	if err := requireAdmin(r); err != nil {
+		writeError(w, err)
+		return
+	}
+	client, _, err := p.client(r.PathValue("id"))
+	if err != nil {
+		writeError(w, errNotFound)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	var tunnels []node.PlayitTunnel
+	if err := client.Do(ctx, http.MethodGet, "/api/playit/tunnels", nil, &tunnels); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tunnels)
+}
+
+func (p *Panel) nodePlayitTunnelCreate(w http.ResponseWriter, r *http.Request) {
+	if err := requireAdmin(r); err != nil {
+		writeError(w, err)
+		return
+	}
+	client, _, err := p.client(r.PathValue("id"))
+	if err != nil {
+		writeError(w, errNotFound)
+		return
+	}
+	var req node.CreateTunnelRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+	var tunnel node.PlayitTunnel
+	if err := client.Do(ctx, http.MethodPost, "/api/playit/tunnels", req, &tunnel); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, tunnel)
+}
+
+func (p *Panel) nodePlayitTunnelDelete(w http.ResponseWriter, r *http.Request) {
+	if err := requireAdmin(r); err != nil {
+		writeError(w, err)
+		return
+	}
+	client, _, err := p.client(r.PathValue("id"))
+	if err != nil {
+		writeError(w, errNotFound)
+		return
+	}
+	tunnelID := r.PathValue("tunnelId")
+	if tunnelID == "" {
+		writeError(w, fail(http.StatusBadRequest, "Tunnel-ID fehlt"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	if err := client.Do(ctx, http.MethodDelete, "/api/playit/tunnels/"+url.PathEscape(tunnelID), nil, nil); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---------------------------------------------------------------- Server-Tunnel (automatische Erstellung über playit)
+
+func (p *Panel) postServerTunnel(w http.ResponseWriter, r *http.Request) {
+	row, _, _, err := p.requireServer(r, rankAdmin)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	client, _, err := p.client(row.NodeID)
+	if err != nil {
+		writeError(w, errNotFound)
+		return
+	}
+	var body struct {
+		Type string `json:"type"` // "server" oder "voice"
+		Port int    `json:"port"` // optional; falls nicht angegeben, wird er aus den Ports des Servers ermittelt
+	}
+	if r.ContentLength > 0 {
+		_ = decode(r, &body)
+	}
+	kind := strings.ToLower(strings.TrimSpace(body.Type))
+	isVoice := kind == "voice" || kind == "voicechat" || kind == "mc: simple voice chat"
+
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+
+	// Node-View abfragen, um Host-Port des Servers zu ermitteln
+	var view node.View
+	if err := client.Do(ctx, http.MethodGet, "/api/servers/"+row.ID, nil, &view); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	targetPort := body.Port
+	if targetPort <= 0 {
+		if isVoice {
+			// Suche nach dem UDP-Port für Voicechat (Container-Port 24454 oder am Proxy proxyPort)
+			for _, m := range view.Ports {
+				if m.Protocol == "udp" && (m.Container == voicePort || (row.Role == RoleProxy && m.Container == proxyPort)) {
+					targetPort = m.Host
+					break
+				}
+			}
+			if targetPort <= 0 {
+				writeError(w, fail(http.StatusBadRequest, "Voicechat ist für diesen Server noch nicht aktiviert oder hat keinen UDP-Port freigegeben."))
+				return
+			}
+		} else {
+			// Suche nach dem TCP-Port für Minecraft
+			for _, m := range view.Ports {
+				if m.Protocol != "udp" {
+					targetPort = m.Host
+					break
+				}
+			}
+			if targetPort <= 0 {
+				writeError(w, fail(http.StatusBadRequest, "Dieser Server hat keinen freigegebenen Port auf dem Node."))
+				return
+			}
+		}
+	}
+
+	tunnelReq := node.CreateTunnelRequest{
+		LocalIP:   "127.0.0.1",
+		LocalPort: targetPort,
+	}
+	if isVoice {
+		tunnelReq.Name = row.Name + " (Voice)"
+		tunnelReq.TunnelType = "mc: simple voice chat"
+		tunnelReq.PortType = "udp"
+	} else {
+		tunnelReq.Name = row.Name
+		tunnelReq.TunnelType = "minecraft-java"
+		tunnelReq.PortType = "tcp"
+	}
+
+	var tunnel node.PlayitTunnel
+	if err := client.Do(ctx, http.MethodPost, "/api/playit/tunnels", tunnelReq, &tunnel); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	if isVoice {
+		row.PublicVoiceAddress = tunnel.PublicAddress
+	} else {
+		row.PublicAddress = tunnel.PublicAddress
+	}
+	if err := p.store.UpdateServer(row); err != nil {
+		writeError(w, err)
+		return
+	}
+	if isVoice {
+		p.syncServerVoice(r.Context(), row)
+	}
+
+	dto := p.serverDTOs(r.Context(), []ServerRow{row})[0]
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"tunnel": tunnel,
+		"server": dto,
+	})
+}
+
+func (p *Panel) deleteServerTunnel(w http.ResponseWriter, r *http.Request) {
+	row, _, _, err := p.requireServer(r, rankAdmin)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
+	isVoice := kind == "voice" || kind == "voicechat"
+
+	addrToDelete := row.PublicAddress
+	if isVoice {
+		addrToDelete = row.PublicVoiceAddress
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Falls ein Node-Client da ist, versuchen wir den Tunnel auf playit.gg zu finden und zu löschen
+	client, _, err := p.client(row.NodeID)
+	if err == nil && addrToDelete != "" {
+		var tunnels []node.PlayitTunnel
+		if err := client.Do(ctx, http.MethodGet, "/api/playit/tunnels", nil, &tunnels); err == nil {
+			for _, t := range tunnels {
+				if t.PublicAddress == addrToDelete {
+					_ = client.Do(ctx, http.MethodDelete, "/api/playit/tunnels/"+url.PathEscape(t.ID), nil, nil)
+					break
+				}
+			}
+		}
+	}
+
+	if isVoice {
+		row.PublicVoiceAddress = ""
+	} else {
+		row.PublicAddress = ""
+	}
+	if err := p.store.UpdateServer(row); err != nil {
+		writeError(w, err)
+		return
+	}
+	if isVoice {
+		p.syncServerVoice(r.Context(), row)
+	}
+
+	dto := p.serverDTOs(r.Context(), []ServerRow{row})[0]
+	writeJSON(w, http.StatusOK, map[string]any{
+		"server": dto,
+	})
 }

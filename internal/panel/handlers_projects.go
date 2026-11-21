@@ -74,20 +74,25 @@ func (p *Panel) serverDTOs(ctx context.Context, rows []ServerRow) []ServerDTO {
 }
 
 func publicAddresses(host string, row ServerRow, view node.View) (address, voice string) {
-	if host == "" {
-		return "", ""
+	if host != "" {
+		info, _ := software.Lookup(software.ID(row.Software))
+		for _, mapping := range view.Ports {
+			if mapping.Host == 0 {
+				continue
+			}
+			switch {
+			case mapping.Protocol == "tcp" && mapping.Container == info.DefaultPort && address == "":
+				address = hostPort(host, mapping.Host)
+			case mapping.Protocol == "udp" && (mapping.Container == voicePort || row.Role == RoleProxy && mapping.Container == proxyPort):
+				voice = hostPort(host, mapping.Host)
+			}
+		}
 	}
-	info, _ := software.Lookup(software.ID(row.Software))
-	for _, mapping := range view.Ports {
-		if mapping.Host == 0 {
-			continue
-		}
-		switch {
-		case mapping.Protocol == "tcp" && mapping.Container == info.DefaultPort && address == "":
-			address = hostPort(host, mapping.Host)
-		case mapping.Protocol == "udp" && (mapping.Container == voicePort || row.Role == RoleProxy && mapping.Container == proxyPort):
-			voice = hostPort(host, mapping.Host)
-		}
+	if row.PublicAddress != "" {
+		address = row.PublicAddress
+	}
+	if row.PublicVoiceAddress != "" {
+		voice = row.PublicVoiceAddress
 	}
 	return address, voice
 }

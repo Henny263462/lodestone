@@ -102,7 +102,7 @@ function ServerView() {
                 key={entry.id}
                 onClick={() => setTab(entry.id)}
                 className={cx(
-                  "flex shrink-0 items-center gap-3 whitespace-nowrap rounded-lg border px-3 py-2 text-left text-[13px] transition duration-100 active:scale-[0.97]",
+                  "flex shrink-0 items-center gap-3 whitespace-nowrap rounded-lg border px-3 py-2 text-left text-[13px] transition duration-150 active:scale-[0.97]",
                   active === entry.id ? "border-white/[0.07] bg-white/[0.07] text-ink" : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
                 )}
               >
@@ -153,13 +153,16 @@ function ServerView() {
       {view?.lastError && state === "offline" && <p className="mb-5 rounded-lg border border-bad/25 bg-bad/10 px-4 py-3 text-xs text-bad">{view.lastError}</p>}
       {state === "installing" && <p className="mb-5 rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-xs text-info">Die Server-Datei wird heruntergeladen. Das dauert einen Moment.</p>}
 
-      {active === "console" && <ConsoleTab serverId={server.id} canCommand={rank >= roleRank.operator} state={state} />}
-      {active === "stats" && <StatsTab server={server} />}
-      {active === "files" && <FilesTab serverId={server.id} canWrite={rank >= roleRank.operator} />}
-      {active === "addons" && extensions && <AddonsTab serverId={server.id} canWrite={rank >= roleRank.operator} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />}
-      {active === "players" && <PlayersTab server={server} canOperate={rank >= roleRank.operator} />}
-      {active === "backups" && <BackupsTab serverId={server.id} canWrite={rank >= roleRank.operator} offline={state === "offline"} />}
-      {active === "settings" && <SettingsTab server={server} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />}
+      {/* Neuer Schlüssel pro Bereich: Der Inhalt blendet beim Wechsel kurz ein */}
+      <div key={active} className="animate-fade-in">
+        {active === "console" && <ConsoleTab serverId={server.id} canCommand={rank >= roleRank.operator} state={state} />}
+        {active === "stats" && <StatsTab server={server} />}
+        {active === "files" && <FilesTab serverId={server.id} canWrite={rank >= roleRank.operator} />}
+        {active === "addons" && extensions && <AddonsTab serverId={server.id} canWrite={rank >= roleRank.operator} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />}
+        {active === "players" && <PlayersTab server={server} canOperate={rank >= roleRank.operator} />}
+        {active === "backups" && <BackupsTab serverId={server.id} canWrite={rank >= roleRank.operator} offline={state === "offline"} />}
+        {active === "settings" && <SettingsTab server={server} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />}
+      </div>
     </>
   );
 }

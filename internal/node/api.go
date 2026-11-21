@@ -61,6 +61,9 @@ func (a *API) Handler() http.Handler {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("GET /api/playit/tunnels", a.getPlayitTunnels)
+	mux.HandleFunc("POST /api/playit/tunnels", a.postPlayitTunnel)
+	mux.HandleFunc("DELETE /api/playit/tunnels/{id}", a.deletePlayitTunnel)
 
 	mux.HandleFunc("GET /api/servers", a.listServers)
 	mux.HandleFunc("POST /api/servers", a.createServer)

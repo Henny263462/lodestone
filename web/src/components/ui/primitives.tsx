@@ -1,10 +1,27 @@
 "use client";
 
 import { Check, Loader2, Search } from "lucide-react";
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
+}
+
+/**
+ * Hält ein Element nach dem Schließen noch kurz im Baum, damit es ausblenden kann. `leaving` ist während dieser Zeit wahr;
+ * die Dauer passt zu den *-out-Animationen in tailwind.config.ts.
+ */
+export function usePresence(open: boolean, duration = 140): { mounted: boolean; leaving: boolean } {
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    const timer = setTimeout(() => setMounted(false), duration);
+    return () => clearTimeout(timer);
+  }, [open, duration]);
+  return { mounted: open || mounted, leaving: !open && mounted };
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -200,15 +217,41 @@ export function Spinner() {
 }
 
 export function Tabs<T extends string>({ value, onChange, items }: { value: T; onChange: (value: T) => void; items: { id: T; label: string; count?: number }[] }) {
+  const list = useRef<HTMLDivElement>(null);
+  const [marker, setMarker] = useState<{ left: number; width: number; animate: boolean } | null>(null);
+
+  // Der Marker gleitet unter den aktiven Tab. Beim ersten Messen springt er ohne Animation an seinen Platz.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const button = list.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!button) return setMarker(null);
+      setMarker((previous) => ({ left: button.offsetLeft, width: button.offsetWidth, animate: previous !== null }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (list.current) observer.observe(list.current);
+    return () => observer.disconnect();
+  }, [value, items.length]);
+
   return (
-    <div className="inline-flex rounded-lg border border-white/[0.07] bg-white/[0.025] p-0.5">
+    <div ref={list} role="tablist" className="relative inline-flex rounded-lg border border-white/[0.07] bg-white/[0.025] p-0.5">
+      {marker && (
+        <span
+          aria-hidden
+          className={cx("absolute inset-y-0.5 rounded-md bg-white/[0.09] shadow-sm", marker.animate && "transition-[left,width] duration-200 ease-snappy")}
+          style={{ left: marker.left, width: marker.width }}
+        />
+      )}
       {items.map((item) => (
         <button
           key={item.id}
+          role="tab"
+          aria-selected={value === item.id}
           onClick={() => onChange(item.id)}
           className={cx(
-            "rounded-md px-3 py-1.5 text-xs font-medium transition duration-100 active:scale-95",
-            value === item.id ? "bg-white/[0.09] text-ink shadow-sm" : "text-muted hover:text-ink",
+            "relative rounded-md px-3 py-1.5 text-xs font-medium transition duration-150 active:scale-95",
+            value === item.id ? "text-ink" : "text-muted hover:text-ink",
+            !marker && value === item.id && "bg-white/[0.09] shadow-sm",
           )}
         >
           {item.label}
@@ -224,7 +267,7 @@ export function Meter({ value, max, tone = "accent" }: { value: number; max: num
   const colors = { accent: "bg-accent", good: "bg-good", warn: "bg-warn", bad: "bg-bad" };
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-      <div className={cx("h-full rounded-full transition-all", colors[tone])} style={{ width: `${percent}%` }} />
+      <div className={cx("h-full rounded-full transition-[width,background-color] duration-500 ease-snappy", colors[tone])} style={{ width: `${percent}%` }} />
     </div>
   );
 }
@@ -285,6 +328,7 @@ export interface MenuItem {
 /** Kleines Aufklappmenü (⋯) für Zeilenaktionen. */
 export function RowMenu({ items, label = "Aktionen" }: { items: (MenuItem | "separator")[]; label?: string }) {
   const [open, setOpen] = useState(false);
+  const { mounted, leaving } = usePresence(open, 120);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -313,10 +357,13 @@ export function RowMenu({ items, label = "Aktionen" }: { items: (MenuItem | "sep
       >
         <span className="text-lg leading-none tracking-widest">···</span>
       </button>
-      {open && (
+      {mounted && (
         <div
           role="menu"
-          className="absolute right-0 top-9 z-30 min-w-[210px] animate-fade-in rounded-lg border border-white/[0.09] bg-raised p-1 shadow-2xl shadow-black/60"
+          className={cx(
+            "absolute right-0 top-9 z-30 min-w-[210px] origin-top-right rounded-lg border border-white/[0.09] bg-raised p-1 shadow-2xl shadow-black/60",
+            leaving ? "pointer-events-none animate-pop-out" : "animate-pop-in",
+          )}
         >
           {items.map((item, index) =>
             item === "separator" ? (

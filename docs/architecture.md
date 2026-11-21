@@ -15,7 +15,8 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 - **Panel-Backend** (`cmd/lodestone-panel`, `internal/panel`): Benutzer, Rollen, Projekte, Nodes, Netzwerk-Autoconfig,
   Modrinth, Proxy zu den Nodes, SQLite. *Fertig (v0.1).*
 - **Panel-Oberfläche** (`web/`, Next.js als statischer Export, ins Panel-Binary eingebettet; Konsole mit ANSI-Farben,
-  Datei-Editor mit CodeMirror 6, Plugins/Mods, Backups, Spieler). *Fertig (v0.1).*
+  Datei-Editor mit CodeMirror 6, Plugins/Mods, Backups, Spieler). *Fertig (v0.1).* Das Panel liefert Text-Dateien gzip-
+  komprimiert aus (`internal/panel/webui`, einmal gepackt und im Speicher gehalten); CodeMirror lädt erst beim Öffnen einer Datei.
 - **Verbindung Panel ↔ Node (v0.1):** Das Panel ruft die HTTP-Schnittstelle des Nodes direkt auf (Bearer-Token); die
   Node-API gehört deshalb ins interne Netz oder hinter TLS/VPN. **Später:** Die Node verbindet **nach außen** zum Panel
   (eine Websocket-Verbindung, über die alles läuft). Dann braucht sie keine offenen Ports und funktioniert hinter NAT.
