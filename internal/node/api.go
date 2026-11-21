@@ -107,6 +107,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("GET /api/servers/{id}/files/download", a.server(a.download))
 	a.registerSFTPRoutes(mux)
 	a.registerServerOpsRoutes(mux)
+	a.registerWorldRoutes(mux)
 
 	return a.authenticate(a.storageGuard(mux))
 }

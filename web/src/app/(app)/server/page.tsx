@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Archive, BarChart3, ChevronLeft, FolderOpen, Puzzle, Settings, Terminal, Users, type LucideIcon } from "lucide-react";
+import { Archive, BarChart3, ChevronLeft, FolderOpen, Globe, Puzzle, Settings, SlidersHorizontal, Terminal, Users, type LucideIcon } from "lucide-react";
 import { Suspense, useState } from "react";
 import { Badge, Meter, cx, loadTone } from "@/components/ui/primitives";
 import { ErrorState, Loading } from "@/components/ui/async";
@@ -10,6 +10,8 @@ import { PowerButtons, StateBadge } from "@/components/status";
 import { SecondarySidebar } from "@/components/layout/shell";
 import { AddonsTab } from "@/components/server/addons";
 import { BackupsTab } from "@/components/server/backups";
+import { PropertiesTab } from "@/components/server/properties";
+import { WorldsTab } from "@/components/server/worlds";
 import { ConsoleTab } from "@/components/server/console";
 import { FilesTab } from "@/components/server/files";
 import { SftpCard } from "@/components/server/sftp";
@@ -29,7 +31,7 @@ export default function ServerPage() {
   );
 }
 
-type Tab = "console" | "stats" | "files" | "addons" | "players" | "backups" | "settings";
+type Tab = "console" | "stats" | "files" | "addons" | "players" | "backups" | "worlds" | "properties" | "settings";
 
 interface Entry {
   id: Tab;
@@ -62,6 +64,7 @@ function ServerView() {
   const view = server.view;
   const state = view?.state;
   const extensions = server.software === "fabric" || server.software === "neoforge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
+  const hasWorlds = server.role !== "proxy" && server.software !== "velocity";
 
   const entries: Entry[] = [
     ...(allowed("console.read") ? [{ id: "console" as const, label: "Konsole", icon: Terminal }] : []),
@@ -70,6 +73,13 @@ function ServerView() {
     ...(extensions ? [{ id: "addons" as const, label: extensions, icon: Puzzle }] : []),
     { id: "players", label: "Spieler", icon: Users },
     ...(allowed("backups.read") ? [{ id: "backups" as const, label: "Backups", icon: Archive }] : []),
+    // Welten und server.properties gibt es nur bei Minecraft-Servern, nicht beim Velocity-Proxy
+    ...(allowed("files.read") && hasWorlds
+      ? [
+          { id: "worlds" as const, label: "Welten", icon: Globe },
+          { id: "properties" as const, label: "Spieleinstellungen", icon: SlidersHorizontal },
+        ]
+      : []),
     ...(allowed("settings") || allowed("servers") ? [{ id: "settings" as const, label: "Einstellungen", icon: Settings }] : []),
   ];
   const active = entries.some((entry) => entry.id === tab) ? tab : entries[0].id;
@@ -169,6 +179,8 @@ function ServerView() {
         )}
         {active === "players" && <PlayersTab server={server} canOperate={allowed("players")} />}
         {active === "backups" && <BackupsTab serverId={server.id} canWrite={allowed("backups.create")} canManage={allowed("settings")} offline={state === "offline"} />}
+        {active === "worlds" && <WorldsTab server={server} canManage={allowed("settings")} canOperate={allowed("files.write")} />}
+        {active === "properties" && <PropertiesTab server={server} canWrite={allowed("settings")} />}
         {active === "settings" && (
           <SettingsTab server={server} canEdit={allowed("settings")} canDelete={allowed("servers")} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />
         )}

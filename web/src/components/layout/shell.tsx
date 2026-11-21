@@ -10,7 +10,8 @@ import { LodestoneLogo, PixelAvatar, Wordmark } from "@/components/ui/mc";
 import { Loading } from "@/components/ui/async";
 import { CommandPalette } from "./palette";
 import { api, prefetch, useApi } from "@/lib/api";
-import type { AuthStatus, Project, User } from "@/lib/types";
+import { orderProjects } from "@/lib/order";
+import type { AuthStatus, Project, ProjectPref, User } from "@/lib/types";
 
 type Icon = ComponentType<{ className?: string }>;
 
@@ -94,6 +95,8 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [secondary, setSecondary] = useState(0);
   const { data: projects } = useApi<Project[]>("/projects", { refreshInterval: 15000 });
+  // Eigene Ordnung: angeheftete Projekte oben, dann die selbst gewählte Reihenfolge
+  const { data: prefs } = useApi<ProjectPref[]>("/me/project-prefs");
 
   useEffect(() => setOpen(false), [pathname, params]);
   useEffect(() => setFolded(window.localStorage.getItem(FOLD_KEY) === "1"), []);
@@ -180,7 +183,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
           {link("/", "Übersicht", LayoutDashboard, pathname === "/", compact)}
 
           {heading("Projekte")}
-          {(projects ?? []).map((project) =>
+          {orderProjects(projects ?? [], prefs).map((project) =>
             link(
               `/project/?id=${project.id}`,
               project.name,

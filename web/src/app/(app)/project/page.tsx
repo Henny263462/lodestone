@@ -19,6 +19,8 @@ import { ProjectTransferCard } from "@/components/server/transfer";
 import { ChartCard, RangeTabs } from "@/components/server/stats";
 import { SeriesChart } from "@/components/ui/chart";
 import { PowerButtons, StateBadge } from "@/components/status";
+import { ServerSortSelect, useServerSort } from "@/components/server-sort";
+import { sortServers } from "@/lib/order";
 import { useUser } from "@/components/layout/shell";
 import { PixelAvatar } from "@/components/ui/mc";
 import { api, useApi } from "@/lib/api";
@@ -107,6 +109,8 @@ function ProjectView() {
 // ---------------------------------------------------------------- Server
 
 function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: () => void; onAdd?: () => void }) {
+  const [sort, setSort] = useServerSort(project.id);
+  const { data: players } = useApi<Record<string, number>>(sort === "players" ? `/projects/${project.id}/live-players` : null, { refreshInterval: 15000 });
   if (project.servers.length === 0) {
     return (
       <Card>
@@ -131,7 +135,12 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
   return (
     <div className="space-y-3">
       <ProjectStats project={project} />
-      {project.servers.map((server) => (
+      {project.servers.length > 1 && (
+        <div className="flex justify-end">
+          <ServerSortSelect value={sort} onChange={setSort} />
+        </div>
+      )}
+      {sortServers(project.servers, sort, players).map((server) => (
         <Card key={server.id} className="p-4">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <Link href={`/server/?id=${server.id}`} className="flex min-w-[200px] flex-1 items-center gap-3">

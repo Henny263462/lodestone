@@ -88,6 +88,15 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Speicherplatz:** Der Node misst alle 5 Minuten jeden Serverordner und den freien Platz der Maschine (Anzeige unter
   *Statistiken* und auf der Nodes-Seite). Pro Server ein **weiches Speicherlimit** (nur Admins): bei 90 % das Ereignis
   „Speicher fast voll“ (auch als Webhook), bei 100 % kein Start, kein Upload und kein Entpacken mehr
+- **Spieleinstellungen:** die `server.properties` als Formular mit Erklärungen (Schwierigkeit, Spielmodus, PvP,
+  Spielerzahl, Sicht- und Simulationsweite, Whitelist, Spawn-Schutz, Fliegen, MOTD, Seed …) plus Rohansicht im Editor.
+  Kommentare und unbekannte Schlüssel bleiben erhalten; `server-port` und im Netzwerk `online-mode` sind gesperrt, weil
+  Lodestone sie verwaltet. Änderungen gelten nach dem nächsten Neustart
+- **Welten:** alle Welten (Ordner mit `level.dat`) mit Größe, Download als Zip, Hochladen und Ersetzen per Zip (sicher
+  entpackt: keine Symlinks, keine Pfade nach außen, Größenlimit), Zurücksetzen mit optionalem Backup und neuem Seed
+  (nur bei ausgeschaltetem Server) und **Datapacks** pro Welt (Liste, Hochladen mit Prüfung auf `pack.mcmeta`, Löschen)
+- **Eigene Ordnung:** Projekte anheften, Reihenfolge in Seitenleiste und Übersicht selbst festlegen und mit
+  Schlagwörtern filtern – pro Benutzer gespeichert. Server eines Projekts nach Name, Zustand oder Spielern sortieren
 
 ## Schnellstart (1-Klick Installer für Linux)
 

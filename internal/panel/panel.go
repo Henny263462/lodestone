@@ -206,6 +206,7 @@ func (p *Panel) Handler() http.Handler {
 	p.registerSFTPRoutes(mux)
 	p.registerBackupRoutes(mux)
 	p.registerServerOpsRoutes(mux)
+	p.registerWorldRoutes(mux)
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
 	p.registerRechteRoutes(mux)
 

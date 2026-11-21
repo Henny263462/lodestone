@@ -268,6 +268,7 @@ async function api(req, res, url) {
   const parts = url.pathname.replace(/^\/api\//, "").split("/").filter(Boolean);
   const method = req.method;
   const body = ["POST", "PUT", "PATCH"].includes(method) ? await readBody(req) : {};
+  if (weltenDemo(res, parts, method, body)) return;
   const [a, b, c, d] = parts;
   if (rechteApi(res, method, body, a, b, c, d)) return;
   if (sftpDemo(res, method, body, a, b, c, d)) return;
@@ -1009,4 +1010,147 @@ function serveropsApi(res, parts, method, body) {
     return send(res, 200, { online: true, free: node.id === "n1" ? 61 * GB : 410 * GB, total: node.id === "n1" ? 240 * GB : 480 * GB, used, servers }), true;
   }
   return false;
+}
+
+// --- welten
+// Welten, server.properties, Datapacks und die eigene Ordnung der Projekte. weltenDemo gibt true zurück, wenn es die
+// Anfrage beantwortet hat.
+
+let projectPrefs = [
+  { projectId: "p1", favorite: true, position: 0, tags: ["Öffentlich"] },
+  { projectId: "p2", favorite: false, position: 0, tags: ["Test"] },
+];
+const demoProperties = new Map();
+const demoWorlds = new Map();
+const demoDatapacks = new Map();
+
+function propertiesOf(server) {
+  if (!demoProperties.has(server.id)) {
+    const entries = fileTexts["server.properties"]
+      .split("\n")
+      .filter((line) => line && !line.startsWith("#"))
+      .map((line) => ({ key: line.slice(0, line.indexOf("=")), value: line.slice(line.indexOf("=") + 1) }));
+    entries.push({ key: "level-name", value: "world" }, { key: "level-seed", value: "-4172144997902289642" }, { key: "pvp", value: "true" }, { key: "simulation-distance", value: "8" }, { key: "luckperms-sync", value: "true" });
+    demoProperties.set(server.id, entries);
+  }
+  return demoProperties.get(server.id);
+}
+
+function worldsOf(server) {
+  if (!demoWorlds.has(server.id)) {
+    demoWorlds.set(server.id, [
+      { name: "world", kind: "overworld", main: true, size: 212_000_000, modified: now() - 4 * MIN, datapacks: 2 },
+      { name: "world_nether", kind: "nether", main: false, size: 38_000_000, modified: now() - 2 * HOUR, datapacks: 0 },
+      { name: "world_the_end", kind: "end", main: false, size: 6_400_000, modified: now() - 26 * HOUR, datapacks: 0 },
+    ]);
+  }
+  return demoWorlds.get(server.id);
+}
+
+function datapacksOf(serverId, world) {
+  const key = `${serverId}/${world}`;
+  if (!demoDatapacks.has(key)) {
+    demoDatapacks.set(key, world === "world" ? [
+      { name: "Terralith_1.21.zip", dir: false, size: 2_300_000, modified: now() - 3 * 24 * HOUR },
+      { name: "mehr-rezepte", dir: true, size: 0, modified: now() - 6 * 24 * HOUR },
+    ] : []);
+  }
+  return demoDatapacks.get(key);
+}
+
+function lockedOf(server) {
+  const locked = { "server-port": "Lodestone verbindet den Port im Container (25565) mit einem Port der Maschine. Welchen, stellst du unter Einstellungen ein." };
+  if (server.role === "backend") locked["online-mode"] = "Im Netzwerk prüft der Velocity-Proxy die Konten. Die Autokonfiguration setzt online-mode hier deshalb auf false; ein anderer Wert würde den Beitritt über den Proxy verhindern.";
+  return locked;
+}
+
+function weltenDemo(res, parts, method, body) {
+  const [a, b, c, d, e, f] = parts.map((part) => decodeURIComponent(part));
+  if (a === "me" && b === "project-prefs") {
+    if (method === "GET") return send(res, 200, projectPrefs), true;
+    let pref = projectPrefs.find((entry) => entry.projectId === c);
+    if (!pref) projectPrefs.push((pref = { projectId: c, favorite: false, position: 0, tags: [] }));
+    if (typeof body.favorite === "boolean") pref.favorite = body.favorite;
+    if (Array.isArray(body.tags)) pref.tags = [...new Set(body.tags.map((tag) => String(tag).trim()).filter(Boolean))].slice(0, 8);
+    return send(res, 200, pref), true;
+  }
+  if (a === "me" && b === "project-order") {
+    (body.projectIds ?? []).forEach((projectId, index) => {
+      let pref = projectPrefs.find((entry) => entry.projectId === projectId);
+      if (!pref) projectPrefs.push((pref = { projectId, favorite: false, position: 0, tags: [] }));
+      pref.position = index + 1;
+    });
+    return send(res, 200, projectPrefs), true;
+  }
+  if (a === "projects" && c === "live-players") {
+    const project = projects.find((entry) => entry.id === b);
+    if (!project) return send(res, 404, { error: "nicht gefunden" }), true;
+    return send(res, 200, Object.fromEntries(project.servers.map((server) => [server.id, server.view.state === "running" ? (server.role === "proxy" ? 38 : Math.round(hash(server.id) * 20)) : 0]))), true;
+  }
+  if (a !== "servers" || (c !== "properties" && c !== "worlds")) return false;
+  const found = findServer(b);
+  if (!found) return send(res, 404, { error: "nicht gefunden" }), true;
+  const { server } = found;
+  if (server.role === "proxy") return send(res, 400, { error: "Velocity hat keine Welten und keine server.properties; seine Einstellungen stehen in velocity.toml (unter Dateien)" }), true;
+
+  if (c === "properties") {
+    const entries = propertiesOf(server);
+    if (method === "PUT") {
+      const locked = lockedOf(server);
+      for (const [key, value] of Object.entries(body.values ?? {})) {
+        if (locked[key]) return send(res, 400, { error: `${key} lässt sich hier nicht ändern. ${locked[key]}` }), true;
+        const entry = entries.find((item) => item.key === key);
+        if (entry) entry.value = String(value);
+        else entries.push({ key, value: String(value) });
+      }
+    }
+    return send(res, 200, { exists: true, entries, locked: lockedOf(server) }), true;
+  }
+
+  const worlds = worldsOf(server);
+  const level = propertiesOf(server).find((entry) => entry.key === "level-name")?.value ?? "world";
+  const seed = propertiesOf(server).find((entry) => entry.key === "level-seed")?.value ?? "";
+  if (!d) return send(res, 200, { levelName: level, seed, worlds }), true;
+  const world = worlds.find((entry) => entry.name === d);
+  const offline = server.view.state === "offline";
+  if (e === "upload") {
+    if (!offline) return send(res, 409, { error: "das ist im aktuellen Zustand des Servers nicht möglich: Stoppe den Server, bevor du die Welt änderst" }), true;
+    if (!world) worlds.push({ name: d, kind: "other", main: d === level, size: 48_000_000, modified: now(), datapacks: 0 });
+    else Object.assign(world, { size: 48_000_000, modified: now() });
+    return send(res, 201, { world: d }), true;
+  }
+  if (!world) return send(res, 404, { error: `die Welt „${d}“ gibt es nicht` }), true;
+  if (e === "download") {
+    res.writeHead(200, { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${d}.zip"` });
+    res.end("Demo: hier käme das Zip der Welt.");
+    return true;
+  }
+  if (e === "reset") {
+    if (!offline) return send(res, 409, { error: "das ist im aktuellen Zustand des Servers nicht möglich: Stoppe den Server, bevor du die Welt änderst" }), true;
+    const targets = [d, ...(body.dimensions && world.main ? [`${d}_nether`, `${d}_the_end`] : [])];
+    if (typeof body.seed === "string") propertiesOf(server).find((entry) => entry.key === "level-seed").value = body.seed;
+    server.view.state = "restoring";
+    setTimeout(() => {
+      demoWorlds.set(server.id, worlds.filter((entry) => !targets.includes(entry.name)));
+      server.view.state = "offline";
+    }, 2500);
+    return send(res, 202, server.view), true;
+  }
+  if (e === "datapacks") {
+    const packs = datapacksOf(server.id, d);
+    if (method === "GET") return send(res, 200, packs), true;
+    if (method === "POST") {
+      packs.push({ name: `Demo-Pack-${packs.length + 1}.zip`, dir: false, size: 180_000, modified: now() });
+      world.datapacks = packs.length;
+      return send(res, 201, { name: packs[packs.length - 1].name }), true;
+    }
+    if (method === "DELETE") {
+      const index = packs.findIndex((pack) => pack.name === f);
+      if (index < 0) return send(res, 404, { error: `das Datapack „${f}“ gibt es nicht` }), true;
+      packs.splice(index, 1);
+      world.datapacks = packs.length;
+      return send(res, 204), true;
+    }
+  }
+  return send(res, 404, { error: "unbekannte Adresse (Demo)" }), true;
 }
