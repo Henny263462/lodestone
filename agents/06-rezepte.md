@@ -54,6 +54,18 @@ Vorbild: `kind: "lowmemory"` in `events.go`.
 2. Kennung in `eventKinds` (Validierung) und die Beschriftungstabelle in `events.go` (ca. Zeile 100) aufnehmen, bei Bedarf in `defaultHookEvents`, und in `web/src/components/events.tsx` (Auswahl + Beschriftung).
 3. Test in `events_test.go`; Demo-Beispiel.
 
+Ereignisse, die aus der **Konsole** oder dem **Schlafmodus** kommen (Vorbild: `player_join`), entstehen auf dem Node: Erkennung in
+`observe` (`internal/node/automatik.go`) → `ConsoleEvent` mit eigener `Kind` → das Panel macht daraus in `handleConsoleEvent`
+(`internal/panel/automatik.go`) ein `p.emit(…)`. Kennung und Titel stehen dort in `automatikEventTitles`, die Beschriftung in
+`web/src/components/events.tsx`. Test: Node `automatik_test.go` (`observe` mit echten Log-Zeilen, auch eine Chat-Zeile, die *nicht*
+zählen darf), Panel `automatik_test.go` (`autoNode` liefert die Ereignisse).
+
+## I. Neue Absturz-Erkennung
+
+Vorbild: Mixin-Fehler. Backend: Regel in `analyzeCrash` (`internal/node/crash_analysis.go`, reine Funktion) + Satz in
+`crashSummary` + Test mit einem echten Ausschnitt aus einem Absturzbericht. Oberfläche: Regel in `web/src/lib/crash.ts` mit
+`detail`, die den Namen aus dem Text holt – vorhandene Regeln nur erweitern, nicht ersetzen.
+
 ## F. Neue Server-Software (z. B. weiterer Fork)
 
 Vorbild: `purpur` in `internal/software/software.go` und `software_test.go`.

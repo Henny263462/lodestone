@@ -5,6 +5,7 @@ import { AlertTriangle, Bell, Info, Pencil, Plus, Send, Trash2, XCircle } from "
 import { useState } from "react";
 import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
+import { ConsoleTriggersCard } from "@/components/console-triggers";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
 import { roleRank, type Project, type ProjectEvent, type Webhook } from "@/lib/types";
@@ -20,6 +21,11 @@ export const eventLabels: Record<string, string> = {
   node_online: "Node wieder erreichbar",
   lowmemory: "Wenig Arbeitsspeicher",
   scale: "Skalierung",
+  player_join: "Spieler betritt",
+  player_leave: "Spieler verlässt",
+  console_match: "Konsolen-Auslöser",
+  sleep: "Server schläft ein",
+  wake: "Server wacht auf",
 };
 
 const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory"];
@@ -32,6 +38,7 @@ export function EventsTab({ project }: { project: Project }) {
   return (
     <div className="space-y-5">
       {canManage && <WebhooksCard project={project} />}
+      {canManage && <ConsoleTriggersCard project={project} />}
       <Card>
         <CardHeader title="Verlauf" description="Abstürze, Neustarts, Backups und Meldungen der letzten 30 Tage." />
         {!data ? null : data.length === 0 ? (

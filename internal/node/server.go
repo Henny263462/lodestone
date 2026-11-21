@@ -276,6 +276,7 @@ func (s *Server) launch() {
 }
 
 func (s *Server) doLaunch(ctx context.Context) error {
+	s.m.auto.releaseSleep(s.ID()) // der Schlafmodus gibt den Port frei, bevor Docker ihn belegt
 	spec := s.snapshot()
 	if !spec.Installed {
 		if err := s.install(ctx); err != nil {

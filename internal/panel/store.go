@@ -57,6 +57,10 @@ func OpenStore(path string) (*Store, error) {
 			return nil, fmt.Errorf("Spalte %s.%s: %w", column.table, column.name, err)
 		}
 	}
+	if err := store.migrateAutomatik(); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return store, nil
 }
 

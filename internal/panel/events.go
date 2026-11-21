@@ -267,7 +267,7 @@ func distinctProjects(rows []ServerRow) []string {
 }
 
 func (p *Panel) handleCrash(ctx context.Context, row ServerRow, view node.View) {
-	p.emit(row.ProjectID, row.ID, "crash", "error", fmt.Sprintf("%s ist abgestürzt (Exit-Code %d).", row.Name, view.LastExit.Code))
+	p.emit(row.ProjectID, row.ID, "crash", "error", fmt.Sprintf("%s ist abgestürzt (Exit-Code %d).", row.Name, view.LastExit.Code)+p.crashHint(ctx, row))
 	if row.GroupID != "" {
 		return // Instanzen einer Gruppe startet der Autoscaler
 	}

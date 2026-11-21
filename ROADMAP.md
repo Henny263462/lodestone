@@ -52,7 +52,11 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [x] **Spieler-Verwaltung (M).** Whitelist, Operatoren und Sperren als Oberfläche, Kick/Ban/Nachricht, Spielerseite mit Spielzeit über das ganze Netzwerk, Köpfe und Skins. 
   - *Erledigt:* Whitelist, Operatoren, Sperren, IP-Sperren, Kick/Nachricht, Köpfe. Offen: Spielerseite über das ganze Netzwerk.
 - [ ] **Konsole und Logs (M).** Suche und Filter, Log-Dateien durchblättern und herunterladen, gespeicherte Befehle/Makros, Teilen über mclo.gs, einfache Absturzanalyse (häufige Fehler erklären). 
-  - *Teilweise erledigt:* Suche, Stufenfilter, Log-Download, Erklärung häufiger Fehler. Offen: ältere Logs durchblättern, Makros, mclo.gs.
+  - *Teilweise erledigt:* Suche, Stufenfilter, Log-Download, Erklärung häufiger Fehler, Absturzanalyse (verdächtige Mod, fehlende Abhängigkeit, Java, Mixin), Konsolen-Auslöser mit eigenem Muster. Offen: ältere Logs durchblättern, Makros, mclo.gs.
+- [x] **Schlafmodus (M).** Start beim Beitritt, Stopp im Leerlauf, für Einzelserver und den Proxy eines Netzwerks (Backends folgen dem Proxy).
+  - *Erledigt.* Offen: Schlafmodus auch für Nodes im Container (z. B. über einen kleinen Weiterleitungs-Container).
+- [x] **Discord-Bot (M).** Slash-Befehle über den Interactions-Endpunkt mit Rechten je Rolle/Benutzer.
+  - *Erledigt:* /status, /spieler, /start, /stop, /restart. Offen: Konsolenbefehle und Backups über Discord.
 - [ ] **Dateimanager (M).** Verlauf und Rückgängig bei Konfigurationsänderungen (Diff), Suche in Dateien, Upload mit Wiederaufnahme, **SFTP-Zugang** pro Server.
 - [ ] **Welten (M).** Welt hoch- und herunterladen, zurücksetzen, wechseln; Chunky-Vorberechnung mit einem Klick; BlueMap oder Dynmap über das Panel erreichbar.
 - [ ] **Öffentliche Statusseite (M).** Pro Projekt: online/offline, Spielerzahl, MOTD, einbettbar (Widget) – plus Hilfe für **Domain und SRV-Eintrag** (Cloudflare-DNS-Anbindung: `mc.deine-domain.de` automatisch). 
@@ -69,6 +73,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [ ] **Neue Server-Arten über Beschreibungsdateien (L).** Software als YAML („Eggs“) statt im Code: Forge, Quilt, Waterfall/BungeeCord, Bedrock, später andere Spiele.
 - [ ] **Offene Schnittstelle (M).** Dokumentierte REST-API (OpenAPI), Webhooks, ein Kommandozeilenprogramm `lodestonectl`, ein Terraform-Provider.
 - [ ] **Betrieb im größeren Maßstab (L).** Prometheus-Metriken und fertiges Grafana-Dashboard, PostgreSQL statt SQLite wählbar, Sicherung der Panel-Datenbank (Litestream), Hochverfügbarkeit des Panels.
+  - *Teilweise erledigt:* Prometheus unter `/metrics` (Token). Offen: Grafana-Dashboard, PostgreSQL, Litestream, Hochverfügbarkeit.
 - [ ] **Anmeldung über Dritte (M).** OIDC/SSO (Authentik, Keycloak, Discord), LDAP.
 - [ ] **Mobil (M).** Installierbare Web-App (PWA), Push-Benachrichtigungen, Konsole auf kleinen Bildschirmen.
 - [ ] **Sicherheitsprüfung von außen (L).** Unabhängige Prüfung vor der Öffnung für fremde Benutzer (Rechte, Dateizugriff, Docker-Isolation), danach ein Bug-Bounty-Hinweis in `SECURITY.md`.

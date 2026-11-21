@@ -269,6 +269,8 @@ async function api(req, res, url) {
   const method = req.method;
   const body = ["POST", "PUT", "PATCH"].includes(method) ? await readBody(req) : {};
   const [a, b, c, d] = parts;
+  const automatik = automatikDemo(method, parts, body);
+  if (automatik) return send(res, automatik.status, automatik.body);
 
   if (a === "auth") {
     if (b === "status") return send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin" });
@@ -604,3 +606,86 @@ sockets.on("connection", (ws, serverId) => {
 });
 
 server.listen(port, "127.0.0.1", () => console.log(`Lodestone-Demo läuft auf http://localhost:${port}`));
+
+// --- automatik: Schlafmodus, Konsolen-Auslöser, Discord-Bot, Absturzanalyse (wird oben in api() zuerst gefragt)
+
+const sleepState = new Map(); // Server-ID → { enabled, idleMinutes, lastWake, lastSleep }
+let triggers = [
+  { id: "t1", projectId: projects[0].id, serverId: "", name: "Lag erkannt", pattern: "Can't keep up!", level: "warn", scheduleId: "", enabled: true, lastMatch: now() - 3 * HOUR, lastLine: "[Server thread/WARN]: Can't keep up! Is the server overloaded? Running 2034ms behind", createdAt: now() - 5 * 24 * HOUR },
+];
+const discordBots = new Map(); // Projekt-ID → Einstellungen (ohne Token)
+events.unshift(
+  { id: 12, time: now() - 2 * MIN, serverId: projects[0].servers[0]?.id, kind: "player_join", level: "info", message: "Luna hat Proxy betreten." },
+  { id: 11, time: now() - 4 * MIN, serverId: projects[0].servers[0]?.id, kind: "wake", level: "info", message: "Proxy wacht auf, weil Luna beitreten möchte." },
+  { id: 10, time: now() - 3 * HOUR, serverId: projects[0].servers[0]?.id, kind: "console_match", level: "warn", message: "Konsolen-Auslöser „Lag erkannt“ auf Survival: [Server thread/WARN]: Can't keep up! Running 2034ms behind" },
+);
+
+function automatikDemo(method, parts, body) {
+  const reply = (status, data) => ({ status, body: data });
+  const [a, b, c, d] = parts;
+  if (a === "servers" && (c === "sleep" || c === "crash-analysis")) {
+    const found = findServer(b);
+    if (!found) return reply(404, { error: "nicht gefunden" });
+    const { server } = found;
+    if (c === "crash-analysis") {
+      const crashed = server.view.state === "offline" && server.software !== "velocity";
+      return reply(200, crashed
+        ? { found: true, report: "crash-reports/crash-2026-11-21_08.06.10-server.txt", suspects: [{ modId: "examplemod", name: "Example Mod", reason: "suspected" }], missing: [], mixins: [], summary: "Verdächtige Mod laut Absturzbericht: „Example Mod“ (examplemod)." }
+        : { found: false, suspects: [], missing: [], mixins: [] });
+    }
+    const allowed = server.role !== "backend" && !server.groupId;
+    const state = sleepState.get(server.id) ?? { enabled: false, idleMinutes: 10, lastWake: now() - 50 * MIN, lastSleep: now() - 3 * HOUR };
+    if (method === "PUT") {
+      if (body.enabled && !allowed) return reply(400, { error: "Backend-Server hinter dem Proxy erreichen Spieler nicht direkt, ein Beitritt kann sie also nicht wecken. Schalte den Schlafmodus beim Proxy ein." });
+      Object.assign(state, { enabled: !!body.enabled, idleMinutes: body.idleMinutes || 10 });
+      sleepState.set(server.id, state);
+    }
+    const port = server.view.ports?.find((entry) => entry.protocol === "tcp")?.host;
+    return reply(200, {
+      ...state, supported: true, allowed, port,
+      listening: state.enabled && server.view.state === "offline",
+      reason: allowed ? undefined : server.groupId ? "Instanzen einer Gruppe startet und stoppt der Autoscaler, der Schlafmodus gilt hier nicht." : "Backend-Server hinter dem Proxy erreichen Spieler nicht direkt, ein Beitritt kann sie also nicht wecken. Schalte den Schlafmodus beim Proxy ein: Schläft er ein, stoppt Lodestone auch die Backend-Server, und wacht er auf, startet es sie mit.",
+    });
+  }
+  if (a === "projects" && c === "console-triggers") {
+    if (method === "POST") {
+      if (!body.name || !body.pattern) return reply(400, { error: "der Name braucht 1 bis 48 Zeichen" });
+      const trigger = { id: id(), projectId: b, serverId: body.serverId ?? "", name: body.name, pattern: body.pattern, level: body.level ?? "info", scheduleId: body.scheduleId ?? "", enabled: true, lastMatch: 0, lastLine: "", createdAt: now() };
+      triggers.push(trigger);
+      return reply(201, trigger);
+    }
+    return reply(200, triggers.filter((entry) => entry.projectId === b));
+  }
+  if (a === "console-triggers") {
+    const trigger = triggers.find((entry) => entry.id === b);
+    if (!trigger) return reply(404, { error: "nicht gefunden" });
+    if (method === "DELETE") {
+      triggers = triggers.filter((entry) => entry.id !== b);
+      return reply(204);
+    }
+    Object.assign(trigger, body);
+    return reply(200, trigger);
+  }
+  if (a === "projects" && c === "discord") {
+    const path = `/api/public/discord/${b}/interactions`;
+    const empty = { configured: false, applicationId: "", publicKey: "", hasToken: false, rules: [], enabled: false, registeredAt: 0, interactionsPath: path };
+    const bot = discordBots.get(b);
+    if (d === "register") {
+      if (!bot?.hasToken) return reply(409, { error: "trag zuerst Application-ID, Public Key und Bot-Token ein" });
+      bot.registeredAt = now();
+      return reply(200, bot);
+    }
+    if (method === "DELETE") {
+      discordBots.delete(b);
+      return reply(204);
+    }
+    if (method === "PUT") {
+      const next = { ...(bot ?? empty), configured: true, applicationId: body.applicationId, publicKey: body.publicKey, rules: body.rules ?? [], enabled: !!body.enabled };
+      if (body.botToken) next.hasToken = true;
+      discordBots.set(b, next);
+      return reply(200, next);
+    }
+    return reply(200, bot ?? empty);
+  }
+  return null;
+}

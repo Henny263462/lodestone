@@ -51,6 +51,9 @@ type Manager struct {
 	// Die vergebenen Host-Ports stehen getrennt, damit die Vergabe nie Server-Sperren braucht.
 	portMu sync.Mutex
 	ports  map[string][]PortMapping
+
+	// auto ist der Stand von Schlafmodus und Konsolen-Beobachtung (automatik.go).
+	auto autoState
 }
 
 // NewManager legt einen Manager an. Load liest die vorhandenen Server.

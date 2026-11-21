@@ -43,6 +43,8 @@ type Config struct {
 	MemoryReserveMB int `json:"memoryReserveMB"`
 	// PlayitImage ist das Docker-Image des playit-Agenten (leer = das offizielle).
 	PlayitImage string `json:"playitImage,omitempty"`
+	// SleepMode schaltet den Schlafmodus: "on", "off" oder leer (an, außer der Node läuft in einem Docker-Container).
+	SleepMode string `json:"sleepMode,omitempty"`
 }
 
 // DefaultConfig liefert die Standardwerte (ohne Token).
@@ -106,6 +108,7 @@ func (c *Config) applyEnvironment() {
 	text("LODESTONE_NODE_NETWORK", &c.Network)
 	text("DOCKER_HOST_OVERRIDE", &c.DockerHost)
 	text("LODESTONE_NODE_PLAYIT_IMAGE", &c.PlayitImage)
+	text("LODESTONE_NODE_SLEEP_MODE", &c.SleepMode)
 	if value := os.Getenv("LODESTONE_NODE_MEMORY_RESERVE_MB"); value != "" {
 		var megabytes int
 		if _, err := fmt.Sscanf(value, "%d", &megabytes); err == nil && megabytes >= 0 {

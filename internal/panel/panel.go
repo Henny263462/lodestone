@@ -73,6 +73,9 @@ type Panel struct {
 
 	// nodeClient lässt sich in Tests ersetzen.
 	nodeClient func(Node) *NodeClient
+
+	// auto ist der Stand von Konsolen-Auslösern, Schlafmodus und Discord-Bot (automatik.go).
+	auto autoState
 }
 
 type viewEntry struct {
@@ -193,6 +196,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("POST /api/servers/{id}/addons/check", p.authenticate(p.addonsCheck))
 	mux.HandleFunc("POST /api/servers/{id}/addons/update", p.authenticate(p.addonsUpdate))
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
+	p.registerAutomatikRoutes(mux)
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unbekannte Adresse"})

@@ -79,6 +79,30 @@ Das Panel startet beim Hochfahren vier Hintergrundschleifen (`maintain.go`): Mes
 Arbeitsspeicher; Ergebnisse als Ereignisse und Webhooks) und Zeitpläne (`scheduleLoop`, mit Nachholen bis zu einer Stunde).
 Webhooks nutzen einen eigenen HTTP-Client, der Verbindungen in interne Netze sperrt (auch bei Weiterleitungen).
 
+Dazu kommt die **Automatik** (`automatik.go`, `automatikLoop`, alle 5 s): Das Panel schickt jedem Node per
+`POST /api/console-watch` die Muster seiner Konsolen-Auslöser und holt dabei die neuen Ereignisse ab (Cursor aus `boot` + `seq`;
+nach einem Neustart des Panels werden alte übersprungen). Der Node erkennt in der Konsole Beitritt/Verlassen und die Muster
+(Go-`regexp`, also linear, höchstens 5 Treffer pro Minute und Muster) und meldet Schlafmodus-Ereignisse. Das Panel macht daraus
+Ereignisse (`player_join`, `player_leave`, `console_match`, `sleep`, `wake`), startet bei einem Treffer auf Wunsch einen Zeitplan
+und lässt beim Einschlafen/Aufwachen eines Proxys die Backend-Server mitgehen. Konsolen-Auslöser und Discord-Anbindung liegen in
+eigenen Tabellen (`store_automatik.go`, `console_triggers`, `discord_bots`).
+
+**Schlafmodus** (`internal/node/sleep.go`): Ist ein Server mit Schlafmodus aus, öffnet der Node auf dessen Host-Port einen
+kleinen Minecraft-Listener (Handshake, Status mit eigener MOTD, Ping/Pong; Login → Server starten und mit Meldung trennen).
+`doLaunch` schließt ihn vor dem Anlegen des Containers unter derselben Sperre, unter der er geöffnet wird, damit Docker den Port
+sicher bekommt. Der Leerlauf (Spielerabfrage alle 30 s) stoppt den Server sauber (zählt nicht als Absturz). Die Einstellung liegt
+in `sleep.json` im Serverordner (außerhalb von `data/`). Läuft der Node in einem Container mit eigenem Netz, ist der Schlafmodus
+aus (`LODESTONE_NODE_SLEEP_MODE`), weil ein Listener dort von außen nicht erreichbar wäre.
+
+**Absturzanalyse** (`internal/node/crash_analysis.go`): reine Auswertung des neuesten `crash-reports/*.txt` (nur, wenn er zum
+letzten Lauf passt) und der letzten 400 Konsolenzeilen. `handleCrash` hängt die Zusammenfassung an das Absturz-Ereignis, die
+Konsole zeigt sie über `GET /api/servers/{id}/crash-analysis`.
+
+**Discord-Bot** (`discord.go`): öffentlicher Endpunkt `POST /api/public/discord/{projekt}/interactions`, ed25519-Signaturprüfung
+aus der Standardbibliothek (mit Zeitfenster von 5 Minuten), ratenbegrenzt; Rechte je Discord-Rolle/-Benutzer pro Befehl, Bot-Token
+AES-GCM-verschlüsselt (wie TOTP). Aktionen über Discord stehen im Protokoll (`discord:<Name>`). **Prometheus** (`prometheus.go`):
+`GET /metrics`, nur mit `LODESTONE_METRICS_TOKEN`, Textformat ohne zusätzliche Bibliothek.
+
 Sicherheit (`security.go`, `auth.go`): TOTP-Geheimnisse liegen mit AES-GCM verschlüsselt in der Datenbank (Schlüssel
 `data/secret.key`), API-Schlüssel (`lds_…`) nur als SHA-256-Hash und nur für Anfragen, nicht für Konto-Änderungen. Jede
 verändernde Anfrage landet im Protokoll (Muster und Pfad, ohne Inhalt).

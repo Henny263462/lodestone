@@ -32,6 +32,7 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 | `network.go` | Autoconfig-Erzeugung für Velocity/Paper/Fabric (reine Funktionen, gut testbar) |
 | `groups.go`, `scheduler.go`, `events.go`, `metrics.go`, `maintain.go` | Hintergrundschleifen und ihre Logik |
 | `modrinth.go` | Modrinth-Client (mit Cache) |
+| `automatik.go`, `handlers_automatik.go`, `store_automatik.go`, `discord.go`, `prometheus.go` | Automatik: Konsolen-Ereignisse und -Auslöser, Schlafmodus, Absturzanalyse, Discord-Bot, `/metrics` (Node-Seite: `internal/node/automatik.go`, `sleep.go`, `crash_analysis.go`) |
 | `*_test.go` | Tests, siehe Abschnitt 8 |
 
 Neue Datei nur, wenn ein neues **Thema** entsteht; sonst in die passende vorhandene Datei. Handler und Store eines Themas liegen in
