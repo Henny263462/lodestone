@@ -287,7 +287,7 @@ func (s *Server) doLaunch(ctx context.Context) error {
 	if err := s.m.rt.EnsureNetwork(ctx, containerSpec.Network); err != nil {
 		return fmt.Errorf("Docker-Netzwerk %q: %w", containerSpec.Network, err)
 	}
-	s.logf("Image wird geprüft: %s", containerSpec.Image)
+	s.logf("Image wird geprüft und bei Bedarf aktualisiert: %s", containerSpec.Image)
 	if err := s.m.rt.EnsureImage(ctx, containerSpec.Image); err != nil {
 		return err
 	}
@@ -393,8 +393,9 @@ func (s *Server) containerSpec(spec Spec) ContainerSpec {
 	}
 	startup = strings.NewReplacer("{{MEMORY}}", fmt.Sprint(heap), "{{JAR}}", jarName).Replace(startup)
 	image := spec.Image
+	java := 0 // 0 = unbekannt (eigenes Image)
 	if image == "" {
-		java := spec.JavaMajor
+		java = spec.JavaMajor
 		if java == 0 {
 			java = software.FallbackJava(spec.Version)
 		}
@@ -402,7 +403,13 @@ func (s *Server) containerSpec(spec Spec) ContainerSpec {
 	}
 	env := []string{fmt.Sprintf("SERVER_MEMORY=%d", spec.MemoryMB)}
 	for key, value := range spec.Env {
+		if key == "JAVA_TOOL_OPTIONS" {
+			continue
+		}
 		env = append(env, key+"="+value)
+	}
+	if options := javaToolOptions(java, spec.Env["JAVA_TOOL_OPTIONS"]); options != "" {
+		env = append(env, "JAVA_TOOL_OPTIONS="+options)
 	}
 	return ContainerSpec{
 		Name:        "lodestone-" + spec.ID,
@@ -418,6 +425,32 @@ func (s *Server) containerSpec(spec Spec) ContainerSpec {
 		Labels:      map[string]string{LabelServer: spec.ID},
 		Network:     s.m.cfg.Network,
 	}
+}
+
+// java2ShellMitigation schaltet den Base64-Beschleuniger der JVM ab. Er enthält die Lücke Java2Shell/Java4Shell
+// (CVE-2026-114938, Pufferüberlauf beim Dekodieren von Base64 auf x86-64 mit AVX-512), betroffen ist Java ab 17.
+// Der eigentliche Schutz ist ein gepatchtes Java (aktuelles Image, siehe EnsureImage); die Option hilft, bis es da ist.
+const java2ShellMitigation = "-XX:-UseBASE64Intrinsics"
+
+// javaToolOptions setzt den Schutz vor eigene JAVA_TOOL_OPTIONS des Benutzers. Über JAVA_TOOL_OPTIONS gilt er für
+// jeden Java-Aufruf im Container, auch für eigene Startzeilen und das run.sh von NeoForge. Wer die Option selbst
+// setzt (auch +UseBASE64Intrinsics), behält seine Wahl. java ist die Hauptversion, 0 heißt unbekannt (eigenes Image):
+// Dann darf ein altes Java die Option nicht kennen, ohne dass der Start scheitert.
+func javaToolOptions(java int, user string) string {
+	user = strings.TrimSpace(user)
+	if strings.Contains(user, "UseBASE64Intrinsics") {
+		return user
+	}
+	var flag string
+	switch {
+	case java == 0:
+		flag = "-XX:+IgnoreUnrecognizedVMOptions " + java2ShellMitigation
+	case java >= 17:
+		flag = java2ShellMitigation
+	default:
+		return user // Java 8 bis 16 ist nicht betroffen
+	}
+	return strings.TrimSpace(flag + " " + user)
 }
 
 // ---------------------------------------------------------------- Stoppen

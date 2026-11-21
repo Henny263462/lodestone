@@ -160,6 +160,9 @@ Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_P
 - Das Token des Nodes verlässt das Panel nie; die Node-API gehört nur ins interne Netz oder hinter TLS/VPN
 - Container laufen ohne Root-Rechte des Hosts, mit `no-new-privileges`, abgeschalteten Capabilities, Prozess-,
   Speicher- und CPU-Limit; Dateizugriffe bleiben im Serverordner (`os.Root`, auch über Symlinks hinweg)
+- **Java2Shell/Java4Shell (CVE-2026-114938):** Jeder Server bekommt `JAVA_TOOL_OPTIONS=-XX:-UseBASE64Intrinsics`
+  (gilt auch für eigene Startzeilen), und der Node lädt die Java-Images höchstens alle 6 Stunden beim Start neu, damit
+  gepatchte Java-Versionen ankommen
 - Ein Daemon mit Zugriff auf `docker.sock` hat auf der Maschine weitreichende Rechte. Vor dem Öffnen für fremde
   Benutzer: unabhängige Sicherheitsprüfung (siehe docs/architecture.md)
 

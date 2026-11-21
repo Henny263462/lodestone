@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
@@ -19,7 +20,14 @@ import (
 // DockerRuntime setzt Runtime mit der Docker Engine API um.
 type DockerRuntime struct {
 	cli *client.Client
+
+	mu        sync.Mutex
+	refreshed map[string]time.Time // wann ein Image zuletzt neu geladen wurde
 }
+
+// imageRefreshInterval begrenzt, wie oft ein vorhandenes Image neu geladen wird. Docker Hub zählt jeden Abruf, und
+// Server mit Auto-Restart oder Zeitplänen starten oft.
+const imageRefreshInterval = 6 * time.Hour
 
 // NewDockerRuntime verbindet mit Docker (DOCKER_HOST oder dem Standard der Plattform). Es wird noch nicht geprüft,
 // ob der Dienst läuft; das tut Info.
@@ -35,7 +43,7 @@ func NewDockerRuntime(host string) (*DockerRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DockerRuntime{cli: cli}, nil
+	return &DockerRuntime{cli: cli, refreshed: map[string]time.Time{}}, nil
 }
 
 // defaultHost wählt unter Windows die Pipe, die es wirklich gibt: Docker Desktop nutzt je nach Version
@@ -78,14 +86,37 @@ func (d *DockerRuntime) EnsureNetwork(ctx context.Context, name string) error {
 }
 
 func (d *DockerRuntime) EnsureImage(ctx context.Context, image string) error {
-	if _, err := d.cli.ImageInspect(ctx, image); err == nil {
-		return nil
-	} else if !cerrdefs.IsNotFound(err) {
+	_, err := d.cli.ImageInspect(ctx, image)
+	present := err == nil
+	if err != nil && !cerrdefs.IsNotFound(err) {
 		return err
 	}
+	d.mu.Lock()
+	fresh := present && time.Since(d.refreshed[image]) < imageRefreshInterval
+	d.mu.Unlock()
+	if fresh {
+		return nil
+	}
+	// Auch vorhandene Images regelmäßig neu laden: Tags wie eclipse-temurin:21-jre bekommen so Sicherheitsupdates
+	// von Java (z. B. gegen Java2Shell). Ohne Verbindung zur Registry reicht die vorhandene Kopie.
+	pullCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	if err := d.pull(pullCtx, image); err != nil {
+		if present {
+			return nil
+		}
+		return fmt.Errorf("Image %s konnte nicht geladen werden: %w", image, err)
+	}
+	d.mu.Lock()
+	d.refreshed[image] = time.Now()
+	d.mu.Unlock()
+	return nil
+}
+
+func (d *DockerRuntime) pull(ctx context.Context, image string) error {
 	response, err := d.cli.ImagePull(ctx, image, client.ImagePullOptions{})
 	if err != nil {
-		return fmt.Errorf("Image %s konnte nicht geladen werden: %w", image, err)
+		return err
 	}
 	defer response.Close()
 	return response.Wait(ctx)

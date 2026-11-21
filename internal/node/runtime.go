@@ -63,7 +63,7 @@ type Runtime interface {
 	Info(ctx context.Context) (SystemInfo, error)
 	// EnsureNetwork legt das Netzwerk an, falls es fehlt.
 	EnsureNetwork(ctx context.Context, name string) error
-	// EnsureImage lädt das Image, falls es noch fehlt.
+	// EnsureImage lädt das Image, falls es fehlt, und vorhandene Images regelmäßig neu (Sicherheitsupdates).
 	EnsureImage(ctx context.Context, image string) error
 	Create(ctx context.Context, spec ContainerSpec) (id string, err error)
 	Start(ctx context.Context, id string) error

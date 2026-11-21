@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +54,9 @@ func TestInstallStartCommandStop(t *testing.T) {
 	}
 	if !strings.Contains(spec.Cmd[2], "exec java -Xms1536M -Xmx1536M") || !strings.Contains(spec.Cmd[2], "-jar server.jar nogui") {
 		t.Fatalf("Startzeile: %s", spec.Cmd[2])
+	}
+	if !slices.Contains(spec.Env, "JAVA_TOOL_OPTIONS=-XX:-UseBASE64Intrinsics") {
+		t.Fatalf("Schutz vor Java2Shell fehlt in der Umgebung: %v", spec.Env)
 	}
 
 	if err := server.Command("say hallo"); err != nil {
