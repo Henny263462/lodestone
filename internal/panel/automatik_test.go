@@ -423,6 +423,12 @@ type discordFixture struct {
 	web       string
 }
 
+// fakeBotToken hat das Format eines Bot-Tokens, ist aber erfunden. Es wird zur Laufzeit zusammengesetzt,
+// damit die Geheimnis-Prüfung von GitHub den Test nicht für ein echtes Token hält.
+func fakeBotToken() string {
+	return strings.Join([]string{"MTIzNDU2Nzg5MDEyMzQ1Njc4", "abcdef", "ghijklmnopqrstuvwxyz" + "ABCDEFGHIJKLMNOP"}, ".")
+}
+
 func newDiscordFixture(t *testing.T) *discordFixture {
 	t.Helper()
 	p, admin, fake, _, server, projectID := serverProject(t)
@@ -431,7 +437,7 @@ func newDiscordFixture(t *testing.T) *discordFixture {
 		t.Fatal(err)
 	}
 	return &discordFixture{p: p, admin: admin, fake: fake, server: server, projectID: projectID, private: private, public: hex.EncodeToString(public),
-		token: "test-bot-token-nicht-echt", web: strings.TrimSuffix(admin.base, "/")}
+		token: fakeBotToken(), web: strings.TrimSuffix(admin.base, "/")}
 }
 
 func (f *discordFixture) configure(t *testing.T) {
