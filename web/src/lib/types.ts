@@ -531,3 +531,46 @@ export interface ServerSftp {
   passwordReady: boolean;
   keyCount: number;
 }
+
+// --- backups
+export type BackupState = "running" | "done" | "failed";
+
+/** Ein Backup, wie das Panel es aus Node (lokal) und Backup-Ziel (extern) zusammensetzt. */
+export interface ServerBackup {
+  name: string;
+  label?: string;
+  size: number;
+  created: number;
+  status: BackupState;
+  local: boolean;
+  remote: boolean;
+  upload?: BackupState;
+  progress?: number;
+  error?: string;
+  locked: boolean;
+  otherTarget?: boolean;
+}
+
+export interface BackupSettings {
+  exclude: string[];
+  remoteKeep: number;
+  targetConfigured: boolean;
+}
+
+/** Externes, S3-kompatibles Backup-Ziel eines Projekts. Das Secret kommt nie zurück, nur hasSecret. */
+export interface BackupTarget {
+  configured: boolean;
+  endpoint: string;
+  region: string;
+  bucket: string;
+  prefix: string;
+  accessKey: string;
+  pathStyle: boolean;
+  hasSecret: boolean;
+  updatedAt?: number;
+}
+
+// Ergänzt ScheduleStep: Ein Backup-Schritt kann zusätzlich zum Backup-Ziel hochladen.
+export interface ScheduleStep {
+  remote?: boolean;
+}

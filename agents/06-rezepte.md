@@ -85,6 +85,18 @@ Aktionen mit `toast.run`. Backend-Routen für Konto-Dinge hinter `sessionOnly`.
 Nur `01` und `02` befragen, die vorhandene Komponente ändern (dort an **einer** Stelle), nicht jede Seite einzeln. Danach `next build` und alle
 Seiten, die die Komponente nutzen, gedanklich prüfen (`Grep` nach dem Komponentennamen).
 
+## I. Externer Dienst mit Zugangsdaten (Speicher, API mit Schlüssel)
+
+Vorbild: Backup-Ziel – `internal/panel/s3.go` (Client, Signatur), `handlers_backups.go` (Ziel speichern/testen, Abläufe),
+`store_backups.go` (eigene Schema-Konstante), Node `internal/node/backups_remote.go`, Oberfläche `components/backup-target.tsx`.
+
+1. Zugangsdaten nur im Panel: Secret mit `p.seal` speichern, in Antworten nur `hasSecret`; leeres Secret beim Speichern heißt „behalten“.
+2. Ausgehende Anfragen über einen Client, der interne Adressen sperrt (Muster `newS3HTTPClient`), mit Zeitlimit und ohne Weiterleitungen.
+3. Muss der Node selbst übertragen: vorsignierte, ablaufende Adressen schicken, nie Schlüssel. Lange Übertragungen im Node als
+   Hintergrundaufgabe mit Status-Endpunkt (`state`, `done`, `total`), das Panel fragt mit `pollEvery` ab.
+4. Einen „Verbindung testen“-Knopf anbieten, der dieselben Wege benutzt wie der echte Ablauf.
+5. Signaturen und Formate mit den offiziellen Testvektoren testen; den Dienst im Test als `httptest`-Attrappe spielen.
+
 ## Mini-Checkliste vor dem Absenden jeder Antwort
 
 - Habe ich ein Vorbild geöffnet und befolgt?

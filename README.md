@@ -40,7 +40,15 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **playit.gg:** Der Node startet den playit-Agenten (Schlüssel unter **Nodes** eintragen), die Tunnel-Adresse
   speichert man beim Server unter *Einstellungen → Öffentliche Adresse*. Keine Portfreigabe im Router nötig
 - **Backups** (tar.gz, bei laufendem Server mit `save-off`), Wiederherstellen (sicher, nur bei ausgeschaltetem Server),
-  Aufbewahrungsanzahl, Download
+  Aufbewahrungsanzahl, Download. **Ausschlüsse** pro Server (Pfadmuster wie `dynmap/**`, `logs/**`, `*.log`; beim
+  Wiederherstellen bleiben ausgeschlossene Ordner unangetastet), **Festhalten** (festgehaltene Backups löscht weder die
+  Aufbewahrung noch ein Klick, erst nach dem Entsperren)
+- **Externes Backup-Ziel** pro Projekt (S3-kompatibel: AWS, MinIO, Backblaze B2, Hetzner, Cloudflare R2; eigene
+  Signatur V4, kein SDK) mit Verbindungstest. Backups lokal, extern oder beides, getrennte Aufbewahrung, Hochladen
+  auch nachträglich und per Zeitplan („auch extern hochladen“), Wiederherstellen direkt aus dem Ziel. Die
+  Zugangsdaten bleiben im Panel (Secret mit AES-GCM verschlüsselt): Der Node bekommt nur vorsignierte Adressen und lädt
+  damit selbst hoch (Multipart, Teile ab 64 MiB, höchstens 1000 Teile) bzw. herunter. Externe Backups bleiben beim
+  Löschen eines Servers im Bucket
 - **Spieler** online (Serverlisten-Abfrage), Server-Einstellungen, Versionswechsel ohne Datenverlust
 - **Netzwerk-Autoconfig:** Beim Hinzufügen schreibt das Panel alles selbst – Velocity *modern forwarding* samt
   Secret, Serverliste, **Beitrittsreihenfolge (Try) mit Reihenfolge und Schalter pro Server**, **Forced Hosts**,
@@ -152,6 +160,7 @@ Für schlanke Maschinen: `sh scripts/package.sh` baut Linux-Binaries nach `dist/
 | `LODESTONE_SECURE_COOKIES`, `LODESTONE_TRUST_PROXY` | hinter HTTPS-Proxy auf `true` |
 | `LODESTONE_TZ` | Zeitzone für Zeitpläne, z. B. `Europe/Berlin` (Standard: Zeitzone des Panels, sonst UTC) |
 | `LODESTONE_WEBHOOK_ALLOW_INTERNAL` | `true` erlaubt Webhooks an Adressen im internen Netz (Standard: gesperrt) |
+| `LODESTONE_BACKUP_ALLOW_INTERNAL` | `true` erlaubt Backup-Ziele im internen Netz, z. B. MinIO im LAN (Standard: gesperrt) |
 
 Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_PORT_RANGE` (z. B. `28000-28099`),
 `_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`,

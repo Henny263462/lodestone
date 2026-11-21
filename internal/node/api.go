@@ -90,6 +90,7 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/servers/{id}/backups/{name}", a.server(a.deleteBackup))
 	mux.HandleFunc("GET /api/servers/{id}/backups/{name}/download", a.server(a.downloadBackup))
 	mux.HandleFunc("POST /api/servers/{id}/backups/{name}/restore", a.server(a.restoreBackup))
+	a.registerBackupRoutes(mux)
 
 	mux.HandleFunc("GET /api/servers/{id}/files", a.server(a.listFiles))
 	mux.HandleFunc("POST /api/servers/{id}/files/pull", a.server(a.pull))

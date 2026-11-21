@@ -105,7 +105,7 @@ export function SettingsTab({ server, canEdit = true, canDelete = true, onChange
             <input className="field" inputMode="decimal" value={cpu} onChange={(event) => setCpu(event.target.value)} disabled={!offline} />
           </div>
           <div>
-            <label className="label">Backups aufbewahren</label>
+            <label className="label">Backups lokal aufbewahren</label>
             <input className="field" inputMode="numeric" value={keep} onChange={(event) => setKeep(event.target.value)} disabled={!offline} />
           </div>
           <div className="md:col-span-2">

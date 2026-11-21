@@ -96,6 +96,27 @@ Arbeitsspeicher; Ergebnisse als Ereignisse und Webhooks), Zeitpläne (`scheduleL
 SFTP-Abgleich (`sftpLoop`, siehe „SFTP“).
 Webhooks nutzen einen eigenen HTTP-Client, der Verbindungen in interne Netze sperrt (auch bei Weiterleitungen).
 
+Externe Backups (`handlers_backups.go`, `store_backups.go`, `s3.go`; Node: `backups_remote.go`): Das Backup-Ziel eines
+Projekts (Endpoint, Region, Bucket, Präfix, Access Key, Secret) liegt in `backup_targets`, das Secret mit AES-GCM
+verschlüsselt wie die TOTP-Geheimnisse. Das Panel signiert selbst (AWS Signature V4, mit den Testvektoren der AWS-Doku
+geprüft) und gibt die Zugangsdaten nie weiter:
+
+```
+Panel ── CreateMultipartUpload (signiert) ──▶ S3
+Panel ── vorsignierte PUT-Adresse je Teil ──▶ Node ── PUT Teil 1..n ──▶ S3      (ETags zurück ans Panel)
+Panel ── CompleteMultipartUpload (signiert) ──▶ S3     · bei Fehler AbortMultipartUpload
+Panel ── vorsignierte GET-Adresse ──▶ Node ── GET ──▶ S3 → Backup-Ordner → Einspielen (nur bei ausgeschaltetem Server)
+```
+
+Teile sind mindestens 64 MiB groß und werden so gewählt, dass es höchstens 1000 sind (Größengrenze der Node-Schnittstelle);
+ein Backup darf damit bis knapp 5 TB groß sein. Der Node lädt jeden Teil bis zu dreimal. Was das Panel über ein Backup weiß
+(Status, extern ja/nein, Objektschlüssel, festgehalten, Fehler), steht in `backup_records`; die Liste setzt sich aus dem
+Backup-Ordner des Nodes und diesen Einträgen zusammen. Läuft beim Neustart des Panels ein Upload, gilt er danach als
+unterbrochen (Teilupload wird verworfen). Ausschlüsse (`backup_settings`) gehen bei jedem Backup an den Node und stehen als
+`.lodestone-backup.json` am Anfang des Archivs, damit das Einspielen ausgeschlossene Pfade stehen lässt. Festhalten ist auf
+dem Node eine Markierungsdatei `<name>.locked` neben dem Archiv und im Panel ein Feld; beide Aufbewahrungen überspringen
+festgehaltene Backups. Ziele im internen Netz sind gesperrt, außer `LODESTONE_BACKUP_ALLOW_INTERNAL=true`.
+
 Sicherheit (`security.go`, `auth.go`): TOTP-Geheimnisse liegen mit AES-GCM verschlüsselt in der Datenbank (Schlüssel
 `data/secret.key`), API-Schlüssel (`lds_…`) nur als SHA-256-Hash und nur für Anfragen, nicht für Konto-Änderungen. Jede
 verändernde Anfrage landet im Protokoll (Muster und Pfad, ohne Inhalt).
@@ -123,7 +144,8 @@ des Servers. Benutzername: `<benutzer>.<erste 8 Zeichen der Server-ID>`.
 
 - Ein Netzwerk liegt auf **einem** Node (die Server erreichen sich über das Docker-Netz `lodestone`).
 - Das Panel greift per HTTP auf die Nodes zu (kein Tunnel nach außen).
-- Backups liegen auf der Maschine des Nodes (begrenzte Aufbewahrung); Zeitpläne lösen sie aus, ein externes Ziel fehlt.
+- Backups liegen auf der Maschine des Nodes (begrenzte Aufbewahrung) und auf Wunsch in einem S3-kompatiblen Ziel; es
+  gibt nur Vollsicherungen (keine inkrementellen), kein SFTP/restic.
 - Die Weboberfläche liefert kein TLS selbst – Reverse-Proxy davor setzen.
 
 ## Offene Entscheidungen

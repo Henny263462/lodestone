@@ -77,6 +77,7 @@ type Server struct {
 	applyMu    sync.Mutex // serialisiert das Anwenden von Autoconfig
 	addons     addonCache
 	backupBusy atomic.Bool
+	transfer   remoteTransfer // Hoch-/Herunterladen zum Backup-Ziel (backups_remote.go)
 
 	// lastExit ist das Ende des letzten Laufs; killRequested merkt sich einen Kill über die Schnittstelle.
 	lastExit      *ExitInfo

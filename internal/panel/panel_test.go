@@ -34,11 +34,13 @@ type fakeNode struct {
 	modpacks     []node.ModpackRequest
 	playitSecret string
 	playitTunnels []node.PlayitTunnel
+	remote       *fakeRemote // Backups zum Backup-Ziel (handlers_backups_test.go)
 }
 
 func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	fake := &fakeNode{servers: map[string]node.View{}, autoconfigs: map[string]node.Autoconfig{}, files: map[string]string{}}
 	mux := http.NewServeMux()
+	fake.remote = registerFakeBackupRoutes(mux, fake)
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, map[string]any{"version": "test", "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
 	})
@@ -129,10 +131,14 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 		writeJSON(w, 409, map[string]string{"error": "der Server läuft nicht"})
 	})
 	mux.HandleFunc("POST /api/servers/{id}/backups", func(w http.ResponseWriter, r *http.Request) {
-		var body struct{ Label string }
+		var body struct {
+			Label   string
+			Exclude []string
+		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
+		fake.remote.exclude = body.Exclude
 		if fake.backupFails {
 			writeJSON(w, 201, node.Backup{Name: "20260101-000000-" + body.Label + ".tar.gz", Creating: true})
 			return

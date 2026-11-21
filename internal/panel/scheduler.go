@@ -283,7 +283,7 @@ func (p *Panel) execStep(ctx context.Context, row ServerRow, step Step) error {
 			return ctx.Err()
 		}
 	case "backup":
-		return p.runBackup(ctx, client, row, step.Value)
+		return p.runBackup(ctx, row, step.Value, step.Remote)
 	}
 	return fmt.Errorf("unbekannte Aktion %q", step.Action)
 }
@@ -321,42 +321,16 @@ func (p *Panel) waitState(ctx context.Context, client *NodeClient, id string, wa
 	}
 }
 
-func (p *Panel) runBackup(ctx context.Context, client *NodeClient, row ServerRow, label string) error {
+// runBackup erstellt ein Backup (mit den Ausschlüssen des Servers), lädt es auf Wunsch hoch und wartet, bis alles fertig ist.
+func (p *Panel) runBackup(ctx context.Context, row ServerRow, label string, remote bool) error {
 	if label == "" {
 		label = "geplant"
 	}
-	var created node.Backup
-	if err := client.Do(ctx, http.MethodPost, "/api/servers/"+row.ID+"/backups", map[string]string{"label": label}, &created); err != nil {
+	record, err := p.startBackup(ctx, row, label, remote)
+	if err != nil {
 		return err
 	}
-	deadline := time.Now().Add(backupWaitLimit)
-	for {
-		var list []node.Backup
-		if err := client.Do(ctx, http.MethodGet, "/api/servers/"+row.ID+"/backups", nil, &list); err != nil {
-			return err
-		}
-		creating := false
-		for _, backup := range list {
-			if backup.Name == created.Name {
-				if !backup.Creating {
-					p.emit(row.ProjectID, row.ID, "backup", "info", fmt.Sprintf("Backup von %s erstellt (%s).", row.Name, byteSize(backup.Size)))
-					return nil
-				}
-				creating = true
-			}
-		}
-		if !creating {
-			return errors.New("das Backup ist nicht entstanden (siehe Konsole des Servers)")
-		}
-		if time.Now().After(deadline) {
-			return errors.New("das Backup dauert zu lange")
-		}
-		select {
-		case <-time.After(pollEvery):
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
+	return p.finishBackup(ctx, row, record)
 }
 
 func byteSize(n int64) string {

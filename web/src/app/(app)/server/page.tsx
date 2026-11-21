@@ -168,7 +168,7 @@ function ServerView() {
           <AddonsTab serverId={server.id} canWrite={allowed("addons")} canFiles={allowed("files.write")} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />
         )}
         {active === "players" && <PlayersTab server={server} canOperate={allowed("players")} />}
-        {active === "backups" && <BackupsTab serverId={server.id} permissions={myPermissions} offline={state === "offline"} />}
+        {active === "backups" && <BackupsTab serverId={server.id} canWrite={allowed("backups.create")} canManage={allowed("settings")} offline={state === "offline"} />}
         {active === "settings" && (
           <SettingsTab server={server} canEdit={allowed("settings")} canDelete={allowed("servers")} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />
         )}

@@ -66,6 +66,7 @@ func run(logger *slog.Logger) error {
 		Version:               version,
 		DataDir:               dataDir,
 	}
+	cfg.AllowInternalBackupTargets = flag("LODESTONE_BACKUP_ALLOW_INTERNAL")
 	if zone := env("LODESTONE_TZ", ""); zone != "" {
 		location, err := time.LoadLocation(zone)
 		if err != nil {

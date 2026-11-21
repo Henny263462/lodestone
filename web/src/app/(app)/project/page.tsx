@@ -14,6 +14,7 @@ import { SchedulesTab } from "@/components/schedules";
 import { EventsTab } from "@/components/events";
 import { MotdCard } from "@/components/motd";
 import { StatusCard } from "@/components/status-settings";
+import { BackupTargetCard } from "@/components/backup-target";
 import { ChartCard, RangeTabs } from "@/components/server/stats";
 import { SeriesChart } from "@/components/ui/chart";
 import { PowerButtons, StateBadge } from "@/components/status";
@@ -524,6 +525,7 @@ function SettingsTab({ project, refresh }: { project: Project; refresh: () => vo
   return (
     <div className="space-y-5">
       <StatusCard project={project} refresh={refresh} />
+      <BackupTargetCard project={project} />
       <Card>
         <CardHeader title="Allgemein" />
         <div className="space-y-4 px-5 py-4">

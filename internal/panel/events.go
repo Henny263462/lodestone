@@ -95,7 +95,7 @@ func webhookBody(hook Webhook, event Event, project, server string) ([]byte, err
 }
 
 var titles = map[string]string{
-	"crash": "Absturz", "restart": "Neustart", "crashloop": "Absturzschleife", "backup": "Backup", "backup_failed": "Backup fehlgeschlagen",
+	"crash": "Absturz", "restart": "Neustart", "crashloop": "Absturzschleife", "backup": "Backup fertig", "backup_failed": "Backup fehlgeschlagen",
 	"schedule_failed": "Zeitplan fehlgeschlagen", "node_offline": "Node nicht erreichbar", "node_online": "Node wieder erreichbar",
 	"lowmemory": "Wenig Arbeitsspeicher", "scale": "Skalierung", "test": "Test",
 }

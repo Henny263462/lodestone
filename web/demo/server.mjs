@@ -271,6 +271,7 @@ async function api(req, res, url) {
   const [a, b, c, d] = parts;
   if (rechteApi(res, method, body, a, b, c, d)) return;
   if (sftpDemo(res, method, body, a, b, c, d)) return;
+  if (backupsDemo(res, parts, method, body, url)) return;
 
   if (a === "auth") {
     if (b === "status") return send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin" });
@@ -520,14 +521,6 @@ async function api(req, res, url) {
       if (d === "install") return send(res, 200, { installed: ["Beispiel.jar"] });
       return send(res, 200, { project: { id: "Vebnzrzj", title: "LuckPerms", description: "Ein Rechtesystem.", icon_url: "", downloads: 1, slug: "luckperms" }, versions: [{ id: "v1", name: "v5.5.0", versionNumber: "5.5.0", type: "release", published: new Date().toISOString(), gameVersions: ["1.21.4"] }] });
     }
-    if (c === "backups") {
-      if (method === "GET" && !d) return send(res, 200, [
-        { name: "20261029-080135-vor-update.tar.gz", label: "vor-update", size: 217_245_440, created: now() - 3 * HOUR },
-        { name: "20261028-030000.tar.gz", size: 201_000_000, created: now() - 29 * HOUR },
-        { name: "20261027-030000.tar.gz", size: 198_000_000, created: now() - 53 * HOUR },
-      ]);
-      return send(res, 202, {});
-    }
   }
   return send(res, 404, { error: "unbekannte Adresse (Demo)" });
 }
@@ -729,4 +722,97 @@ function sftpDemo(res, method, body, a, b, c, d) {
     }), true;
   }
   return false;
+}
+
+// --- backups
+// Backups mit externem Ziel: Liste (lokal/extern, Status, Festhalten), Einstellungen pro Server und Backup-Ziel pro Projekt.
+
+const demoBackups = new Map();
+const demoBackupSettings = new Map();
+const demoTargets = new Map([["p1", { configured: true, endpoint: "https://s3.eu-central-1.amazonaws.com", region: "eu-central-1", bucket: "lodestone-backups", prefix: "survival/", accessKey: "AKIADEMO", pathStyle: true, hasSecret: true, updatedAt: now() - 5 * 24 * HOUR }]]);
+
+function backupsOf(serverId) {
+  if (!demoBackups.has(serverId)) {
+    demoBackups.set(serverId, [
+      { name: "20261029-080135-vor-update.tar.gz", label: "vor-update", size: 217_245_440, created: now() - 3 * HOUR, status: "done", local: true, remote: true, upload: "done", locked: true },
+      { name: "20261028-030000-nachts.tar.gz", label: "nachts", size: 201_000_000, created: now() - 29 * HOUR, status: "done", local: true, remote: true, upload: "done", locked: false },
+      { name: "20261027-030000-nachts.tar.gz", label: "nachts", size: 198_000_000, created: now() - 53 * HOUR, status: "done", local: true, remote: false, upload: "failed", error: "Das Backup-Ziel verweigert den Zugriff. Prüfe Access Key, Secret und die Rechte am Bucket.", locked: false },
+      { name: "20261020-030000-nachts.tar.gz", label: "nachts", size: 190_000_000, created: now() - 9 * 24 * HOUR, status: "done", local: false, remote: true, upload: "done", locked: false },
+    ]);
+  }
+  return demoBackups.get(serverId);
+}
+
+// Lässt ein Backup nach kurzer Zeit fertig werden und auf Wunsch „hochladen“.
+function finishDemoBackup(backup) {
+  setTimeout(() => {
+    Object.assign(backup, { local: true, size: 205_000_000, status: backup.upload === "running" ? "running" : "done" });
+    if (backup.upload !== "running") return;
+    backup.progress = 40;
+    setTimeout(() => Object.assign(backup, { status: "done", upload: "done", remote: true, progress: undefined }), 3000);
+  }, 2500);
+}
+
+function backupsDemo(res, parts, method, body, url) {
+  const [a, b, c, d, e] = parts;
+  const reply = (status, data) => {
+    send(res, status, data);
+    return true;
+  };
+  if (a === "projects" && c === "backup-target") {
+    if (d === "test") return reply(200, { ok: true });
+    if (method === "DELETE") {
+      demoTargets.delete(b);
+      return reply(204);
+    }
+    if (method === "PUT") {
+      const old = demoTargets.get(b);
+      const prefix = String(body.prefix ?? "").replace(/^\/+|\/+$/g, "");
+      const target = { configured: true, endpoint: body.endpoint, region: body.region || "us-east-1", bucket: body.bucket, prefix: prefix ? prefix + "/" : "", accessKey: body.accessKey, pathStyle: !!body.pathStyle, hasSecret: !!body.secretKey || !!old?.hasSecret, updatedAt: now() };
+      if (!target.hasSecret) return reply(400, { error: "Gib das Secret an." });
+      demoTargets.set(b, target);
+      return reply(200, target);
+    }
+    return reply(200, demoTargets.get(b) ?? { configured: false, endpoint: "", region: "", bucket: "", prefix: "", accessKey: "", pathStyle: true, hasSecret: false });
+  }
+  if (a !== "servers" || (c !== "backups" && c !== "backup-settings")) return false;
+  const found = findServer(b);
+  if (!found) return reply(404, { error: "nicht gefunden" });
+  const targetConfigured = demoTargets.has(found.project.id);
+  if (c === "backup-settings") {
+    if (method === "PUT") demoBackupSettings.set(b, { exclude: (body.exclude ?? []).filter(Boolean), remoteKeep: Number(body.remoteKeep) || 7 });
+    return reply(200, { ...(demoBackupSettings.get(b) ?? { exclude: ["dynmap/**", "logs/**"], remoteKeep: 7 }), targetConfigured });
+  }
+  const list = backupsOf(b);
+  if (!d) {
+    if (method !== "POST") return reply(200, list);
+    const label = String(body.label ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+    const backup = { name: `${stamp}${label ? "-" + label : ""}.tar.gz`, label: label || undefined, size: 0, created: now(), status: "running", local: false, remote: false, upload: body.remote && targetConfigured ? "running" : undefined, locked: false };
+    list.unshift(backup);
+    finishDemoBackup(backup);
+    return reply(202, backup);
+  }
+  const backup = list.find((entry) => entry.name === d);
+  if (!backup) return reply(404, { error: "nicht gefunden" });
+  if (e === "lock") {
+    backup.locked = !!body.locked;
+    return reply(204);
+  }
+  if (e === "upload") {
+    Object.assign(backup, { status: "running", upload: "running", progress: 10, error: undefined });
+    setTimeout(() => Object.assign(backup, { status: "done", upload: "done", remote: true, progress: undefined }), 3000);
+    return reply(202);
+  }
+  if (e === "restore" || e === "restore-remote") return reply(202, found.server.view);
+  if (e === "download") return reply(404, { error: "In der Demo gibt es keine Archive zum Herunterladen." });
+  if (method === "DELETE") {
+    if (backup.locked) return reply(409, { error: "Das Backup ist festgehalten. Entsperre es zuerst, um es zu löschen." });
+    const where = url.searchParams.get("where");
+    if (where !== "remote") backup.local = false;
+    if (where !== "local") Object.assign(backup, { remote: false, upload: undefined });
+    if (!backup.local && !backup.remote) list.splice(list.indexOf(backup), 1);
+    return reply(204);
+  }
+  return reply(404, { error: "unbekannte Adresse (Demo)" });
 }
