@@ -3,8 +3,6 @@ package software
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -82,7 +80,7 @@ func (r *Resolver) forgeTarget(ctx context.Context, version string) (string, err
 		return "", ErrNotFound
 	}
 	var promotions forgePromotions
-	if err := r.getJSON(ctx, r.ForgePromotions, &promotions); err == nil {
+	if err := r.getJSON(ctx, r.ForgePromos, &promotions); err == nil {
 		for _, kind := range []string{"recommended", "latest"} {
 			if build := promotions.Promos[version+"-"+kind]; build != "" && known[version+"-"+build] {
 				return version + "-" + build, nil
@@ -129,25 +127,4 @@ func (r *Resolver) resolveForge(ctx context.Context, version string) (Artifact, 
 		return Artifact{}, fmt.Errorf("Forge meldet eine ungültige Prüfsumme für %s", target)
 	}
 	return Artifact{URL: address, FileName: name, SHA256: sum}, nil
-}
-
-func (r *Resolver) getText(ctx context.Context, address string) (string, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
-	if err != nil {
-		return "", err
-	}
-	request.Header.Set("User-Agent", "Lodestone")
-	response, err := r.HTTP.Do(request)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	if response.StatusCode == http.StatusNotFound {
-		return "", ErrNotFound
-	}
-	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s antwortet mit Status %d", request.URL.Host, response.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return string(data), err
 }

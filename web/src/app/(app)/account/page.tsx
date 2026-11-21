@@ -1,7 +1,7 @@
 "use client";
 
 import QRCode from "qrcode";
-import { Copy, Fingerprint, HardDriveUpload, KeyRound, Languages, Link2, LockKeyhole, LogOut, MonitorSmartphone, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Copy, Fingerprint, HardDriveUpload, KeyRound, Languages, Link2, LockKeyhole, LogOut, MonitorSmartphone, Palette, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, SectionLayout, type Section } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
@@ -11,15 +11,18 @@ import { OidcCard, PasskeysCard } from "@/components/account-sign-in";
 import { PixelAvatar } from "@/components/ui/mc";
 import { SftpAccountCard } from "@/components/sftp-account";
 import { LanguageCard } from "@/components/language";
+import { AppearanceCard } from "@/components/appearance-settings";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
 import { useUrlState } from "@/lib/url-state";
 import type { ApiKeyInfo, Me, OidcAccount, SessionInfo } from "@/lib/types";
 import { t, tp } from "@/lib/i18n";
 
-type SectionId = "password" | "totp" | "passkeys" | "oidc" | "keys" | "sftp" | "sessions" | "language";
+type SectionId = "appearance" | "password" | "totp" | "passkeys" | "oidc" | "keys" | "sftp" | "sessions" | "language";
 
 const sections = (): Section<SectionId>[] => [
+  { id: "appearance", label: t("Darstellung"), icon: Palette },
+  { id: "language", label: t("Sprache"), icon: Languages },
   { id: "password", label: t("Passwort"), icon: LockKeyhole },
   { id: "totp", label: t("Zwei-Faktor"), icon: ShieldCheck },
   { id: "passkeys", label: "Passkeys", icon: Fingerprint },
@@ -27,7 +30,6 @@ const sections = (): Section<SectionId>[] => [
   { id: "keys", label: t("API-Schlüssel"), icon: KeyRound },
   { id: "sftp", label: t("SFTP-Zugang"), icon: HardDriveUpload },
   { id: "sessions", label: t("Sitzungen"), icon: MonitorSmartphone },
-  { id: "language", label: t("Sprache"), icon: Languages },
 ];
 
 export default function AccountPage() {
@@ -40,20 +42,19 @@ export default function AccountPage() {
 
 function AccountView() {
   const user = useUser();
-  const [section, setSection] = useUrlState<SectionId>("section", "password");
-  const active = sections().some((entry) => entry.id === section) ? section : "password";
+  const [section, setSection] = useUrlState<SectionId>("section", "appearance");
+  const active = sections().some((entry) => entry.id === section) ? section : "appearance";
   return (
     <>
-      <PageHeader title={t("Konto")} description={t("Anmeldung, Sicherheit und Zugriff für Skripte.")} />
-      <div className="max-w-5xl space-y-5">
-        <Card className="flex items-center gap-4 p-5">
-          <PixelAvatar name={user.username} size={48} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{user.username}</p>
-            {user.isAdmin ? <Badge tone="accent">{t("Administrator")}</Badge> : <p className="text-xs text-muted">{t("Benutzer")}</p>}
-          </div>
-        </Card>
+      <PageHeader
+        title={user.username}
+        description={t("Dein Konto: Darstellung, Anmeldung, Sicherheit und Zugriff für Skripte.")}
+        icon={<PixelAvatar name={user.username} size={44} />}
+        meta={user.isAdmin ? <Badge tone="accent">{t("Administrator")}</Badge> : <Badge>{t("Benutzer")}</Badge>}
+      />
+      <div className="max-w-5xl">
         <SectionLayout label={t("Abschnitte des Kontos")} sections={sections()} value={active} onChange={setSection}>
+          {active === "appearance" && <AppearanceCard />}
           {active === "password" && <PasswordCard />}
           {active === "totp" && <TwoFactorCard />}
           {active === "passkeys" && <PasskeysCard />}

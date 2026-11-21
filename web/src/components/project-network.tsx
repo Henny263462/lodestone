@@ -139,7 +139,7 @@ function BackendsSection({ project, proxy, canManage, refresh }: { project: Proj
       <Card>
         <CardHeader title={t("Server hinter dem Proxy")} description={t("Die Reihenfolge bestimmt, wohin Spieler beim Beitritt kommen: der erste erreichbare Server mit „Beitritt“.")} />
         {entries.length === 0 ? (
-          <EmptyState icon={<ServerIcon className="h-6 w-6" />} title={t("Noch keine Server")} text={t("Füge im Tab „Server“ Paper-, Purpur-, Folia- oder Fabric-Server hinzu. Der Proxy lernt sie automatisch kennen.")} />
+          <EmptyState icon={<ServerIcon className="h-6 w-6" />} title={t("Noch keine Server")} text={t("Füge im Tab „Server“ Paper-, Purpur-, Folia-, Leaf-, Fabric- oder NeoForge-Server hinzu. Der Proxy lernt sie automatisch kennen.")} />
         ) : (
           <div className="divide-y divide-white/[0.05]">
             {entries.map((entry, index) => (

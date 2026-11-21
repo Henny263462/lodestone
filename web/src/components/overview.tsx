@@ -100,7 +100,7 @@ export function RecentEventsCard({ projects }: { projects: Project[] }) {
                 <p className="mt-0.5 truncate text-xs text-muted">
                   <span title={dateTime(event.time)}>{ago(event.time)}</span> · {eventLabels()[event.kind] ?? event.kind} ·{" "}
                   <Link
-                    href={event.serverId && serverName.has(event.serverId) ? `/server/?id=${event.serverId}` : `/project/?id=${event.projectId}&tab=events`}
+                    href={event.serverId && serverName.has(event.serverId) ? `/server/${event.serverId}/` : `/project/${event.projectId}/events/`}
                     className="hover:text-ink hover:underline"
                   >
                     {(event.serverId && serverName.get(event.serverId)) || projectName.get(event.projectId) || t("Projekt")}

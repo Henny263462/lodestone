@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { AlertTriangle, Network, Plus, Server as ServerIcon } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Activity, AlertTriangle, Boxes, CalendarClock, Network, Plus, Server as ServerIcon, Settings, Users } from "lucide-react";
 import { Suspense, useState } from "react";
-import { Badge, Button, Card, EmptyState, PageHeader, Tabs } from "@/components/ui/primitives";
+import { Badge, Button, Card, EmptyState, PageHeader, PageTabs, type PageTab } from "@/components/ui/primitives";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { AddServerDialog } from "@/components/add-server";
 import { GroupsTab } from "@/components/groups";
@@ -15,15 +14,15 @@ import { MembersTab } from "@/components/project-members";
 import { ProjectSettingsTab } from "@/components/project-settings";
 import { ChartCard, RangeTabs } from "@/components/server/stats";
 import { SeriesChart } from "@/components/ui/chart";
-import { PowerButtons, StateBadge } from "@/components/status";
+import { PowerButtons } from "@/components/status";
+import { BlockIcon } from "@/components/ui/mc";
+import { RoleBadges, ServerRow } from "@/components/server-list";
 import { ServerSortSelect, useServerSort } from "@/components/server-sort";
 import { sortServers } from "@/lib/order";
 import { useApi } from "@/lib/api";
-import { megabytes } from "@/lib/format";
 import { usePoll } from "@/lib/live";
-import { useUrlState } from "@/lib/url-state";
-import { can, type Metrics, type Project, type Range } from "@/lib/types";
-import { formatNumber, t } from "@/lib/i18n";
+import { can, roleLabel, type Metrics, type Project, type Range } from "@/lib/types";
+import { formatNumber, t, tp } from "@/lib/i18n";
 
 export default function ProjectPage() {
   return (
@@ -35,11 +34,27 @@ export default function ProjectPage() {
 
 type Tab = "servers" | "network" | "groups" | "schedules" | "events" | "members" | "settings";
 
+/** Projekt-ID und Bereich aus dem sauberen Pfad (/project/<id>/<bereich>/) oder aus alten Suchparametern (?id=…&tab=…). */
+function parseProjectRoute(pathname: string, searchParams: URLSearchParams): { id: string | null; tab: string | null } {
+  const segments = pathname.split("/").filter(Boolean);
+  let id: string | null = null;
+  let tabPart: string | null = null;
+  if (segments[0] === "project" && segments[1]) {
+    id = segments[1];
+    tabPart = segments[2] || null;
+  }
+  if (!id) {
+    id = searchParams.get("id");
+  }
+  return { id, tab: tabPart || searchParams.get("tab") };
+}
+
 function ProjectView() {
-  const id = useSearchParams().get("id");
+  const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const { id, tab: routeTab } = parseProjectRoute(pathname, searchParams);
   // Zustände und Änderungen kommen über den Live-Kanal; das Intervall hält CPU und RAM der Zeilen grob aktuell
   const { data: project, error, mutate } = useApi<Project>(id ? `/projects/${id}` : null, { refreshInterval: usePoll(30000, 4000) });
-  const [tab, setTab] = useUrlState<Tab>("tab", "servers", ["section"]);
   const [adding, setAdding] = useState(false);
 
   if (!id) return <ErrorState error={new Error(t("Kein Projekt angegeben. Wähle eins in der Übersicht."))} />;
@@ -50,21 +65,38 @@ function ProjectView() {
   const network = project.kind === "network";
   const canAdd = can(project.myPermissions, "servers") && (network || project.servers.length === 0);
 
-  const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: "servers", label: "Server", count: project.servers.length },
-    ...(network ? [{ id: "network" as const, label: t("Netzwerk") }, { id: "groups" as const, label: t("Gruppen"), count: project.groups.length }] : []),
-    { id: "schedules", label: t("Zeitpläne") },
-    { id: "events", label: t("Ereignisse") },
-    { id: "members", label: t("Mitglieder"), count: project.members?.length },
-    ...(canSettings ? [{ id: "settings" as const, label: t("Einstellungen") }] : []),
+  const base = `/project/${project.id}/`;
+  const icon = (Icon: typeof ServerIcon) => <Icon className="h-3.5 w-3.5" />;
+  const tabs: (PageTab & { id: Tab })[] = [
+    { id: "servers", label: "Server", href: base, icon: icon(ServerIcon), count: project.servers.length },
+    ...(network
+      ? [
+          { id: "network" as const, label: t("Netzwerk"), href: `${base}network/`, icon: icon(Network) },
+          { id: "groups" as const, label: t("Gruppen"), href: `${base}groups/`, icon: icon(Boxes), count: project.groups.length },
+        ]
+      : []),
+    { id: "schedules", label: t("Zeitpläne"), href: `${base}schedules/`, icon: icon(CalendarClock) },
+    { id: "events", label: t("Ereignisse"), href: `${base}events/`, icon: icon(Activity) },
+    { id: "members", label: t("Mitglieder"), href: `${base}members/`, icon: icon(Users), count: project.members?.length },
+    ...(canSettings ? [{ id: "settings" as const, label: t("Einstellungen"), href: `${base}settings/`, icon: icon(Settings) }] : []),
   ];
-  const active = tabs.some((entry) => entry.id === tab) ? tab : "servers";
+  const active: Tab = tabs.find((entry) => entry.id === routeTab)?.id ?? "servers";
+  const running = project.servers.filter((server) => server.view?.state === "running").length;
 
   return (
     <>
       <PageHeader
+        crumbs={[{ label: t("Übersicht"), href: "/" }, { label: project.name }]}
+        icon={<BlockIcon name={project.name} size={44} />}
         title={project.name}
-        description={project.description || (network ? t("Netzwerk mit Velocity-Proxy") : t("Einzelner Server"))}
+        description={project.description || undefined}
+        meta={
+          <>
+            <Badge tone={network ? "accent" : "neutral"}>{network ? t("Netzwerk mit Velocity") : t("Einzelner Server")}</Badge>
+            {project.servers.length > 0 && <Badge tone={running > 0 ? "good" : "neutral"}>{tp("serversRunning", running, { total: project.servers.length })}</Badge>}
+            <span>{t("Deine Rolle: {role}", { role: roleLabel()[project.myRole] })}</span>
+          </>
+        }
         action={
           canAdd && (
             <Button variant="primary" onClick={() => setAdding(true)}>
@@ -86,12 +118,10 @@ function ProjectView() {
         </div>
       )}
 
-      <div className="mb-5">
-        <Tabs value={active} onChange={setTab} items={tabs} />
-      </div>
+      <PageTabs value={active} items={tabs} />
 
-      {/* Neuer Schlüssel pro Tab: Der Inhalt blendet beim Wechsel kurz ein */}
-      <div key={active} className="animate-fade-in">
+      {/* Neuer Schlüssel pro Bereich: Der Inhalt blendet beim Wechsel kurz ein */}
+      <div key={active} className="animate-fade-in motion-reduce:animate-none">
         {active === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
         {active === "network" && network && <NetworkTab project={project} canManage={can(project.myPermissions, "network")} refresh={() => mutate()} />}
         {active === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
@@ -117,63 +147,47 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
         <EmptyState
           icon={project.kind === "network" ? <Network className="h-6 w-6" /> : <ServerIcon className="h-6 w-6" />}
           title={t("Noch kein Server")}
-          text={project.kind === "network" ? t("Beginne mit dem Velocity-Proxy, danach kommen die Server dahinter.") : t("Lege den Server dieses Projekts an.")}
+          text={
+            project.kind === "network"
+              ? t("Beginne mit dem Velocity-Proxy, danach kommen die Server dahinter.")
+              : onAdd
+                ? t("Lege den Server dieses Projekts an.")
+                : t("Jemand mit dem Recht, Server anzulegen, muss den Server anlegen.")
+          }
+          action={
+            onAdd && (
+              <Button variant="primary" onClick={onAdd}>
+                <Plus className="h-4 w-4" />
+                {project.kind === "network" ? t("Proxy hinzufügen") : t("Server anlegen")}
+              </Button>
+            )
+          }
         />
-        {onAdd && (
-          <div className="flex justify-center pb-10">
-            <Button variant="primary" onClick={onAdd}>
-              <Plus className="h-4 w-4" />
-              {project.kind === "network" ? t("Proxy hinzufügen") : t("Server anlegen")}
-            </Button>
-          </div>
-        )}
       </Card>
     );
   }
   const canOperate = can(project.myPermissions, "power");
   const groupName = (id?: string) => project.groups.find((group) => group.id === id)?.name;
   return (
-    <div className="space-y-3">
-      <ProjectStats project={project} />
-      {project.servers.length > 1 && (
-        <div className="flex justify-end">
-          <ServerSortSelect value={sort} onChange={setSort} />
-        </div>
-      )}
-      {sortServers(project.servers, sort, players).map((server) => (
-        <Card key={server.id} className="p-4">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link href={`/server/?id=${server.id}`} className="flex min-w-0 flex-1 basis-56 items-center gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-muted">
-                <ServerIcon className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold hover:underline">{server.name}</p>
-                <p className="truncate text-xs text-muted">
-                  {server.software} {server.view?.version} · {server.view ? megabytes(server.view.memoryMB) : "–"} · {server.nodeName}
-                </p>
-              </div>
-            </Link>
-            <div className="flex flex-wrap items-center gap-2">
-              {server.role === "proxy" && <Badge tone="accent">Proxy</Badge>}
-              {server.role === "backend" && <Badge>{server.inTry ? t("Beitritt #{value}", { value: server.tryPosition + 1 }) : "Backend"}</Badge>}
-              {server.groupId && <Badge tone="info">{t("Gruppe")} {groupName(server.groupId)}</Badge>}
-              {server.voicechat && <Badge tone="info">{t("Voicechat")}</Badge>}
-              <StateBadge server={server} />
-            </div>
-            <div className="min-w-0 basis-36 text-xs">
-              {server.address ? <span className="font-mono text-ink/80">{server.address}</span> : <span className="text-muted">{server.role === "backend" ? t("nur im Netzwerk") : "–"}</span>}
-              {server.view?.stats && server.view.state === "running" && (
-                <p className="mt-0.5 text-muted">
-                  {server.view.stats.cpuPercent.toFixed(0)} {t("% CPU ·")} {Math.round(server.view.stats.memoryBytes / 1024 ** 2)} MB
-                </p>
-              )}
-            </div>
-            <PowerButtons server={server} onDone={refresh} enabled={canOperate} />
+    <div className="space-y-5">
+      <Card className="overflow-hidden">
+        {project.servers.length > 1 && (
+          <div className="flex justify-end border-b border-white/[0.06] px-5 py-2.5">
+            <ServerSortSelect value={sort} onChange={setSort} />
           </div>
-          {server.view?.lastError && server.view.state === "offline" && <p className="mt-3 rounded-md border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">{server.view.lastError}</p>}
-        </Card>
-      ))}
+        )}
+        <div className="divide-y divide-white/[0.05]">
+          {sortServers(project.servers, sort, players).map((server) => (
+            <ServerRow
+              key={server.id}
+              server={server}
+              badges={<RoleBadges server={server} groupName={groupName(server.groupId)} />}
+              actions={<PowerButtons server={server} onDone={refresh} enabled={canOperate} />}
+            />
+          ))}
+        </div>
+      </Card>
+      <ProjectStats project={project} />
     </div>
   );
 }

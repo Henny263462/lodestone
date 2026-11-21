@@ -26,7 +26,7 @@ export function FavoriteButton({ project, pref, onChanged }: { project: Project;
   return (
     <button
       type="button"
-      aria-label={favorite ? t("{name} vom Anheften lösen", { name: project.name }) : `${project.name} anheften`}
+      aria-label={favorite ? t("{name} vom Anheften lösen", { name: project.name }) : t("{name} anheften", { name: project.name })}
       aria-pressed={favorite}
       title={favorite ? t("Angeheftet – klicken zum Lösen") : t("Anheften (steht dann oben)")}
       disabled={busy}
@@ -60,7 +60,7 @@ export function ProjectFilterChips({ prefs, value, onChange }: { prefs?: Project
       aria-pressed={selected}
       onClick={() => onChange(filter)}
       className={cx(
-        "rounded-full border px-2.5 py-1 text-xs transition duration-100 active:scale-95",
+        "rounded-md border px-2.5 py-1 text-xs transition duration-100 active:translate-y-px",
         selected ? "border-accent/60 bg-accent/10 text-ink" : "border-white/[0.1] text-muted hover:bg-white/[0.06] hover:text-ink",
       )}
     >
@@ -187,7 +187,7 @@ export function OrganizeDialog({ open, onClose, projects, prefs, onSaved }: { op
             <button
               type="button"
               aria-pressed={row.favorite}
-              aria-label={row.favorite ? t("{name} vom Anheften lösen", { name: row.project.name }) : `${row.project.name} anheften`}
+              aria-label={row.favorite ? t("{name} vom Anheften lösen", { name: row.project.name }) : t("{name} anheften", { name: row.project.name })}
               onClick={() => setRows((current) => current.map((entry, i) => (i === index ? { ...entry, favorite: !entry.favorite } : entry)))}
               className={cx("grid h-8 w-8 place-items-center rounded-lg transition duration-100 hover:bg-white/[0.06] active:scale-90", row.favorite ? "text-accent" : "text-muted hover:text-ink")}
             >

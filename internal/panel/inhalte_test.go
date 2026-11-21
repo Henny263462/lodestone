@@ -387,6 +387,29 @@ func TestForgeModpackAndBackendRule(t *testing.T) {
 	if !strings.Contains(string(body), "Forwarding") {
 		t.Fatalf("Begründung fehlt: %s", body)
 	}
+	// NeoForge dagegen geht hinter Velocity (mit Proxy Compatible Forge)
+	var neo ServerDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects/"+network.ID+"/servers", serverRequest{Name: "Neo", NodeID: nodeID, Software: "neoforge", Version: "21.1.77", EULA: true}), &neo)
+	if neo.Role != RoleBackend {
+		t.Fatalf("NeoForge im Netzwerk muss ein Backend sein: %+v", neo.ServerRow)
+	}
+}
+
+// TestLeafUsesPaperSources prüft, dass Leaf als Abspaltung von Paper dieselben Quellen und Bausteine bekommt.
+func TestLeafUsesPaperSources(t *testing.T) {
+	if hangarPlatform("leaf") != "PAPER" || geyserPlatform("leaf") != "spigot" || floodgateDir("leaf") != "plugins/floodgate" ||
+		blueMapConfigFile("leaf") != "plugins/BlueMap/core.conf" {
+		t.Fatalf("Leaf: hangar %q, geyser %q, floodgate %q, bluemap %q", hangarPlatform("leaf"), geyserPlatform("leaf"), floodgateDir("leaf"), blueMapConfigFile("leaf"))
+	}
+	var spigot SourceInfo
+	for _, info := range newContentSources("").list("leaf") {
+		if info.ID == SourceSpigot {
+			spigot = info
+		}
+	}
+	if !spigot.Available {
+		t.Fatalf("Spigot-Plugins laufen auf Leaf: %+v", spigot)
+	}
 }
 
 func portsOf(fake *fakeNode, id string) []node.PortMapping {

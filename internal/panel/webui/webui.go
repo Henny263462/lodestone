@@ -46,14 +46,8 @@ func handlerFor(root fs.FS) http.Handler {
 			} else {
 				w.Header().Set("Cache-Control", "no-cache")
 			}
-			if compressible(candidate) {
-				w.Header().Add("Vary", "Accept-Encoding")
-				if acceptsGzip(r) && r.Header.Get("Range") == "" {
-					if data, ok := packed.get(candidate); ok {
-						serveGzip(w, r, candidate, data)
-						return
-					}
-				}
+			if packed.serve(w, r, candidate) {
+				return
 			}
 			if candidate == name {
 				files.ServeHTTP(w, r)
@@ -61,6 +55,24 @@ func handlerFor(root fs.FS) http.Handler {
 			}
 			serve(w, r, root, candidate)
 			return
+		}
+		// SPA-Fallback für saubere Pfade wie /project/<id>/..., /server/<id>/..., /status/<slug>/... und /nodes/<id>/...
+		first := name
+		if idx := strings.IndexByte(name, '/'); idx != -1 {
+			first = name[:idx]
+		}
+		if first == "project" || first == "server" || first == "status" || first == "nodes" {
+			target := path.Join(first, "index.html")
+			if strings.HasSuffix(name, ".txt") {
+				target = path.Join(first, "index.txt")
+			}
+			if info, err := fs.Stat(root, target); err == nil && !info.IsDir() {
+				w.Header().Set("Cache-Control", "no-cache")
+				if !packed.serve(w, r, target) {
+					serve(w, r, root, target)
+				}
+				return
+			}
 		}
 		if page, err := fs.ReadFile(root, "404.html"); err == nil {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -78,8 +90,21 @@ func serve(w http.ResponseWriter, r *http.Request, root fs.FS, name string) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Type", contentType(name))
 	_, _ = w.Write(data)
+}
+
+// contentType bestimmt den Typ nach der Endung. Die .txt-Dateien sind die Seitendaten von Next.js und müssen als Text
+// ankommen, nicht als HTML.
+func contentType(name string) string {
+	ext := path.Ext(name)
+	if ext == ".html" {
+		return "text/html; charset=utf-8"
+	}
+	if value := mime.TypeByExtension(ext); value != "" {
+		return value
+	}
+	return "text/plain; charset=utf-8"
 }
 
 // ---------------------------------------------------------------- Kompression
@@ -145,20 +170,27 @@ func (c *gzipCache) get(name string) ([]byte, bool) {
 	return packed, packed != nil
 }
 
-func serveGzip(w http.ResponseWriter, r *http.Request, name string, data []byte) {
-	contentType := mime.TypeByExtension(path.Ext(name))
-	switch {
-	case path.Ext(name) == ".html":
-		contentType = "text/html; charset=utf-8"
-	case contentType == "":
-		contentType = "text/plain; charset=utf-8"
+// serve schickt die Datei gepackt, wenn sie komprimierbar ist und der Browser gzip annimmt. Sonst passiert nichts und
+// der Aufrufer liefert sie selbst aus.
+func (c *gzipCache) serve(w http.ResponseWriter, r *http.Request, name string) bool {
+	if !compressible(name) {
+		return false
+	}
+	w.Header().Add("Vary", "Accept-Encoding")
+	if !acceptsGzip(r) || r.Header.Get("Range") != "" {
+		return false
+	}
+	data, ok := c.get(name)
+	if !ok {
+		return false
 	}
 	header := w.Header()
-	header.Set("Content-Type", contentType)
+	header.Set("Content-Type", contentType(name))
 	header.Set("Content-Encoding", "gzip")
 	header.Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(http.StatusOK)
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(data)
 	}
+	return true
 }

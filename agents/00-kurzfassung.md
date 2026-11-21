@@ -13,15 +13,19 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
 3. Keine Emojis in der Oberfläche. Symbole kommen aus `lucide-react`.
 
 ## Aussehen (Details: `01`)
-4. **Dunkles Design, ein Akzent (Blau).** Farben nur über die Tailwind-Namen `bg`, `surface`, `raised`, `line`, `muted`, `ink`,
-   `accent`, `good`, `warn`, `bad`, `info` oder die festen Weiß-Töne `white/[0.0x]`. **Keine** Hex-Werte, **keine** neuen
-   Tailwind-Farben (wie `indigo-500`) außerhalb von `StatCard` und Diagrammen.
+4. **Dunkles, blockiges Design im Minecraft-Stil, ein Akzent.** Farben nur über die Tailwind-Namen `bg`, `surface`, `raised`, `line`,
+   `muted`, `ink`, `accent`, `accent-ink`, `good`, `warn`, `bad`, `info` oder die festen Töne `white/[0.0x]`/`black/xx`. Akzent und
+   Schrift wählt jeder Benutzer selbst (Konto → Darstellung): **nie** eine Schrift oder Akzentfarbe fest setzen, sondern `font-display`
+   (Überschriften, Knöpfe), `font-sans` (Text) und `accent`. **Keine** Hex-Werte, **keine** Tailwind-Paletten (wie `indigo-500`)
+   außer in den Pixelgrafiken (`lib/pixel-art.ts`) und Diagrammen.
 5. Karten sind `Card` (+ `CardHeader`), Knöpfe `Button`, Eingaben die Klasse `field`, Beschriftungen die Klasse `label`, Zustände
-   `Badge`/`Dot`, Tabs `Tabs`, Unternavigation `SectionLayout`, leere Listen `EmptyState`, Laden `Loading`, Fehler `ErrorState`
-   (in einer Karte `inline`), Dialoge `Dialog`/`ConfirmDialog`.
+   `Badge`/`Dot`, Seitenkopf `PageHeader` (mit `crumbs`), Bereiche einer Seite `PageTabs`, Unternavigation `SectionLayout`,
+   Umschalter in Karten `Tabs`, leere Listen `EmptyState`, Laden `Loading`, Fehler `ErrorState` (in einer Karte `inline`), Dialoge
+   `Dialog`/`ConfirmDialog`, Server in Listen `ServerRow`.
    **Baue keine eigene Variante davon.**
-6. Eckig-weich: Karten `rounded-xl`, Knöpfe/Eingaben `rounded-lg`, Abzeichen `rounded-full`. Rahmen immer `border-white/[0.07]`
-   (Karten) bzw. `border-white/[0.08]` (Eingaben). **Keine Schatten außer** `shadow-panel` und dem `shadow-glow` des primären Knopfs.
+6. Kantig: Die Rundungsstufen sind verkleinert (`rounded-xl` = 6 px). Karten `rounded-xl`, Eingaben `rounded-lg`, Knöpfe `rounded-md`,
+   Abzeichen `rounded-sm`, **kein** `rounded-full`. Schatten nur `shadow-bevel`, `shadow-bevel-pressed`, `shadow-panel`, `shadow-sunken`.
+   Pixelschrift nie fett (`font-medium` ist das Höchste).
 7. Keine Verläufe oder Leuchteffekte. Animationen nur die festen aus `tailwind.config.ts` (`animate-fade-in`, `-pop-in/-out`, `-overlay-*`,
    `-drawer-*`, `-toast-*`), kurz (120–220 ms), über `usePresence` zum Ausblenden. Keine eigenen Keyframes in Seiten.
 
@@ -34,8 +38,9 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
     Prüfung macht das Backend.
 
 ## Frontend (Details: `03`)
-11. Next.js als **statischer Export**: keine Serverkomponenten, keine API-Routen, keine dynamischen Pfade wie `/server/[id]`.
-    Seiten haben `"use client"` und lesen IDs aus Suchparametern (`/server/?id=…`).
+11. Next.js als **statischer Export**: keine Serverkomponenten, keine API-Routen. Seiten nutzen saubere Pfade
+    (`/project/<id>/<bereich>/`, `/server/<id>/<bereich>/`, `/status/<kürzel>/`), damit Vor- und Zurück-Navigation im Browser
+    funktioniert. Das Go-Panel und der Demo-Server liefern den passenden SPA-Fallback aus; alte Suchparameter bleiben als Fallback erhalten.
 12. Daten nur über `useApi<T>(pfad)` (lesen) und `api.get/post/put/patch/delete` (schreiben) aus `@/lib/api`. Nie `fetch` direkt,
     außer in `lib/api.ts`. Typen der Schnittstelle stehen in `lib/types.ts` und spiegeln die JSON-Namen des Backends.
 13. Keine neue npm-Abhängigkeit, ohne dass es der Besitzer verlangt hat. Vorhanden sind: next, react, swr, lucide-react,

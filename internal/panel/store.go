@@ -569,7 +569,7 @@ type ServerRow struct {
 	// PublicAddress ist die Adresse, unter der Spieler den Server erreichen, wenn sie nicht die der Maschine ist (z. B.
 	// ein playit-Tunnel). Sie wird nur angezeigt.
 	PublicAddress string `json:"publicAddress,omitempty"`
-	// PublicVoiceAddress ist die externe Voicechat-Adresse, z. B. ein playit-Tunnel für den UDP-Port.
+	// PublicVoiceAddress ist die Adresse des Voicechats (z. B. ein playit-Tunnel). Sie landet in der voice_host-Einstellung.
 	PublicVoiceAddress string `json:"publicVoiceAddress,omitempty"`
 	// Modpack ist das Modrinth-Modpack, aus dem der Server angelegt wurde.
 	Modpack *ModpackInfo `json:"modpack,omitempty"`

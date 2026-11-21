@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { Info, Lock, RotateCcw, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, SearchInput, Tabs, cx } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, SearchInput, Select, Tabs, cx } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { ApiError, api, fetchText, putText, useApi } from "@/lib/api";
@@ -230,14 +230,13 @@ function FieldInput({
         {title}
       </label>
       {field.type === "enum" ? (
-        <select id={id} className="field" value={value} disabled={off} onChange={(event) => onChange(event.target.value)}>
-          {!field.options.some((option) => option.value === value) && <option value={value}>{value}</option>}
-          {field.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={value}
+          disabled={off}
+          onChange={onChange}
+          aria-label={field.label}
+          options={[...(field.options.some((option) => option.value === value) ? [] : [{ value, label: value }]), ...field.options.map((option) => ({ value: option.value, label: option.label }))]}
+        />
       ) : field.type === "int" ? (
         <input id={id} type="number" inputMode="numeric" className="field tabular-nums" min={field.min} max={field.max} value={value} disabled={off} onChange={(event) => onChange(event.target.value)} />
       ) : field.multiline ? (

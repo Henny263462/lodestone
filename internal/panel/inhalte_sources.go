@@ -112,7 +112,8 @@ func (c *contentSources) list(softwareName string) []SourceInfo {
 		hangar.Reason = "Hangar hat nur Plugins für Paper, Purpur, Folia und Velocity."
 	}
 	spigot := SourceInfo{ID: SourceSpigot, Name: "Spigot"}
-	if softwareName == "paper" || softwareName == "purpur" {
+	// Leaf ist eine Abspaltung von Paper und lädt dieselben Plugins
+	if softwareName == "paper" || softwareName == "purpur" || softwareName == "leaf" {
 		spigot.Available = true
 	} else {
 		spigot.Reason = "Spigot-Plugins laufen nur auf Paper und Purpur."
@@ -232,7 +233,7 @@ type hangarSource struct {
 
 func hangarPlatform(softwareName string) string {
 	switch softwareName {
-	case "paper", "purpur", "folia":
+	case "paper", "purpur", "folia", "leaf":
 		return "PAPER"
 	case "velocity":
 		return "VELOCITY"

@@ -1,23 +1,75 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
 
+/*
+ * Design-Variablen (RGB-Tripel, damit Tailwind sie mit Alpha benutzen kann, z. B. bg-accent/10).
+ * Dunkles, blockiges Design im Stil des Minecraft-Launchers. Akzent und Schrift stellt jeder Benutzer unter
+ * Konto → Darstellung ein; public/appearance.js setzt dafür vor dem ersten Zeichnen data-accent und data-font am <html>.
+ */
 :root {
-  --bg: 17 17 17;
-  --surface: 24 24 24;
-  --raised: 32 32 32;
-  --line: 40 40 40;
-  --muted: 140 140 146;
-  --ink: 237 237 239;
-  --accent: 59 130 246;
-  --good: 34 197 94;
-  --warn: 245 158 11;
-  --bad: 239 68 68;
-  --info: 96 165 250;
+  --bg: 22 22 24;
+  --surface: 32 32 34;
+  --raised: 46 46 49;
+  --line: 58 58 62;
+  --muted: 160 160 166;
+  --ink: 236 236 236;
+  --accent: 60 160 50;
+  --accent-ink: 255 255 255;
+  --good: 85 205 90;
+  --warn: 255 170 0;
+  --bad: 240 80 80;
+  --info: 88 180 255;
+
+  /* Pixel-Schrift für Überschriften und Knöpfe, gut lesbare Schrift für Text (Standard „Minecraft“) */
+  --font-pixel-stack: var(--font-pixel), "Pixelify Sans", ui-monospace, monospace;
+  --font-text-stack: var(--font-text), "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-system-stack: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-pixel-stack);
+  --font-body: var(--font-text-stack);
 }
 
-* {
-  border-color: rgb(var(--line));
+/*
+ * Akzentfarben (benannt nach Erzen und Materialien) und Schriftstile. Sie gelten für jedes Element mit dem Attribut,
+ * nicht nur für <html>: So zeigt die Auswahl unter Konto → Darstellung jede Möglichkeit mit ihren echten Werten.
+ */
+[data-accent="emerald"] { --accent: 60 160 50; --accent-ink: 255 255 255; }
+[data-accent="diamond"] { --accent: 40 190 200; --accent-ink: 16 24 26; }
+[data-accent="lapis"] { --accent: 74 116 232; --accent-ink: 255 255 255; }
+[data-accent="amethyst"] { --accent: 160 104 232; --accent-ink: 255 255 255; }
+[data-accent="copper"] { --accent: 224 124 76; --accent-ink: 24 16 12; }
+
+[data-font="minecraft"] { --font-display: var(--font-pixel-stack); --font-body: var(--font-text-stack); }
+[data-font="pixel"] { --font-display: var(--font-pixel-stack); --font-body: var(--font-pixel-stack); }
+[data-font="modern"] { --font-display: var(--font-text-stack); --font-body: var(--font-text-stack); }
+[data-font="system"] { --font-display: var(--font-system-stack); --font-body: var(--font-system-stack); }
+
+/* Blockige Rundungen: Tailwinds Stufen werden kleiner, damit alles kantig wie im Spiel wirkt */
+@theme {
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius: 3px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --blur-sm: 4px;
+}
+
+@layer base {
+  *, ::before, ::after {
+    border-color: rgb(var(--line));
+  }
+
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Ein einheitlicher Fokusrahmen für die Tastatur statt des Browser-Standards; Eingaben (.field) haben ihren eigenen Ring */
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent) / 0.7);
+    outline-offset: 2px;
+  }
 }
 
 html {
@@ -27,7 +79,7 @@ html {
 body {
   background: rgb(var(--bg));
   color: rgb(var(--ink));
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -54,9 +106,20 @@ body {
   }
 }
 
+/* Wer im System weniger Bewegung eingestellt hat, bekommt Zustandswechsel ohne Animation (der Lade-Kringel dreht weiter) */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 ::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -65,16 +128,16 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: rgb(var(--line));
-  border-radius: 999px;
+  border: 2px solid rgb(var(--bg));
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--muted) / 0.4);
+  background: rgb(var(--muted) / 0.5);
 }
 
 @layer components {
   .field {
-    @apply w-full rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-sm text-ink placeholder:text-muted/60 outline-none transition focus:border-accent/60 focus:bg-white/[0.04] focus:ring-2 focus:ring-accent/20 disabled:opacity-50;
+    @apply w-full rounded-md border border-white/[0.1] bg-black/25 px-3 py-2 text-sm text-ink shadow-sunken placeholder:text-muted/60 outline-hidden transition focus:border-accent/70 focus:bg-black/35 focus:ring-2 focus:ring-accent/20 disabled:opacity-50;
   }
 
   .label {
@@ -82,11 +145,16 @@ body {
   }
 
   .panel {
-    @apply rounded-xl border border-white/[0.07] bg-surface;
+    @apply rounded-xl border border-white/[0.07] bg-surface shadow-panel;
   }
 
   .row-hover {
-    @apply transition hover:bg-white/[0.025];
+    @apply transition hover:bg-white/[0.03];
+  }
+
+  /* Schlagschatten unter Pixel-Texten, wie Minecraft ihn unter jede Schrift zeichnet */
+  .text-pixel-shadow {
+    text-shadow: 1px 1px 0 rgb(0 0 0 / 0.45);
   }
 }
 
@@ -102,7 +170,7 @@ body {
 .cm-selectionBackground, ::selection { background: rgb(var(--accent) / 0.3) !important; }
 .cm-cursor { border-left-color: rgb(var(--ink)) !important; }
 .cm-panels { background: rgb(var(--raised)) !important; color: rgb(var(--ink)) !important; border-color: rgb(var(--line)) !important; }
-.cm-panels input, .cm-panels button { background: rgb(255 255 255 / 0.05); border: 1px solid rgb(255 255 255 / 0.1); border-radius: 6px; padding: 2px 8px; color: inherit; }
+.cm-panels input, .cm-panels button { background: rgb(255 255 255 / 0.05); border: 1px solid rgb(255 255 255 / 0.1); border-radius: 3px; padding: 2px 8px; color: inherit; }
 
 /* Konsole */
 .console-text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }

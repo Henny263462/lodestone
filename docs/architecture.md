@@ -24,7 +24,7 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 - **Live-Kanal Panel → Browser** (`internal/panel/updates.go`, `web/src/lib/live.ts`): `GET /api/live` ist ein Strom von
   Server-Sent Events. Er trägt nur Thema und IDs (`server`, `players`, `backups`, `events`, `ops`, `project`, `node`), nie Daten;
   die Oberfläche lädt daraufhin die betroffenen SWR-Abfragen über die normalen Routen neu. Quellen: erfolgreiche verändernde
-  Anfragen unter `/api/servers/{id}` und `/api/projects/{id}`, Zustandswechsel beim Abfragen der Nodes (`nodeViews`), `emit`,
+  Anfragen unter `/api/servers/{id}`, `/api/projects/{id}` und `/api/nodes/{id}`, Zustandswechsel beim Abfragen der Nodes (`nodeViews`), `emit`,
   Backups, Kopie/Umzug und Spieler. Jede Meldung wird je Empfänger gegen Mitgliedschaft und Lese-Recht geprüft; die
   Verbindung endet, wenn die Anmeldung nicht mehr gilt. Abfrage-Intervalle bleiben als langer Rückfall (`usePoll`).
 - **Verbindung Panel ↔ Node:** zwei Wege.
@@ -49,7 +49,7 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 ## Datenmodell
 
 - **Projekt**: Einzelserver oder Netzwerk; hat Mitglieder mit Rollen pro Projekt.
-- **Server** gehört zu einem Projekt und läuft auf einer Node. Er hat eine **Software** (Paper, Purpur, Folia, Fabric,
+- **Server** gehört zu einem Projekt und läuft auf einer Node. Er hat eine **Software** (Paper, Purpur, Folia, Leaf, Fabric,
   NeoForge, Forge, Vanilla, Velocity), Version, Java-Version, Startzeile und Limits. Ein Server ist entweder
   *statisch* (behält seine Daten) oder Instanz einer *Gruppe*.
 - **Netzwerk** = ein oder mehrere Proxys + beliebig viele statische Server + optional Gruppen. Auch ein kleines
@@ -64,8 +64,9 @@ Beim Hinzufügen eines Servers zu einem Netzwerk schreibt das Panel alles selbst
 
 - Velocity: Forwarding-Secret, Server-Liste und **Try-Liste** (pro Server wählbar, ob und an welcher Position, per
   Drag & Drop), Forced-Hosts
-- Paper/Purpur/Folia: Velocity-Forwarding mit Secret, `online-mode=false`, Port
+- Paper/Purpur/Folia/Leaf: Velocity-Forwarding mit Secret, `online-mode=false`, Port
 - Fabric: Proxy-Mod (z. B. FabricProxy-Lite) samt Config
+- NeoForge: Proxy Compatible Forge (`config/proxy-compatible-forge.toml`), wird wie bei Fabric installiert und konfiguriert
 - **Gruppen:** Instanzen melden sich im laufenden Proxy an und beim Stoppen wieder ab (Proxy-Plugin, ähnlich
   Comparator), ohne Neustart. Das Plugin kann auch die Lobby nach Auslastung verteilen, denn Velocity probiert die
   Try-Liste nur der Reihe nach.
@@ -129,8 +130,8 @@ sie mit dem Panel verbindet. Datenbank hinter einer Schnittstelle, SQLite für k
 5. ✅ Netzwerk-Autoconfig (Try-Reihenfolge, Forced Hosts, statische Server, Voicechat)
 6. **Nächste Stufe:** Gruppen mit Scaling und Proxy-Plugin, Verbindung der Node nach außen, Netzwerke über mehrere
    Nodes, geplante Backups, Zwei-Faktor, Audit-Log
-7. ✅ Forge/NeoForge, Geyser/Floodgate, BlueMap, weitere Quellen (Hangar, Spigot, CurseForge); offen: Spieler-Verwaltung über
-   Rechte (Torch optional), CurseForge-Modpacks
+7. ✅ Forge/NeoForge (NeoForge auch hinter Velocity), Leaf, Geyser/Floodgate, BlueMap, weitere Quellen (Hangar, Spigot,
+   CurseForge), Position-Packs; offen: Spieler-Verwaltung über Rechte (Torch optional), CurseForge-Modpacks
 
 ## Betrieb (Panel-Schleifen)
 

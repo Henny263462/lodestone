@@ -55,7 +55,7 @@ export default function AuditPage() {
 
   return (
     <>
-      <PageHeader title={t("Protokoll")} description={t("Wer hat wann was geändert. Einträge werden 90 Tage aufbewahrt.")} />
+      <PageHeader crumbs={[{ label: t("Verwaltung") }, { label: t("Protokoll") }]} title={t("Protokoll")} description={t("Wer hat wann was geändert. Einträge werden 90 Tage aufbewahrt.")} />
       <SearchInput value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("Nach Benutzername filtern")} className="mb-5 max-w-sm" />
       <Card>
         {entries.length === 0 ? (

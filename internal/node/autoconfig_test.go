@@ -280,3 +280,64 @@ func TestAutoconfigSurvivesRestartOfTheDaemon(t *testing.T) {
 		t.Fatalf("der Satz muss gespeichert sein: %+v", view.Autoconfig)
 	}
 }
+
+func TestEditTOMLForProxyCompatibleForge(t *testing.T) {
+	edit := Edit{File: "config/proxy-compatible-forge.toml", Format: "toml", Create: true, Set: []SetOp{
+		{Path: []string{"forwarding", "enabled"}, Value: true},
+		{Path: []string{"forwarding", "mode"}, Value: "MODERN"},
+		{Path: []string{"forwarding", "secret"}, Value: "geheim"},
+	}}
+	type config struct {
+		Forwarding struct {
+			Enabled bool     `toml:"enabled"`
+			Mode    string   `toml:"mode"`
+			Secret  string   `toml:"secret"`
+			Hosts   []string `toml:"approvedProxyHosts"`
+		} `toml:"forwarding"`
+		CrossStitch struct {
+			Enabled bool `toml:"enabled"`
+		} `toml:"crossStitch"`
+	}
+	load := func(files *FS) config {
+		t.Helper()
+		var parsed config
+		got := read(t, files, "config/proxy-compatible-forge.toml")
+		if err := toml.Unmarshal([]byte(got), &parsed); err != nil {
+			t.Fatalf("kein TOML: %v\n%s", err, got)
+		}
+		return parsed
+	}
+
+	// Die Datei gibt es beim ersten Start noch nicht: sie wird mit der Tabelle [forwarding] angelegt
+	fresh, _ := newFS(t)
+	if changed, _, err := ApplyAutoconfig(fresh, Autoconfig{Edits: []Edit{edit}}); err != nil || !changed {
+		t.Fatalf("anlegen: %v %v", changed, err)
+	}
+	if got := load(fresh); !got.Forwarding.Enabled || got.Forwarding.Mode != "MODERN" || got.Forwarding.Secret != "geheim" {
+		t.Fatalf("neue Datei: %+v", got)
+	}
+
+	// Eine vorhandene Datei behält ihre übrigen Einstellungen; nur die drei Werte ändern sich
+	existing, _ := newFS(t)
+	write(t, existing, "config/proxy-compatible-forge.toml", `[forwarding]
+enabled = false
+mode = "LEGACY"
+secret = "alt"
+approvedProxyHosts = ["10.0.0.1"]
+
+[crossStitch]
+enabled = true
+`)
+	if changed, _, err := ApplyAutoconfig(existing, Autoconfig{Edits: []Edit{edit}}); err != nil || !changed {
+		t.Fatalf("ändern: %v %v", changed, err)
+	}
+	got := load(existing)
+	if !got.Forwarding.Enabled || got.Forwarding.Mode != "MODERN" || got.Forwarding.Secret != "geheim" ||
+		len(got.Forwarding.Hosts) != 1 || got.Forwarding.Hosts[0] != "10.0.0.1" || !got.CrossStitch.Enabled {
+		t.Fatalf("vorhandene Datei: %+v", got)
+	}
+	// Ein zweiter Lauf mit denselben Werten ändert nichts (kein unnötiger Neustart)
+	if changed, _, err := ApplyAutoconfig(existing, Autoconfig{Edits: []Edit{edit}}); err != nil || changed {
+		t.Fatalf("erneut anwenden: changed=%v err=%v", changed, err)
+	}
+}

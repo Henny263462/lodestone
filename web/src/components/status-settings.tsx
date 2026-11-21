@@ -15,7 +15,7 @@ export function StatusCard({ project, refresh }: { project: Project; refresh: ()
   const [slug, setSlug] = useState(settings.statusSlug);
   const [busy, setBusy] = useState(false);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const link = `${origin}/status/?p=${settings.statusSlug}`;
+  const link = `${origin}/status/${settings.statusSlug}/`;
 
   async function save(patch: { public?: boolean; slug?: string }) {
     setBusy(true);
@@ -57,7 +57,7 @@ export function StatusCard({ project, refresh }: { project: Project; refresh: ()
             </a>
           </div>
           <p className="break-words text-muted">
-            {t("Einbinden in eine Webseite:")} <code className="rounded bg-black/30 px-1.5 py-0.5">{`<iframe src="${link}&embed=1" width="360" height="150" style="border:0"></iframe>`}</code> {t("· Die Rohdaten (JSON) liegen unter")}{" "}
+            {t("Einbinden in eine Webseite:")} <code className="rounded bg-black/30 px-1.5 py-0.5">{`<iframe src="${link}?embed=1" width="360" height="150" style="border:0"></iframe>`}</code> {t("· Die Rohdaten (JSON) liegen unter")}{" "}
             <code className="rounded bg-black/30 px-1.5 py-0.5">/api/public/status/{settings.statusSlug}</code>.
           </p>
         </div>

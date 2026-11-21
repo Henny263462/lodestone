@@ -18,7 +18,8 @@ export function useUrlState<T extends string>(name: string, fallback: T, reset: 
       const url = new URL(window.location.href);
       url.searchParams.set(name, next);
       for (const other of reset) url.searchParams.delete(other);
-      window.history.replaceState(null, "", url);
+      // Den Zustand von Next.js behalten, damit Zurück und Vor weiter clientseitig laufen (wie in components/layout/navigation)
+      window.history.replaceState({ ...window.history.state }, "", url);
     },
     // reset ist eine feste Liste je Aufruf; als Text verglichen, damit ein neues Array keinen neuen Setter erzeugt
     // eslint-disable-next-line react-hooks/exhaustive-deps

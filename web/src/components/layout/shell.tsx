@@ -2,46 +2,39 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { Cpu, LayoutDashboard, LogOut, Menu, Network, PanelLeftClose, PanelLeftOpen, ScrollText, Search, Server, UserCog, Users, X } from "lucide-react";
-import { cx, usePresence } from "@/components/ui/primitives";
-import { LodestoneLogo, PixelAvatar, Wordmark } from "@/components/ui/mc";
+import { Suspense, createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  ArrowUpCircle,
+  Cable,
+  Cpu,
+  FolderKanban,
+  LayoutDashboard,
+  LayoutGrid,
+  LogOut,
+  Menu,
+  Package,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ScrollText,
+  Search,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { Dot, cx, usePresence } from "@/components/ui/primitives";
+import { BlockIcon, LodestoneLogo, PixelAvatar, Wordmark } from "@/components/ui/mc";
 import { Loading } from "@/components/ui/async";
 import { CommandPalette } from "./palette";
 import { api, prefetch, useApi } from "@/lib/api";
+import { stateTone } from "@/lib/format";
 import { usePoll, useLiveUpdates } from "@/lib/live";
 import { orderProjects } from "@/lib/order";
-import type { AuthStatus, Project, ProjectPref, User } from "@/lib/types";
-import { t, type LanguageChoice } from "@/lib/i18n";
+import type { AuthStatus, Project, ProjectPref, Server, UpdateStatus, User } from "@/lib/types";
+import { t, tp, type LanguageChoice } from "@/lib/i18n";
 import { useUserLanguage } from "@/lib/i18n-provider";
-
-type Icon = ComponentType<{ className?: string }>;
 
 const SessionContext = createContext<User | null>(null);
 export const useUser = () => useContext(SessionContext) as User;
-
-// ---------------------------------------------------------------- Zweite Seitenleiste
-
-interface SecondaryApi {
-  slot: HTMLElement | null;
-  setActive: (active: boolean) => void;
-}
-
-const SecondaryContext = createContext<SecondaryApi>({ slot: null, setActive: () => {} });
-
-/**
- * Eine zweite Seitenleiste, die neben der Hauptleiste erscheint (z. B. die Bereiche eines Servers). Der Inhalt wird in
- * den Platz der Shell eingeblendet; verschwindet die Seite, verschwindet auch die Leiste.
- */
-export function SecondarySidebar({ children }: { children: ReactNode }) {
-  const { slot, setActive } = useContext(SecondaryContext);
-  useEffect(() => {
-    setActive(true);
-    return () => setActive(false);
-  }, [setActive]);
-  return slot ? createPortal(children, slot) : null;
-}
 
 // ---------------------------------------------------------------- Anmeldung
 
@@ -84,12 +77,138 @@ export function AuthGate({ children }: { children: ReactNode }) {
   );
 }
 
+// ---------------------------------------------------------------- Navigation
+
 function normalize(path: string): string {
   const p = path.split("?")[0].replace(/\/+$/, "");
   return p ? p + "/" : "/";
 }
 
 const FOLD_KEY = "lodestone.sidebar.folded";
+// So viele Projekte zeigt die Leiste, bevor sie „Alle anzeigen“ anbietet
+const PROJECT_LIMIT = 8;
+
+interface NavEntry {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: (path: string) => boolean;
+}
+
+// Listen mit Texten sind Funktionen: Auf Modulebene steht die Sprache noch nicht fest
+const mainEntries = (): NavEntry[] => [
+  { href: "/", label: t("Übersicht"), icon: LayoutGrid, active: (p) => p === "/" },
+  { href: "/nodes/", label: t("Nodes"), icon: Cpu, active: (p) => p.startsWith("/nodes/") },
+];
+
+// Die Verwaltung steht für Administratoren direkt in der Leiste, nicht versteckt hinter einem Menü
+const adminEntries = (): NavEntry[] => [
+  { href: "/admin/", label: t("System"), icon: LayoutDashboard, active: (p) => p === "/admin/" },
+  { href: "/users/", label: t("Benutzer"), icon: Users, active: (p) => p.startsWith("/users/") },
+  { href: "/admin/projects/", label: t("Alle Projekte"), icon: FolderKanban, active: (p) => p.startsWith("/admin/projects/") },
+  { href: "/admin/packs/", label: t("Position-Packs"), icon: Package, active: (p) => p.startsWith("/admin/packs/") },
+  { href: "/admin/playit/", label: "playit.gg", icon: Cable, active: (p) => p.startsWith("/admin/playit/") },
+  { href: "/admin/updates/", label: t("Updates"), icon: ArrowUpCircle, active: (p) => p.startsWith("/admin/updates/") },
+  { href: "/audit/", label: t("Protokoll"), icon: ScrollText, active: (p) => p.startsWith("/audit/") },
+];
+
+/** Projekt- und Server-ID aus sauberen Pfaden (/project/<id>/…) oder alten Suchparametern (?id=…). */
+function currentIds(pathname: string, params: URLSearchParams): { projectId: string | null; serverId: string | null } {
+  const [section, id] = pathname.split("/").filter(Boolean);
+  const pick = (name: string) => (section === name ? id || params.get("id") : null);
+  return { projectId: pick("project"), serverId: pick("server") };
+}
+
+function NavItem({ href, label, icon: Icon, active, compact, trailing }: { href: string; label: string; icon: LucideIcon; active: boolean; compact: boolean; trailing?: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      title={compact ? label : undefined}
+      aria-current={active ? "page" : undefined}
+      className={cx(
+        "relative flex items-center rounded-md text-[13px] transition duration-100",
+        compact ? "justify-center py-2.5" : "gap-3 px-3 py-2",
+        active ? "bg-white/[0.08] text-ink" : "text-muted hover:bg-white/[0.04] hover:text-ink",
+      )}
+    >
+      {active && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] bg-accent" />}
+      <Icon className={cx("h-4 w-4 shrink-0", active ? "text-accent" : "text-muted")} />
+      {!compact && <span className="min-w-0 flex-1 truncate">{label}</span>}
+      {!compact && trailing}
+    </Link>
+  );
+}
+
+function SectionTitle({ children, compact, action }: { children: ReactNode; compact: boolean; action?: ReactNode }) {
+  if (compact) return <div className="mx-3 my-3 h-px bg-white/[0.07]" />;
+  return (
+    <div className="mb-1 mt-5 flex items-center justify-between px-3">
+      <p className="font-display text-[11px] uppercase tracking-[0.12em] text-muted/80">{children}</p>
+      {action}
+    </div>
+  );
+}
+
+function serverTone(server: Server) {
+  if (!server.online) return "bad" as const;
+  return stateTone(server.view?.state);
+}
+
+function ProjectItem({ project, active, activeServerId, compact }: { project: Project; active: boolean; activeServerId: string | null; compact: boolean }) {
+  const running = project.servers.filter((server) => server.view?.state === "running").length;
+  return (
+    <div>
+      <Link
+        href={`/project/${project.id}/`}
+        title={compact ? project.name : undefined}
+        aria-current={active && !activeServerId ? "page" : undefined}
+        className={cx(
+          "relative flex items-center rounded-md text-[13px] transition duration-100",
+          compact ? "justify-center py-2" : "gap-2.5 px-3 py-1.5",
+          active ? "bg-white/[0.08] text-ink" : "text-muted hover:bg-white/[0.04] hover:text-ink",
+        )}
+      >
+        {active && !activeServerId && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] bg-accent" />}
+        <BlockIcon name={project.name} size={18} />
+        {!compact && (
+          <>
+            <span className="min-w-0 flex-1 truncate">{project.name}</span>
+            {project.servers.length > 0 && (
+              <span className="text-[10.5px] tabular-nums text-muted" title={tp("serversRunningOf", running, { total: project.servers.length })}>
+                {running}/{project.servers.length}
+              </span>
+            )}
+          </>
+        )}
+      </Link>
+      {/* Das aktive Projekt klappt seine Server auf, damit man ohne Umweg zwischen ihnen wechselt */}
+      {active && !compact && project.servers.length > 0 && (
+        <div className="mb-1 ml-[21px] mt-0.5 space-y-px border-l border-white/[0.08] pl-2">
+          {project.servers.map((server) => {
+            const selected = server.id === activeServerId;
+            return (
+              <Link
+                key={server.id}
+                href={`/server/${server.id}/`}
+                aria-current={selected ? "page" : undefined}
+                className={cx(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] transition duration-100",
+                  selected ? "bg-white/[0.08] text-ink" : "text-muted hover:bg-white/[0.04] hover:text-ink",
+                )}
+              >
+                <Dot tone={serverTone(server)} />
+                <span className="min-w-0 flex-1 truncate">{server.name}</span>
+                {server.role === "proxy" && <span className="text-[10px] text-muted">Proxy</span>}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Shell
 
 function Shell({ user, children }: { user: User; children: ReactNode }) {
   const pathname = normalize(usePathname() ?? "/");
@@ -98,20 +217,32 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
   const drawer = usePresence(open, 160);
   const [folded, setFolded] = useState(false);
   const [palette, setPalette] = useState(false);
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
-  const [secondary, setSecondary] = useState(0);
+  const [allProjects, setAllProjects] = useState(false);
+
   // Ein Kanal für die ganze Oberfläche: Änderungen im Panel laden die betroffenen Abfragen neu
   useLiveUpdates();
   const { data: projects } = useApi<Project[]>("/projects", { refreshInterval: usePoll(120000, 15000) });
   // Eigene Ordnung: angeheftete Projekte oben, dann die selbst gewählte Reihenfolge
   const { data: prefs } = useApi<ProjectPref[]>("/me/project-prefs");
+  const { data: updates } = useApi<UpdateStatus>(user.isAdmin ? "/updates" : null, { refreshInterval: 300000 });
 
   useEffect(() => setOpen(false), [pathname, params]);
-  useEffect(() => setFolded(window.localStorage.getItem(FOLD_KEY) === "1"), []);
+  useEffect(() => {
+    try {
+      setFolded(window.localStorage.getItem(FOLD_KEY) === "1");
+    } catch {}
+  }, []);
+
+  // Bei einem Seitenwechsel beginnt der Inhalt wieder oben
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [pathname]);
 
   function toggleFold() {
     setFolded((value) => {
-      window.localStorage.setItem(FOLD_KEY, value ? "0" : "1");
+      try {
+        window.localStorage.setItem(FOLD_KEY, value ? "0" : "1");
+      } catch {}
       return !value;
     });
   }
@@ -137,97 +268,127 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
     window.location.replace("/login/");
   }
 
-  const currentProject = pathname === "/project/" ? params.get("id") : null;
-
-  function link(href: string, label: string, Icon: Icon, selected: boolean, compact: boolean) {
-    return (
-      <Link
-        key={href}
-        href={href}
-        title={compact ? label : undefined}
-        className={cx(
-          "flex items-center rounded-lg border text-[13px] transition duration-100 active:scale-[0.97]",
-          compact ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
-          selected ? "border-white/[0.07] bg-white/[0.07] text-ink" : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
-        )}
-      >
-        <Icon className={cx("h-4 w-4 shrink-0", selected ? "text-ink" : "text-muted")} />
-        {!compact && <span className="flex-1 truncate">{label}</span>}
-      </Link>
-    );
-  }
+  const { projectId, serverId } = currentIds(pathname, params);
+  const list = orderProjects(projects ?? [], prefs);
+  const activeProjectId = projectId ?? list.find((project) => project.servers.some((server) => server.id === serverId))?.id ?? null;
+  // Das aktive Projekt bleibt sichtbar, auch wenn es hinter der Grenze läge
+  const shown = allProjects ? list : list.filter((project, index) => index < PROJECT_LIMIT || project.id === activeProjectId);
 
   function sidebar(compact: boolean) {
-    const heading = (text: string) =>
-      compact ? <div className="mx-3 my-3 h-px bg-white/[0.06]" /> : <p className="px-3 pb-1 pt-4 text-[10.5px] font-medium uppercase tracking-wider text-muted/70">{text}</p>;
     return (
       <div className="flex h-full flex-col">
-        <div className={cx("pb-3 pt-4", compact ? "px-2" : "px-3")}>
-          <div className={cx("flex items-center rounded-lg py-1.5", compact ? "justify-center" : "gap-2.5 px-2")}>
-            <LodestoneLogo size={28} />
-            {!compact && <Wordmark className="min-w-0 flex-1 truncate text-[12.5px]" />}
-            {!compact && (
-              <button onClick={() => setOpen(false)} className="rounded-md p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink lg:hidden" aria-label={t("Menü schließen")}>
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+        <div className={cx("flex items-center pb-3 pt-4", compact ? "justify-center px-2" : "gap-2.5 px-4")}>
+          <Link href="/" className="flex min-w-0 flex-1 items-center gap-2.5" title={t("Zur Übersicht")}>
+            <LodestoneLogo size={compact ? 30 : 28} />
+            {!compact && <Wordmark className="truncate text-[15px]" />}
+          </Link>
+          {!compact && (
+            <button onClick={() => setOpen(false)} className="rounded-md p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink lg:hidden" aria-label={t("Menü schließen")}>
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
-        <nav className={cx("no-scrollbar flex-1 space-y-0.5 overflow-y-auto pb-4", compact ? "px-2" : "px-3")}>
+        <div className={cx("pb-2", compact ? "px-2" : "px-3")}>
           <button
             onClick={() => setPalette(true)}
             title={compact ? t("Suchen (Strg K)") : undefined}
-            className={cx("mb-2 flex w-full items-center rounded-lg border border-white/[0.07] bg-white/[0.03] text-[13px] text-muted transition hover:bg-white/[0.06] hover:text-ink", compact ? "justify-center py-2.5" : "gap-3 px-3 py-2")}
+            aria-label={t("Suchen")}
+            className={cx(
+              "flex w-full items-center rounded-md border border-white/[0.08] bg-black/25 text-[13px] text-muted shadow-sunken transition hover:border-white/[0.14] hover:text-ink",
+              compact ? "justify-center py-2.5" : "gap-3 px-3 py-2",
+            )}
           >
             <Search className="h-4 w-4 shrink-0" />
             {!compact && (
               <>
                 <span className="flex-1 text-left">{t("Suchen")}</span>
-                <kbd className="rounded border border-white/[0.1] px-1.5 text-[10px]">Strg K</kbd>
+                <kbd className="rounded-sm border border-white/[0.1] px-1.5 font-sans text-[10px]">{t("Strg K")}</kbd>
               </>
             )}
           </button>
-          {link("/", t("Übersicht"), LayoutDashboard, pathname === "/", compact)}
+        </div>
 
-          {heading(t("Projekte"))}
-          {orderProjects(projects ?? [], prefs).map((project) =>
-            link(
-              `/project/?id=${project.id}`,
-              project.name,
-              project.kind === "network" ? Network : Server,
-              currentProject === project.id || (pathname === "/server/" && project.servers.some((server) => server.id === params.get("id"))),
-              compact,
-            ),
+        <nav aria-label={t("Hauptnavigation")} className={cx("no-scrollbar flex-1 overflow-y-auto pb-4", compact ? "px-2" : "px-3")}>
+          <div className="space-y-px">
+            {mainEntries().map((entry) => (
+              <NavItem key={entry.href} href={entry.href} label={entry.label} icon={entry.icon} active={entry.active(pathname)} compact={compact} />
+            ))}
+          </div>
+
+          <SectionTitle compact={compact}>{t("Projekte")}</SectionTitle>
+          <div className="space-y-px">
+            {shown.map((project) => (
+              <ProjectItem key={project.id} project={project} active={project.id === activeProjectId} activeServerId={serverId} compact={compact} />
+            ))}
+            {projects && list.length === 0 && !compact && (
+              <Link href="/" className="block px-3 py-1.5 text-xs text-muted hover:text-ink">
+                {t("Noch keine Projekte. Lege eins auf der Übersicht an.")}
+              </Link>
+            )}
+            {!compact && list.length > PROJECT_LIMIT && (
+              <button
+                type="button"
+                onClick={() => setAllProjects((value) => !value)}
+                className="w-full rounded-md px-3 py-1.5 text-left text-xs text-muted transition hover:bg-white/[0.04] hover:text-ink"
+              >
+                {allProjects ? t("Weniger anzeigen") : t("Alle {count} anzeigen", { count: list.length })}
+              </button>
+            )}
+          </div>
+
+          {user.isAdmin && (
+            <>
+              <SectionTitle compact={compact}>{t("Verwaltung")}</SectionTitle>
+              <div className="space-y-px">
+                {adminEntries().map((entry) => (
+                  <NavItem
+                    key={entry.href}
+                    href={entry.href}
+                    label={entry.label}
+                    icon={entry.icon}
+                    active={entry.active(pathname)}
+                    compact={compact}
+                    trailing={
+                      entry.href === "/admin/updates/" && updates?.updateAvailable ? (
+                        <span className="rounded-sm bg-warn/15 px-1.5 text-[10px] font-medium text-warn">{t("Neu")}</span>
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </>
           )}
-          {projects && projects.length === 0 && !compact && <p className="px-3 py-1 text-xs text-muted/70">{t("Noch keine Projekte")}</p>}
-
-          {heading(t("Verwaltung"))}
-          {link("/nodes/", t("Nodes"), Cpu, pathname === "/nodes/", compact)}
-          {user.isAdmin && link("/users/", t("Benutzer"), Users, pathname === "/users/", compact)}
-          {user.isAdmin && link("/audit/", t("Protokoll"), ScrollText, pathname === "/audit/", compact)}
-          {link("/account/", t("Konto"), UserCog, pathname === "/account/", compact)}
         </nav>
 
-        <div className="border-t border-white/[0.06] p-3">
-          <div className={cx("flex items-center rounded-lg py-1.5", compact ? "flex-col gap-2 px-0" : "gap-3 px-2")}>
-            <span title={compact ? user.username : undefined}>
-              <PixelAvatar name={user.username} size={28} />
-            </span>
-            {!compact && (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium">{user.username}</p>
-                {user.isAdmin && <p className="text-[10.5px] text-muted">{t("Administrator")}</p>}
-              </div>
-            )}
-            <button onClick={logout} className="rounded-md p-1.5 text-muted transition hover:bg-white/[0.06] hover:text-ink" title={t("Abmelden")} aria-label={t("Abmelden")}>
+        <div className={cx("border-t border-white/[0.07]", compact ? "space-y-1 p-2" : "p-3")}>
+          <div className={cx("flex items-center", compact ? "flex-col gap-1" : "gap-1")}>
+            <Link
+              href="/account/"
+              title={compact ? `${user.username} · ${t("Konto und Darstellung")}` : t("Konto und Darstellung")}
+              aria-current={pathname === "/account/" ? "page" : undefined}
+              className={cx(
+                "flex min-w-0 flex-1 items-center rounded-md transition hover:bg-white/[0.05]",
+                compact ? "justify-center p-1.5" : "gap-2.5 p-1.5",
+                pathname === "/account/" && "bg-white/[0.08]",
+              )}
+            >
+              <PixelAvatar name={user.username} size={30} />
+              {!compact && (
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium leading-snug">{user.username}</span>
+                  <span className="block text-[11px] leading-tight text-muted">{user.isAdmin ? t("Administrator") : t("Konto und Darstellung")}</span>
+                </span>
+              )}
+            </Link>
+            <button onClick={logout} className="rounded-md p-2 text-muted transition hover:bg-white/[0.06] hover:text-ink" title={t("Abmelden")} aria-label={t("Abmelden")}>
               <LogOut className="h-4 w-4" />
             </button>
           </div>
           <button
             onClick={toggleFold}
             className={cx(
-              "mt-1 hidden w-full items-center rounded-lg py-2 text-[12px] text-muted transition hover:bg-white/[0.05] hover:text-ink lg:flex",
+              "mt-1 hidden w-full items-center rounded-md py-1.5 text-xs text-muted transition hover:bg-white/[0.05] hover:text-ink lg:flex",
               compact ? "justify-center" : "gap-3 px-3",
             )}
             title={folded ? t("Seitenleiste ausklappen (Strg B)") : t("Seitenleiste einklappen (Strg B)")}
@@ -241,52 +402,45 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
     );
   }
 
-  // Stabil halten: Die Leiste meldet sich in einem Effekt an und ab, ein neuer Wert würde das endlos wiederholen
-  const setActive = useCallback((active: boolean) => setSecondary((count) => Math.max(0, count + (active ? 1 : -1))), []);
-  const secondaryApi = useMemo<SecondaryApi>(() => ({ slot, setActive }), [slot, setActive]);
-
   return (
-    <SecondaryContext.Provider value={secondaryApi}>
+    <>
       <CommandPalette projects={projects} user={user} open={palette} onClose={() => setPalette(false)} />
-      <div className="min-h-screen bg-bg lg:h-screen lg:overflow-hidden">
-        <aside className={cx("fixed inset-y-0 left-0 z-30 hidden transition-[width] duration-200 ease-snappy lg:block", folded ? "w-[68px]" : "w-[240px]")}>{sidebar(folded)}</aside>
-
-        {drawer.mounted && (
-          <div className={cx("fixed inset-0 z-40 lg:hidden", drawer.leaving && "pointer-events-none")}>
-            <div className={cx("absolute inset-0 bg-black/70 backdrop-blur-sm", drawer.leaving ? "animate-overlay-out" : "animate-overlay-in")} onClick={() => setOpen(false)} />
-            <aside className={cx("relative h-full w-[264px] border-r border-white/[0.07] bg-bg", drawer.leaving ? "animate-drawer-out" : "animate-drawer-in")}>{sidebar(false)}</aside>
-          </div>
+      <aside
+        className={cx(
+          "fixed inset-y-0 left-0 z-30 hidden border-r border-black/50 bg-black/25 transition-[width] duration-200 ease-snappy lg:block",
+          folded ? "w-[68px]" : "w-[248px]",
         )}
+      >
+        {sidebar(folded)}
+      </aside>
 
-        <div className={cx("min-h-screen p-0 transition-[padding] duration-200 ease-snappy lg:h-screen lg:min-h-0 lg:p-2", folded ? "lg:pl-[68px]" : "lg:pl-[240px]")}>
-          <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-white/[0.06] bg-bg/90 px-4 backdrop-blur-xl lg:hidden">
-            <button onClick={() => setOpen(true)} className="rounded-lg border border-white/[0.08] p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink" aria-label={t("Menü öffnen")}>
-              <Menu className="h-4 w-4" />
-            </button>
-            <LodestoneLogo size={22} />
-            <Wordmark className="truncate text-[12px]" />
-          </header>
-
-          <main className="min-h-[calc(100vh-3rem)] border-white/[0.06] bg-[#151515] lg:flex lg:h-full lg:min-h-0 lg:overflow-hidden lg:rounded-2xl lg:border">
-            {/* Platz für die zweite Seitenleiste; sie erscheint nur, solange eine Seite sie einblendet */}
-            <aside
-              className={cx(
-                "no-scrollbar shrink-0 border-white/[0.06] lg:h-full lg:w-[232px] lg:overflow-y-auto lg:border-r",
-                secondary > 0 ? "border-b lg:border-b-0" : "hidden",
-              )}
-            >
-              <div ref={setSlot} className="lg:h-full" />
-            </aside>
-            {/* Nur dieser Bereich scrollt, die Seitenleisten bleiben stehen */}
-            <div className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto">
-              {/* Der Schlüssel lässt jede neue Seite (auch ein anderes Projekt oder einen anderen Server) kurz einblenden */}
-              <div key={`${pathname}?${params.get("id") ?? ""}`} className="mx-auto w-full max-w-[1480px] animate-fade-in px-4 py-6 lg:px-10 lg:py-9">
-                {children}
-              </div>
-            </div>
-          </main>
+      {drawer.mounted && (
+        <div className={cx("fixed inset-0 z-40 lg:hidden", drawer.leaving && "pointer-events-none")}>
+          <div className={cx("absolute inset-0 bg-black/70 backdrop-blur-sm", drawer.leaving ? "animate-overlay-out" : "animate-overlay-in")} onClick={() => setOpen(false)} />
+          <aside className={cx("relative h-full w-[272px] border-r border-black/50 bg-bg", drawer.leaving ? "animate-drawer-out" : "animate-drawer-in")}>{sidebar(false)}</aside>
         </div>
+      )}
+
+      <div className={cx("min-h-screen transition-[padding] duration-200 ease-snappy", folded ? "lg:pl-[68px]" : "lg:pl-[248px]")}>
+        <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-black/50 bg-bg/95 px-4 backdrop-blur-xl lg:hidden">
+          <button onClick={() => setOpen(true)} className="rounded-md border border-white/[0.08] p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink" aria-label={t("Menü öffnen")}>
+            <Menu className="h-4 w-4" />
+          </button>
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            <LodestoneLogo size={22} />
+            <Wordmark className="truncate text-[13px]" />
+          </Link>
+          <button onClick={() => setPalette(true)} className="ml-auto rounded-md p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink" aria-label={t("Suchen")}>
+            <Search className="h-4 w-4" />
+          </button>
+        </header>
+
+        <main className="min-w-0">
+          <div key={pathname} className="mx-auto w-full max-w-[1400px] animate-fade-in px-4 py-6 motion-reduce:animate-none lg:px-10 lg:py-8">
+            {children}
+          </div>
+        </main>
       </div>
-    </SecondaryContext.Provider>
+    </>
   );
 }

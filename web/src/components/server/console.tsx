@@ -241,7 +241,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
       <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-2">
         <div className="flex min-w-[180px] flex-1 items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5">
           <Search className="h-3.5 w-3.5 shrink-0 text-muted" />
-          <input className="h-8 w-full bg-transparent text-xs outline-none placeholder:text-muted/60" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("In der Konsole suchen")} />
+          <input className="h-8 w-full bg-transparent text-xs outline-hidden placeholder:text-muted/60" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("In der Konsole suchen")} />
           {filter && (
             <button onClick={() => setFilter("")} className="text-muted hover:text-ink" aria-label={t("Suche löschen")}>
               <X className="h-3.5 w-3.5" />
@@ -284,7 +284,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
         {!follow && (
           <button
             onClick={() => setFollow(true)}
-            className="absolute bottom-3 right-5 inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-raised px-3 py-1.5 text-xs shadow-lg transition hover:bg-white/[0.08]"
+            className="absolute bottom-3 right-5 inline-flex items-center gap-1.5 rounded-md border border-black/50 bg-raised px-3 py-1.5 text-xs shadow-panel transition hover:bg-white/[0.08]"
           >
             <ArrowDownToLine className="h-3.5 w-3.5" />
             {t("Nach unten")}
@@ -295,7 +295,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
       <div className="flex items-center gap-2 border-t border-white/[0.06] p-3">
         <span className="font-mono text-sm text-muted">&gt;</span>
         <input
-          className="h-9 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted/60 disabled:opacity-50"
+          className="h-9 flex-1 bg-transparent font-mono text-sm outline-hidden placeholder:text-muted/60 disabled:opacity-50"
           placeholder={!canCommand ? t("Nur lesen – Befehle brauchen die Rolle Operator") : running ? t("Befehl eingeben und Enter drücken") : t("Der Server läuft nicht")}
           value={input}
           disabled={!canCommand || !running}

@@ -2,18 +2,17 @@
 
 import { HardDrive, LifeBuoy, Moon, Plug, RefreshCw, Settings2, Trash2, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, CardHeader, SectionLayout, Switch, type Section } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, SectionLayout, Select, Switch, type Section } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { TransferCard } from "@/components/server/transfer";
 import { SleepCard } from "@/components/server/sleep";
 import { StorageCard } from "@/components/server/storage";
+import { MemoryInput } from "@/components/memory-input";
+import { TunnelsCard } from "@/components/server/tunnels";
 import { api, useApi } from "@/lib/api";
-import { megabytes } from "@/lib/format";
 import { useUrlState } from "@/lib/url-state";
 import { can, type Permission, type Server } from "@/lib/types";
 import { t } from "@/lib/i18n";
-
-const memoryOptions = [256, 512, 1024, 2048, 3072, 4096, 6144, 8192, 12288, 16384];
 
 function envToText(env?: Record<string, string>): string {
   return Object.entries(env ?? {})
@@ -65,6 +64,7 @@ export function SettingsTab({ server, permissions, onChanged, onDeleted }: { ser
       {active === "ports" && (
         <>
           <PortsCard server={server} />
+          <TunnelsCard server={server} onDone={onChanged} />
           <PublicAddress server={server} onDone={onChanged} />
         </>
       )}
@@ -130,13 +130,7 @@ function GeneralCard({ server, onChanged }: { server: Server; onChanged: () => v
         </div>
         <div>
           <label className="label">{t("Arbeitsspeicher")}</label>
-          <select className="field" value={memory} onChange={(event) => setMemory(Number(event.target.value))} disabled={!offline}>
-            {[...new Set([...memoryOptions, memory])].sort((a, b) => a - b).map((value) => (
-              <option key={value} value={value}>
-                {megabytes(value)}
-              </option>
-            ))}
-          </select>
+          <MemoryInput value={memory} onChange={setMemory} disabled={!offline} />
         </div>
         <div>
           <label className="label">{t("CPU-Kerne (0 = unbegrenzt)")}</label>
@@ -258,7 +252,7 @@ function PublicAddress({ server, onDone }: { server: Server; onDone: () => void 
   useEffect(() => setAddress(server.publicAddress ?? ""), [server.id, server.publicAddress]);
   return (
     <Card>
-      <CardHeader title={t("Öffentliche Adresse")} description={t("Die Adresse, die Spieler sehen, etwa ein playit-Tunnel. Leer heißt: Adresse der Maschine.")} />
+      <CardHeader title={t("Öffentliche Adresse")} description={t("Die Adresse, die Spieler sehen. Ein playit-Tunnel trägt sie selbst ein; hier kannst du eine eigene setzen. Leer heißt: Adresse der Maschine.")} />
       <div className="flex flex-wrap items-end gap-3 px-5 py-4">
         <div className="min-w-0 flex-1 basis-60">
           <label className="label">{t("Adresse (wird nur angezeigt)")}</label>
@@ -298,13 +292,13 @@ function Reinstall({ server, offline, onDone }: { server: Server; offline: boole
       <div className="flex flex-wrap items-end gap-3 px-5 py-4">
         <div className="w-full sm:w-56">
           <label className="label">{t("Version (aktuell {version})", { version: current })}</label>
-          <select className="field" value={version} onChange={(event) => setVersion(event.target.value)} disabled={!offline || !versions}>
-            {(versions ?? []).slice(0, 80).map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={version}
+            onChange={setVersion}
+            disabled={!offline || !versions}
+            aria-label={t("Version (aktuell {version})", { version: current })}
+            options={(versions ?? []).slice(0, 80).map((entry) => ({ value: entry, label: entry }))}
+          />
         </div>
         <Button disabled={!offline || !version || version === current} onClick={() => setConfirm(true)}>
           <RefreshCw className="h-4 w-4" />

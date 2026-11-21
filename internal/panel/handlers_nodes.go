@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lodestone-mc/lodestone/internal/node"
 	"github.com/lodestone-mc/lodestone/internal/software"
 )
 
@@ -28,6 +29,20 @@ type nodeDTO struct {
 	MemoryCommitted int64 `json:"memoryCommitted,omitempty"`
 	// Linked meldet einen Node, der sich selbst zum Panel verbindet (ohne Adresse).
 	Linked bool `json:"linked,omitempty"`
+	// MemoryTotal ist der gesamte Arbeitsspeicher der Maschine in Bytes.
+	MemoryTotal int64 `json:"memoryTotal,omitempty"`
+	// MemoryUsed ist der tatsächlich belegte Arbeitsspeicher der Maschine in Bytes.
+	MemoryUsed int64 `json:"memoryUsed,omitempty"`
+	// PingMs ist die Antwortzeit zum Node-Daemon in Millisekunden.
+	PingMs *int64 `json:"pingMs,omitempty"`
+	// UpdateAvailable ist wahr, wenn es ein neueres Release als die Version des Nodes gibt (nach der letzten Prüfung).
+	UpdateAvailable bool `json:"updateAvailable,omitempty"`
+}
+
+type nodeDetailDTO struct {
+	nodeDTO
+	Servers  []ServerDTO       `json:"servers"`
+	Projects map[string]string `json:"projects,omitempty"`
 }
 
 func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
@@ -50,17 +65,28 @@ func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 			defer cancel()
 			var system struct {
-				Version         string `json:"version"`
-				Docker          any    `json:"docker"`
-				Error           string `json:"dockerError"`
-				DataDir         string `json:"dataDir"`
-				MemoryAvailable int64  `json:"memoryAvailable"`
+				Version         string          `json:"version"`
+				Docker          node.SystemInfo `json:"docker"`
+				Error           string          `json:"dockerError"`
+				DataDir         string          `json:"dataDir"`
+				MemoryAvailable int64           `json:"memoryAvailable"`
 			}
+			start := time.Now()
 			if err := p.nodeClient(n).Do(ctx, http.MethodGet, "/api/system", nil, &system); err != nil {
 				result[i].Error = err.Error()
 				return
 			}
+			latency := time.Since(start).Milliseconds()
+			result[i].PingMs = &latency
 			result[i].Online, result[i].System, result[i].Version, result[i].MemoryAvailable = true, system.Docker, system.Version, system.MemoryAvailable
+			result[i].MemoryTotal = system.Docker.MemoryBytes
+			if system.Docker.MemoryBytes > 0 && system.MemoryAvailable >= 0 {
+				result[i].MemoryUsed = system.Docker.MemoryBytes - system.MemoryAvailable
+				if result[i].MemoryUsed < 0 {
+					result[i].MemoryUsed = 0
+				}
+			}
+			result[i].UpdateAvailable = p.needsUpdate(p.latestVersion(), system.Version)
 			if views, err := p.nodeViews(ctx, n.ID); err == nil {
 				for _, view := range views {
 					if activeState(view.State) {
@@ -80,6 +106,85 @@ func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (p *Panel) getNode(w http.ResponseWriter, r *http.Request) {
+	n, err := p.store.NodeByID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	user := userFrom(r.Context())
+	admin := user.IsAdmin
+	dto := nodeDTO{ID: n.ID, Name: n.Name, PublicHost: n.PublicHost, Linked: n.linked()}
+	if admin {
+		dto.URL = n.URL
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	var system struct {
+		Version         string          `json:"version"`
+		Docker          node.SystemInfo `json:"docker"`
+		Error           string          `json:"dockerError"`
+		DataDir         string          `json:"dataDir"`
+		MemoryAvailable int64           `json:"memoryAvailable"`
+	}
+	start := time.Now()
+	if err := p.nodeClient(n).Do(ctx, http.MethodGet, "/api/system", nil, &system); err != nil {
+		dto.Error = err.Error()
+	} else {
+		latency := time.Since(start).Milliseconds()
+		dto.PingMs = &latency
+		dto.Online, dto.System, dto.Version, dto.MemoryAvailable = true, system.Docker, system.Version, system.MemoryAvailable
+		dto.MemoryTotal = system.Docker.MemoryBytes
+		if system.Docker.MemoryBytes > 0 && system.MemoryAvailable >= 0 {
+			dto.MemoryUsed = system.Docker.MemoryBytes - system.MemoryAvailable
+			if dto.MemoryUsed < 0 {
+				dto.MemoryUsed = 0
+			}
+		}
+		dto.UpdateAvailable = p.needsUpdate(p.latestVersion(), system.Version)
+		if views, err := p.nodeViews(ctx, n.ID); err == nil {
+			for _, view := range views {
+				if activeState(view.State) {
+					dto.MemoryCommitted += int64(view.MemoryMB) << 20
+				}
+			}
+		}
+		if system.Error != "" {
+			dto.Online, dto.Error = false, "Docker: "+system.Error
+		}
+	}
+
+	// Wer kein Administrator ist, sieht nur die Server und Projekte, in denen er Mitglied ist. Die Zahl der Server
+	// zählt wie in der Liste alle.
+	projectNames := map[string]string{}
+	if projects, err := p.store.ListProjects(user.ID, admin); err == nil {
+		for _, proj := range projects {
+			projectNames[proj.ID] = proj.Name
+		}
+	}
+	allServers, err := p.store.ListServers("")
+	nodeServers := []ServerRow{}
+	if err == nil {
+		for _, s := range allServers {
+			if s.NodeID != n.ID {
+				continue
+			}
+			dto.ServerCount++
+			if _, member := projectNames[s.ProjectID]; member {
+				nodeServers = append(nodeServers, s)
+			}
+		}
+	}
+	serverDTOs := p.serverDTOs(ctx, nodeServers)
+
+	writeJSON(w, http.StatusOK, nodeDetailDTO{
+		nodeDTO:  dto,
+		Servers:  serverDTOs,
+		Projects: projectNames,
+	})
 }
 
 type nodeBody struct {

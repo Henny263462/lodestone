@@ -54,7 +54,7 @@ export function BlocksTab({ server, canManage, offline }: { server: Server; canM
               {block.managed === "network" ? (
                 <span>
                   {block.reason && tx(block.reason)}{" "}
-                  <Link className="text-accent hover:underline" href={`/project/?id=${server.projectId}`}>
+                  <Link className="text-accent hover:underline" href={`/project/${server.projectId}/`}>
                     {t("Zum Netzwerk")}
                   </Link>
                 </span>

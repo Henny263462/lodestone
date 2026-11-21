@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Archive, Bot, Globe, Settings2, Trash2, Truck } from "lucide-react";
 import { useState } from "react";
 import { Button, Card, CardHeader, SectionLayout, type Section } from "@/components/ui/primitives";
@@ -12,6 +11,7 @@ import { DiscordBotCard } from "@/components/discord-bot";
 import { api } from "@/lib/api";
 import { useUrlState } from "@/lib/url-state";
 import type { Project } from "@/lib/types";
+import { useAppNavigation } from "@/components/layout/navigation";
 import { t } from "@/lib/i18n";
 
 type SectionId = "general" | "status" | "backups" | "discord" | "transfer" | "danger";
@@ -81,7 +81,7 @@ function GeneralCard({ project, refresh }: { project: Project; refresh: () => vo
 
 function DeleteProject({ project }: { project: Project }) {
   const toast = useToast();
-  const router = useRouter();
+  const navigation = useAppNavigation();
   const [deleting, setDeleting] = useState(false);
   return (
     <>
@@ -102,7 +102,7 @@ function DeleteProject({ project }: { project: Project }) {
         confirm={t("Endgültig löschen")}
         danger
         onConfirm={async () => {
-          if (await toast.run(() => api.delete(`/projects/${project.id}`), t("Projekt gelöscht"))) router.replace("/");
+          if (await toast.run(() => api.delete(`/projects/${project.id}`), t("Projekt gelöscht"))) navigation.replace("/");
         }}
       />
     </>

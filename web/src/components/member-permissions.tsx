@@ -2,7 +2,7 @@
 
 import { RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Select, Switch } from "@/components/ui/primitives";
 import { Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
@@ -91,13 +91,12 @@ export function MemberPermissionsDialog({ project, member, editable, onClose, on
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[180px] flex-1">
               <label className="label">{t("Rolle (Vorlage)")}</label>
-              <select className="field" value={draft.role} disabled={!editable} onChange={(event) => update({ role: event.target.value as Role, selected: new Set(catalog.roles[event.target.value as Role] ?? []) })}>
-                {(Object.keys(roleLabel()) as Role[]).map((value) => (
-                  <option key={value} value={value} disabled={roleRank[value] > roleRank[project.myRole]}>
-                    {roleLabel()[value]}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={draft.role}
+                disabled={!editable}
+                onChange={(value) => update({ role: value as Role, selected: new Set(catalog.roles[value as Role] ?? []) })}
+                options={(Object.keys(roleLabel()) as Role[]).map((value) => ({ value, label: roleLabel()[value], disabled: roleRank[value] > roleRank[project.myRole] }))}
+              />
             </div>
             {differs && <Badge tone="accent">{t("Angepasst")}</Badge>}
             {editable && differs && (

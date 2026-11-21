@@ -22,7 +22,7 @@ import (
 	"github.com/lodestone-mc/lodestone/internal/panel/webui"
 )
 
-var version = "0.1.0"
+var version = "dev"
 
 func env(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
@@ -50,6 +50,9 @@ func main() {
 func run(logger *slog.Logger) error {
 	dataDir := env("LODESTONE_DATA_DIR", "data")
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(dataDir, "packs"), 0o700); err != nil {
 		return err
 	}
 	store, err := panel.OpenStore(filepath.Join(dataDir, "lodestone.db"))

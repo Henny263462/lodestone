@@ -2,7 +2,7 @@
 
 import { CalendarClock, Pencil, Play, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Switch, cx } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Select, Switch, cx } from "@/components/ui/primitives";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
@@ -244,7 +244,7 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
       {!existing && (
         <div className="flex flex-wrap gap-2">
           {presets().map((preset) => (
-            <button key={preset.label} type="button" onClick={() => patch(preset.build())} className="rounded-full border border-white/[0.09] bg-white/[0.03] px-3 py-1 text-xs text-muted transition hover:border-white/[0.18] hover:text-ink">
+            <button key={preset.label} type="button" onClick={() => patch(preset.build())} className="rounded-md border border-white/[0.09] bg-black/20 px-3 py-1 text-xs text-muted transition hover:border-white/[0.18] hover:text-ink">
               {preset.label}
             </button>
           ))}
@@ -257,21 +257,24 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
         </div>
         <div>
           <label className="label">Server</label>
-          <select className="field" value={draft.serverId} disabled={!!existing} onChange={(event) => patch({ serverId: event.target.value })}>
-            {project.servers.map((server) => (
-              <option key={server.id} value={server.id}>
-                {server.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={draft.serverId}
+            disabled={!!existing}
+            onChange={(value) => patch({ serverId: value })}
+            options={project.servers.map((server) => ({ value: server.id, label: server.name }))}
+          />
         </div>
         <div>
           <label className="label">{t("Wann")}</label>
-          <select className="field" value={draft.kind} onChange={(event) => patch({ kind: event.target.value as Draft["kind"] })}>
-            <option value="daily">{t("Täglich")}</option>
-            <option value="weekly">{t("An bestimmten Wochentagen")}</option>
-            <option value="interval">{t("In festem Abstand")}</option>
-          </select>
+          <Select
+            value={draft.kind}
+            onChange={(value) => patch({ kind: value as Draft["kind"] })}
+            options={[
+              { value: "daily", label: t("Täglich") },
+              { value: "weekly", label: t("An bestimmten Wochentagen") },
+              { value: "interval", label: t("In festem Abstand") },
+            ]}
+          />
         </div>
         {draft.kind === "interval" ? (
           <div>
@@ -312,13 +315,12 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
           {draft.steps.map((step, index) => (
             <div key={index} className="flex items-center gap-2">
               <span className="w-5 text-center text-xs text-muted">{index + 1}</span>
-              <select className="field w-48" value={step.action} onChange={(event) => setStep(index, { action: event.target.value as StepAction, value: "", remote: undefined })}>
-                {(Object.keys(actionLabel()) as StepAction[]).map((action) => (
-                  <option key={action} value={action}>
-                    {actionLabel()[action]}
-                  </option>
-                ))}
-              </select>
+              <Select
+                className="w-48"
+                value={step.action}
+                onChange={(value) => setStep(index, { action: value as StepAction, value: "", remote: undefined })}
+                options={(Object.keys(actionLabel()) as StepAction[]).map((action) => ({ value: action, label: actionLabel()[action] }))}
+              />
               {(step.action === "command" || step.action === "wait" || step.action === "backup") && (
                 <input
                   className="field flex-1"

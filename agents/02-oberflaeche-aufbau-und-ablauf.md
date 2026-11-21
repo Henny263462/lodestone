@@ -5,39 +5,55 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 ## 1. Informationsarchitektur
 
 ```
-Übersicht (/)                      Kennzahlen; Projekte als Karten (angeheftete zuerst, eigene Reihenfolge, Filter nach Schlagwort);
-                                   rechts Nodes (Zustand, RAM) und letzte Ereignisse aller eigenen Projekte
-Projekt (/project/?id=&tab=)       Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
-  Netzwerk (&section=)             Server und Beitritt · MOTD · Voicechat · Bedrock (Geyser)
-  Ereignisse (&section=)           Verlauf · Benachrichtigungen (Webhooks) · Konsolen-Auslöser
-  Einstellungen (&section=)        Allgemein · Statusseite · Backup-Ziel · Discord-Bot · Umziehen · Gefahrenzone (nur Eigentümer)
-  └─ Server (/server/?id=&tab=)    Zweite Seitenleiste in Gruppen: Betrieb (Konsole · Statistiken · Spieler) ·
-                                   Inhalte (Dateien · Plugins/Mods · Welten · Backups) · Konfiguration (Spieleinstellungen · Einstellungen)
-     Einstellungen (&section=)     Allgemein · Anschlüsse (Ports, öffentliche Adresse) · Schlafmodus · Absturzerkennung · Version ·
-                                   Kopieren und umziehen · Speicher · Gefahrenzone
-Nodes (/nodes/)                    Maschinen, Speicher, playit (`?add=1` öffnet „Node hinzufügen“)
-Benutzer (/users/)                 nur Administratoren
-Protokoll (/audit/)                nur Administratoren
-Konto (/account/?section=)         Passwort · Zwei-Faktor · Passkeys · Anmeldung über OIDC · API-Schlüssel · SFTP-Zugang · Sitzungen · Sprache
-Status (/status/?p=)               öffentlich, ohne Anmeldung, ohne Shell
+Seitenleiste (immer da, globale Navigation)
+  Übersicht (/)                    Kennzahlen, alle Projekte als Karten mit ihren Servern (angeheftete zuerst, eigene Reihenfolge,
+                                   Filter nach Schlagwort), letzte Ereignisse aller eigenen Projekte
+  Nodes (/nodes/)                  Maschinen, Speicher, playit verbinden (`?add=1` öffnet „Node hinzufügen“); Detailseite /nodes/<id>/
+  Projekte                         jedes Projekt mit Blocksymbol; das aktive klappt seine Server auf
+    Projekt (/project/<id>/<bereich>/)   PageTabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
+      Netzwerk (?section=)         Server und Beitritt · MOTD · Voicechat · Bedrock (Geyser)
+      Ereignisse (?section=)       Verlauf · Benachrichtigungen (Webhooks) · Konsolen-Auslöser
+      Einstellungen (?section=)    Allgemein · Statusseite · Backup-Ziel · Discord-Bot · Umziehen · Gefahrenzone (nur Eigentümer)
+      Server (/server/<id>/<bereich>/)   PageTabs: Konsole · Statistiken · Spieler · Dateien · Plugins/Mods · Welten · Backups ·
+                                   Spieleinstellungen · Einstellungen
+        Einstellungen (?section=)  Allgemein · Anschlüsse (Ports, öffentliche Adresse, playit-Tunnel) · Schlafmodus · Absturzerkennung ·
+                                   Version · Kopieren und umziehen · Speicher · Gefahrenzone
+  Verwaltung (nur Administratoren, direkt sichtbar)
+    System (/admin/)               Kennzahlen der Installation, letzte Aktivität, Hinweis auf Updates
+    Benutzer (/users/)             Benutzerverwaltung (Zwei-Faktor, Sitzungen, Projekte je Benutzer)
+    Alle Projekte (/admin/projects/)  alle Projekte mit Eigentümer, Mitgliedern, Servern
+    Position-Packs (/admin/packs/) Software-Vorlagen und Autokonfiguration als ZIP
+    playit.gg (/admin/playit/)     Tunnel und Agenten
+    Updates (/admin/updates/)      Versionsstand von Panel und Nodes, Updates per Klick, Auto-Update („Neu“ in der Leiste)
+    Protokoll (/audit/)
+  Konto (/account/?section=, unten)  Darstellung (Schrift, Akzentfarbe) · Sprache · Passwort · Zwei-Faktor · Passkeys · Anmeldung über
+                                   OIDC · API-Schlüssel · SFTP-Zugang · Sitzungen
+Status (/status/<kürzel>/)         öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
 ```
 
 - **Projekt** ist die Ebene, auf der Rechte, Netzwerk, Gruppen, Zeitpläne und Webhooks liegen. **Server** ist die Ebene, auf der man
   mit einem einzelnen Minecraft-Server arbeitet. Neue Funktionen gehören auf die Ebene, zu der ihre Daten gehören.
-- Neue Hauptseiten sind selten. Bevor du eine anlegst: Passt es als Tab im Projekt, als Bereich im Server oder als Karte im Konto?
-  Eine neue Hauptseite braucht einen Eintrag in `shell.tsx` (Seitenleiste) **und** in `palette.tsx` (Strg+K).
-- Navigation innerhalb eines Servers/Projekts geschieht über Tabs bzw. die zweite Seitenleiste; der aktive Tab steht in der Adresse
-  (`?tab=…`), der Abschnitt darin in `?section=…`, damit Neuladen, Links und Strg+K an derselben Stelle landen (`useUrlState`).
-- Wird ein Tab länger als zwei, drei Karten, bekommt er Abschnitte (`SectionLayout`), statt dass alles untereinander steht.
-  Ein neuer Abschnitt ist ein Eintrag im `sections`-Array der Komponente (Recht beachten) und ein Ziel in `palette.tsx`.
+- **Zwei Navigationsebenen, nie doppelt:** Die Seitenleiste führt zu Seiten (global), `PageTabs` wechseln Bereiche **innerhalb** eines
+  Projekts oder Servers (lokal). Bereiche gehören nicht in die Seitenleiste, Seiten nicht in `PageTabs`.
+- Jede Seite unterhalb der Übersicht zeigt im `PageHeader` den Pfad (`crumbs`): Übersicht → Projekt → Server, Verwaltung → Benutzer,
+  Nodes → Node. Der vorletzte Eintrag ist ein Link eine Ebene zurück.
+- Neue Hauptseiten sind selten. Bevor du eine anlegst: Passt es als Bereich im Projekt, als Bereich im Server oder als Karte im Konto?
+  Eine neue Hauptseite braucht einen Eintrag in `shell.tsx` (`mainEntries` oder `adminEntries`) **und** in `palette.tsx` (Strg+K).
+- Der aktive Bereich steht in der Adresse (`/server/<id>/<bereich>/`, alte Form `?tab=…`), damit Neuladen und Links an derselben Stelle
+  landen (siehe `server/page.tsx`).
+- Wird ein Bereich länger als zwei, drei Karten, bekommt er Abschnitte (`SectionLayout`), statt dass alles untereinander steht. Der
+  Abschnitt steht in `?section=…` (`useUrlState`). Ein neuer Abschnitt ist ein Eintrag im `sections`-Array der Komponente (Recht
+  beachten) und ein Ziel in `palette.tsx`.
 - Strg+K (`palette.tsx`) kennt Seiten, Projekte, Server, Aktionen („Neues Projekt“ → `/?new=1`, „Node hinzufügen“ → `/nodes/?add=1`)
-  und, sobald man tippt, Unterziele: die Bereiche jedes Servers, die Tabs jedes Projekts und die Abschnitte des Kontos.
+  und, sobald man tippt, Unterziele: die Bereiche jedes Servers und Projekts und die Abschnitte des Kontos.
 
 ## 2. Seitenaufbau (Schablone)
 
 ```
-<PageHeader title="…" description="ein Satz, wofür die Seite da ist" action={<Button variant="primary">…</Button>} />
+<PageHeader crumbs={[…]} icon={…} title="…" description="ein Satz, wofür die Seite da ist" meta={…}
+            action={<Button variant="primary">…</Button>} />
+[PageTabs, wenn die Seite Bereiche hat (Projekt, Server)]
 [Hinweis-/Fehlerkästen, falls nötig]
 [Kennzahlen: grid mit StatCard]
 [Hauptinhalt: Cards mit CardHeader]
@@ -58,7 +74,7 @@ if (data.length === 0) return <EmptyState icon={…} title="Noch keine …" text
 return …                                                                   // 4. voll
 ```
 
-- **Leer** erklärt in einem Satz, was das hier ist, und bietet nach Möglichkeit den Knopf zum Anlegen an (nur wenn der Benutzer darf;
+- **Leer** erklärt in einem Satz, was das hier ist, und bietet nach Möglichkeit den Knopf zum Anlegen an (`EmptyState action={…}`, nur wenn der Benutzer darf;
   sonst: „Ein Administrator muss …“).
 - **Fehler** zeigt die Meldung des Backends (die ist schon deutsch und erklärt; `lib/api.ts` übersetzt bekannte Meldungen
   ins Englische, siehe `03` §9). Nie selbst „Fehler 500“ ausgeben.
@@ -90,8 +106,10 @@ return …                                                                   // 
 - Beschriftung immer über dem Feld (`label`), Platzhalter nur als Beispiel („Lobby“), nie als Ersatz für die Beschriftung.
 - Primärknopf ist deaktiviert (`disabled`), solange Pflichtfelder fehlen; **kein** roter Fehler, bevor jemand etwas getan hat.
 - Prüfe im Browser nur zur Hilfe (Länge, Muster); die Pflichtprüfung macht das Backend. Dessen Fehlermeldung wird per Toast gezeigt.
-- Auswahlfelder: `<select className="field">`. Mehrwahl: `Checkbox`. Zahl mit Einheit: Einheit im Label („Arbeitsspeicher (MB)“) oder
-  Auswahlliste mit schon formatierten Werten (`megabytes()` aus `lib/format`).
+- Auswahlfelder: `<Select value={…} onChange={…} options={[{ value, label }]} />` aus `ui/primitives`; die Liste erscheint im Panel-Stil.
+  Ein natives `<select>` zeichnet der Browser beim Aufklappen im Systemstil und wird nicht mehr benutzt. Mehrwahl: `Checkbox`.
+- Arbeitsspeicher: `MemoryInput` (`components/memory-input.tsx`) mit MB-Feld und Schieberegler (256 MB bis 64 GB), nicht als Auswahlliste.
+  Andere Zahlen mit Einheit: Einheit ins Label („Arbeitsspeicher (MB)“).
 - Geheimnisse (Tokens, Schlüssel, Passwörter): `type="password"` bzw. einmalig anzeigen mit Kopierknopf und dem Hinweis, dass sie
   nicht wieder erscheinen. Nie in der Adresse, nie im Log.
 

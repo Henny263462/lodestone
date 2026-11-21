@@ -285,10 +285,12 @@ func loadersFor(id string) []string {
 		return []string{"purpur", "paper", "spigot", "bukkit"}
 	case "folia":
 		return []string{"folia"}
+	case "leaf":
+		return []string{"paper", "spigot", "bukkit"}
 	case "fabric":
 		return []string{"fabric"}
 	case "neoforge":
-		return []string{"neoforge", "forge"}
+		return []string{"neoforge"}
 	case "forge":
 		return []string{"forge"}
 	case "velocity":

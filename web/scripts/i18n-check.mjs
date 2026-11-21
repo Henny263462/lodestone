@@ -5,6 +5,7 @@
 // - Platzhalter wie {name} sind im deutschen Schlüssel und in der Übersetzung dieselben (auch in den Pluralformen),
 // - sichtbarer Text in JSX (Text zwischen Tags, title/label/placeholder/… als fester String) läuft über t().
 //
+// Den Quelltext liest der SWC-Parser, den Next.js mitbringt: TypeScript 7 hat keine JavaScript-Schnittstelle zum Parsen mehr.
 // Beendet sich mit Code 1, wenn etwas davon nicht stimmt.
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -13,7 +14,8 @@ import { fileURLToPath } from "node:url";
 
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(path.join(webDir, "package.json"));
-const ts = require("typescript");
+const swc = require("next/dist/build/swc");
+await swc.loadBindings();
 const srcDir = path.join(webDir, "src");
 
 // Wörter, die auf Deutsch und Englisch gleich sind und deshalb ohne t() stehen dürfen.
@@ -27,7 +29,7 @@ const neutral = new Set([
   "http://node.example.org:8480", "mc.example.org", "mc2.example.org", "hetzner-1", "https://panel.example.org",
   "https://s3.eu-central-1.amazonaws.com", "eu-central-1", "lodestone-backups", "*.log", "&gt;", "network_mode: host",
   "LODESTONE_NODE_SLEEP_MODE=on", "/api/public/status/", "exec java -Xms{{MEMORY}}M -Xmx{{MEMORY}}M -jar {{JAR}} nogui",
-  "ssh-ed25519 AAAAC3Nza… name@host",
+  "ssh-ed25519 AAAAC3Nza… name@host", "playit.gg/account/agents", "ms", "autoconfig.json", "#!/bin/sh",
 ]);
 const visibleAttrs = new Set(["title", "description", "label", "placeholder", "aria-label", "text", "confirm", "hint", "alt"]);
 
@@ -40,68 +42,100 @@ function walk(dir, files = []) {
   return files;
 }
 
-function parse(file) {
+// Liest eine Datei als SWC-Baum. `line(pos)` rechnet eine Position (1-basierter Byte-Versatz von SWC) in eine Zeile um.
+async function parse(file) {
   const text = fs.readFileSync(file, "utf8");
-  return ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const bytes = Buffer.from(text, "utf8");
+  const ast = await swc.parse(text, { filename: file, isModule: true });
+  const tree = typeof ast === "string" ? JSON.parse(ast) : ast;
+  const line = (pos) => {
+    let count = 1;
+    for (let i = 0; i < pos - 1 && i < bytes.length; i++) if (bytes[i] === 10) count++;
+    return count;
+  };
+  return { tree, line };
+}
+
+// Besucht jeden Knoten (Objekt mit `type`) des Baums.
+function visit(node, fn) {
+  if (Array.isArray(node)) {
+    for (const child of node) visit(child, fn);
+    return;
+  }
+  if (!node || typeof node !== "object") return;
+  if (typeof node.type === "string") fn(node);
+  for (const key of Object.keys(node)) {
+    if (key === "span") continue;
+    const value = node[key];
+    if (value && typeof value === "object") visit(value, fn);
+  }
+}
+
+// Fester Text eines Ausdrucks ("…" oder `…` ohne Platzhalter), sonst undefined.
+function literal(node) {
+  if (!node) return undefined;
+  if (node.type === "StringLiteral") return node.value;
+  if (node.type === "TemplateLiteral" && node.expressions.length === 0) return node.quasis[0]?.cooked ?? node.quasis[0]?.raw;
+  return undefined;
 }
 
 // Objektliteral einer exportierten Konstante als Map lesen (Werte: String oder { one, other }).
-function readObject(file, name) {
-  const sf = parse(file);
+async function readObject(file, name) {
+  const { tree } = await parse(file);
   const result = new Map();
-  const visit = (node) => {
-    if (ts.isVariableDeclaration(node) && node.name.getText(sf) === name && node.initializer) {
-      let init = node.initializer;
-      while (ts.isSatisfiesExpression?.(init) || ts.isAsExpression(init)) init = init.expression;
-      for (const prop of init.properties) {
-        const key = prop.name.text ?? prop.name.getText(sf);
-        const value = prop.initializer;
-        if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) result.set(key, value.text);
-        else if (ts.isObjectLiteralExpression(value)) {
-          const forms = {};
-          for (const form of value.properties) forms[form.name.getText(sf)] = form.initializer.text;
-          result.set(key, forms);
-        }
+  visit(tree, (node) => {
+    if (node.type !== "VariableDeclarator" || node.id?.value !== name || !node.init) return;
+    let init = node.init;
+    while (init.type === "TsSatisfiesExpression" || init.type === "TsAsExpression" || init.type === "TsConstAssertion") init = init.expression;
+    if (init.type !== "ObjectExpression") return;
+    for (const prop of init.properties) {
+      if (prop.type !== "KeyValueProperty") continue;
+      const key = prop.key.value;
+      const text = literal(prop.value);
+      if (text !== undefined) result.set(key, text);
+      else if (prop.value.type === "ObjectExpression") {
+        const forms = {};
+        for (const form of prop.value.properties) if (form.type === "KeyValueProperty") forms[form.key.value] = literal(form.value);
+        result.set(key, forms);
       }
     }
-    node.forEachChild(visit);
-  };
-  visit(sf);
+  });
   return result;
 }
 
 const placeholders = (text) => [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].sort().join(",");
 
 const problems = [];
-const en = readObject(path.join(srcDir, "lib/messages/en.ts"), "en");
-const pluralsDe = readObject(path.join(srcDir, "lib/messages/plurals.ts"), "pluralsDe");
-const pluralsEn = readObject(path.join(srcDir, "lib/messages/plurals.ts"), "pluralsEn");
+const en = await readObject(path.join(srcDir, "lib/messages/en.ts"), "en");
+const pluralsDe = await readObject(path.join(srcDir, "lib/messages/plurals.ts"), "pluralsDe");
+const pluralsEn = await readObject(path.join(srcDir, "lib/messages/plurals.ts"), "pluralsEn");
 
 const used = new Set();
 for (const file of walk(srcDir)) {
   const rel = path.relative(srcDir, file).split(path.sep).join("/");
   if (rel.startsWith("lib/messages/")) continue;
-  const sf = parse(file);
-  const where = (node) => `${rel}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
-  const visit = (node) => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && ["t", "msg", "tFor"].includes(node.expression.text)) {
-      const arg = node.arguments[node.expression.text === "tFor" ? 1 : 0];
-      if (arg && (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg))) {
-        used.add(arg.text);
-        if (!en.has(arg.text)) problems.push(`${where(node)}: Übersetzung fehlt: ${JSON.stringify(arg.text)}`);
+  const { tree, line } = await parse(file);
+  const where = (node) => `${rel}:${line(node.span.start)}`;
+  visit(tree, (node) => {
+    if (node.type === "CallExpression" && node.callee?.type === "Identifier" && ["t", "msg", "tFor"].includes(node.callee.value)) {
+      const arg = node.arguments[node.callee.value === "tFor" ? 1 : 0]?.expression;
+      const text = literal(arg);
+      if (text !== undefined) {
+        used.add(text);
+        if (!en.has(text)) problems.push(`${where(node)}: Übersetzung fehlt: ${JSON.stringify(text)}`);
       }
     }
-    if (ts.isJsxText(node)) {
-      const text = node.text.replace(/\s+/g, " ").trim();
+    if (node.type === "JSXText") {
+      const text = node.value.replace(/\s+/g, " ").trim();
       if (/[A-Za-zÄÖÜäöüß]{2,}/.test(text) && !neutral.has(text)) problems.push(`${where(node)}: Text ohne t(): ${JSON.stringify(text)}`);
     }
-    if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer) && visibleAttrs.has(node.name.getText(sf))) {
-      const text = node.initializer.text.trim();
-      if (/[A-Za-zÄÖÜäöüß]{2,}/.test(text) && !neutral.has(text)) problems.push(`${where(node)}: ${node.name.getText(sf)} ohne t(): ${JSON.stringify(text)}`);
+    if (node.type === "JSXAttribute" && node.value?.type === "StringLiteral") {
+      const name = node.name?.value ?? node.name?.name?.value;
+      if (!visibleAttrs.has(name)) return;
+      const text = node.value.value.trim();
+      if (/[A-Za-zÄÖÜäöüß]{2,}/.test(text) && !neutral.has(text)) problems.push(`${where(node)}: ${name} ohne t(): ${JSON.stringify(text)}`);
     }
-    node.forEachChild(visit);
-  };
-  visit(sf);
+  });
 }
 
 for (const [key, value] of en) {

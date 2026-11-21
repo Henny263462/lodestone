@@ -33,8 +33,63 @@ type fakeNode struct {
 	removed      []string
 	modpacks     []node.ModpackRequest
 	playitSecret string
-	playitTunnels []node.PlayitTunnel
 	remote       *fakeRemote // Backups zum Backup-Ziel (handlers_backups_test.go)
+	tunnels      []node.PlayitTunnel
+	tunnelReqs   []node.PlayitTunnelRequest
+	// tunnelNoAddress lässt neue Tunnel ohne Adresse zurück, so als hätte playit sie noch nicht vergeben.
+	tunnelNoAddress bool
+	// version ist die Version, die der Node meldet (leer: „test“); updates halten Update-Aufträge fest („node:0.3.0“).
+	version     string
+	updates     []string
+	updateFails bool
+	packPuts    []string
+	packFails   bool
+}
+
+func (f *fakeNode) setPackFails(fail bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.packFails = fail
+}
+
+func (f *fakeNode) getPackPuts() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.packPuts...)
+}
+
+func (f *fakeNode) clearPackPuts() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.packPuts = nil
+}
+
+func (f *fakeNode) setVersion(version string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.version = version
+}
+
+func (f *fakeNode) updateLog() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.updates...)
+}
+
+// recordUpdate nimmt einen Update-Auftrag an (kind ist „node“ oder „panel“) oder lehnt ihn ab, wenn updateFails gesetzt ist.
+func (f *fakeNode) recordUpdate(w http.ResponseWriter, r *http.Request, kind string) {
+	var body struct {
+		Version string `json:"version"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.updateFails {
+		writeJSON(w, 500, map[string]string{"error": "Docker ist nicht erreichbar"})
+		return
+	}
+	f.updates = append(f.updates, kind+":"+body.Version)
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
@@ -42,8 +97,16 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	mux := http.NewServeMux()
 	fake.remote = registerFakeBackupRoutes(mux, fake)
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, 200, map[string]any{"version": "test", "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
+		fake.mu.Lock()
+		version := fake.version
+		fake.mu.Unlock()
+		if version == "" {
+			version = "test"
+		}
+		writeJSON(w, 200, map[string]any{"version": version, "docker": map[string]any{"dockerVersion": "x", "memoryBytes": int64(64) << 30}})
 	})
+	mux.HandleFunc("POST /api/system/update", func(w http.ResponseWriter, r *http.Request) { fake.recordUpdate(w, r, "node") })
+	mux.HandleFunc("POST /api/system/update-panel", func(w http.ResponseWriter, r *http.Request) { fake.recordUpdate(w, r, "panel") })
 	mux.HandleFunc("GET /api/servers", func(w http.ResponseWriter, _ *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
@@ -202,54 +265,63 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	mux.HandleFunc("GET /api/playit", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		configured := fake.playitSecret != ""
-		tunnels := append([]node.PlayitTunnel(nil), fake.playitTunnels...)
 		fake.mu.Unlock()
-		writeJSON(w, 200, node.PlayitStatus{Configured: configured, Image: "ghcr.io/playit-cloud/playit-agent:0.15", Logs: []string{}, Tunnels: tunnels})
+		writeJSON(w, 200, node.PlayitStatus{Configured: configured, Image: "ghcr.io/playit-cloud/playit-agent:0.15", Logs: []string{}})
 	})
 	mux.HandleFunc("DELETE /api/playit", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		fake.playitSecret = ""
-		fake.playitTunnels = nil
 		fake.mu.Unlock()
 		w.WriteHeader(204)
+	})
+	mux.HandleFunc("POST /api/playit/claim", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 201, node.PlayitClaim{State: node.ClaimWaiting, URL: "https://playit.gg/claim/0123456789"})
+	})
+	mux.HandleFunc("GET /api/playit/claim", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		fake.playitSecret = "vom-node-getauschter-schluessel"
+		fake.mu.Unlock()
+		writeJSON(w, 200, node.PlayitClaim{State: node.ClaimAccepted})
+	})
+	mux.HandleFunc("GET /api/playit/options", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, node.PlayitOptions{
+			Premium: true,
+			Regions: []node.PlayitRegion{{ID: "europe", Name: "Europa"}},
+			Domains: []node.PlayitDomain{{ID: "dddddddd-0000-0000-0000-000000000001", Name: "play.example.org"}},
+		})
 	})
 	mux.HandleFunc("GET /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
-		list := append([]node.PlayitTunnel(nil), fake.playitTunnels...)
-		writeJSON(w, 200, list)
+		writeJSON(w, 200, append([]node.PlayitTunnel{}, fake.tunnels...))
 	})
 	mux.HandleFunc("POST /api/playit/tunnels", func(w http.ResponseWriter, r *http.Request) {
-		var req node.CreateTunnelRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		var request node.PlayitTunnelRequest
+		_ = json.NewDecoder(r.Body).Decode(&request)
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
-		idx := len(fake.playitTunnels) + 1
-		addr := fmt.Sprintf("test-%d.ply.gg:%d", idx, 10000+idx)
-		tun := node.PlayitTunnel{
-			ID:            fmt.Sprintf("tun-%d", idx),
-			Name:          req.Name,
-			TunnelType:    req.TunnelType,
-			PortType:      req.PortType,
-			LocalIP:       req.LocalIP,
-			LocalPort:     req.LocalPort,
-			PublicAddress: addr,
-			Enabled:       true,
+		fake.tunnelReqs = append(fake.tunnelReqs, request)
+		tunnel := node.PlayitTunnel{ID: fmt.Sprintf("00000000-0000-0000-0000-%012d", len(fake.tunnelReqs)), Name: request.Name, Address: "abc.gl.at.ply.gg:4711", State: "allocated", Region: request.Region}
+		if request.Kind == node.TunnelJava {
+			tunnel.Address = "mein-server.joinmc.link"
 		}
-		fake.playitTunnels = append(fake.playitTunnels, tun)
-		writeJSON(w, 201, tun)
+		if request.DomainID != "" {
+			tunnel.Domain, tunnel.Address = "play.example.org", "play.example.org"
+		}
+		if fake.tunnelNoAddress {
+			tunnel.Address, tunnel.State = "", "pending"
+		}
+		fake.tunnels = append(fake.tunnels, tunnel)
+		writeJSON(w, 201, tunnel)
 	})
-	mux.HandleFunc("DELETE /api/playit/tunnels/{tunnelId}", func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("tunnelId")
+	mux.HandleFunc("DELETE /api/playit/tunnels/{id}", func(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
-		var rem []node.PlayitTunnel
-		for _, t := range fake.playitTunnels {
-			if t.ID != id {
-				rem = append(rem, t)
+		for i, tunnel := range fake.tunnels {
+			if tunnel.ID == r.PathValue("id") {
+				fake.tunnels = append(fake.tunnels[:i], fake.tunnels[i+1:]...)
 			}
 		}
-		fake.playitTunnels = rem
 		w.WriteHeader(204)
 	})
 	mux.HandleFunc("PUT /api/servers/{id}/autoconfig", func(w http.ResponseWriter, r *http.Request) {
@@ -269,6 +341,19 @@ func newFakeNode(t *testing.T) (*fakeNode, *httptest.Server) {
 	})
 	mux.HandleFunc("GET /api/servers/{id}/logs", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, []string{"zeile"})
+	})
+	mux.HandleFunc("PUT /api/packs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		fake.packPuts = append(fake.packPuts, r.PathValue("id"))
+		if fake.packFails {
+			writeJSON(w, 500, map[string]string{"error": "node pack sync failure"})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("DELETE /api/packs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
@@ -529,67 +614,36 @@ func TestNetworkLifecycle(t *testing.T) {
 	fake.mu.Unlock()
 }
 
-func TestServerTunnelAndNodePlayitTunnels(t *testing.T) {
+// TestNodePlayitTunnelsAndVoiceAddress prüft die Tunnel-Verwaltung pro Node (nur Administratoren) und die
+// Voicechat-Adresse an der öffentlichen Adresse. Die Tunnel pro Server prüft tunnels_test.go.
+func TestNodePlayitTunnelsAndVoiceAddress(t *testing.T) {
 	_, web, fake, nodeID := setupPanel(t)
 	admin := newClient(t, web.URL)
 	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
 
-	// Node Playit Tunnels abfragen
 	admin.expect(200, "GET", "/api/nodes/"+nodeID+"/playit/tunnels", nil)
-
-	// Eigenen Tunnel anlegen
-	createReq := map[string]any{
-		"name":       "Test-Tunnel",
-		"tunnelType": "minecraft-java",
-		"portType":   "tcp",
-		"localPort":  25565,
+	var created node.PlayitTunnel
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/nodes/"+nodeID+"/playit/tunnels", node.PlayitTunnelRequest{Name: "eigener-tunnel", Kind: node.TunnelJava, LocalPort: 25570}), &created)
+	if created.ID == "" || created.Address == "" {
+		t.Fatalf("Tunnel nicht angelegt: %+v", created)
 	}
-	var createdTunnel node.PlayitTunnel
-	_ = json.Unmarshal(admin.expect(201, "POST", "/api/nodes/"+nodeID+"/playit/tunnels", createReq), &createdTunnel)
-	if createdTunnel.ID == "" || createdTunnel.PublicAddress == "" {
-		t.Fatalf("Tunnel nicht angelegt: %+v", createdTunnel)
-	}
-
-	// Tunnel löschen
-	admin.expect(204, "DELETE", "/api/nodes/"+nodeID+"/playit/tunnels/"+createdTunnel.ID, nil)
-
-	// Server für automatische Tunnelerstellung anlegen
-	var project ProjectDTO
-	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Tunnel-Projekt", "kind": "server"}), &project)
-
-	var server ServerDTO
-	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{
-		Name:     "Survival",
-		NodeID:   nodeID,
-		Software: "paper",
-		Version:  "1.21.4",
-		EULA:     true,
-	}), &server)
-
-	// 1) Automatisch Minecraft Java Tunnel erstellen
-	var resp struct {
-		Tunnel node.PlayitTunnel `json:"tunnel"`
-		Server ServerDTO         `json:"server"`
-	}
-	_ = json.Unmarshal(admin.expect(201, "POST", "/api/servers/"+server.ID+"/tunnel", map[string]string{"type": "server"}), &resp)
-	if resp.Server.PublicAddress == "" || resp.Tunnel.PublicAddress == "" {
-		t.Errorf("PublicAddress wurde nicht gesetzt: %+v", resp)
-	}
-
-	// 2) Für Voicechat Port auf dem Node hinterlegen
 	fake.mu.Lock()
-	srvView := fake.servers[server.ID]
-	srvView.Ports = append(srvView.Ports, node.PortMapping{Container: 24454, Host: 24454, Protocol: "udp"})
-	fake.servers[server.ID] = srvView
+	if len(fake.tunnelReqs) != 1 || fake.tunnelReqs[0].LocalPort != 25570 || fake.tunnelReqs[0].Kind != node.TunnelJava {
+		t.Errorf("Anfrage an den Node: %+v", fake.tunnelReqs)
+	}
+	fake.mu.Unlock()
+	admin.expect(204, "DELETE", "/api/nodes/"+nodeID+"/playit/tunnels/"+created.ID, nil)
+	fake.mu.Lock()
+	if len(fake.tunnels) != 0 {
+		t.Errorf("Tunnel nicht gelöscht: %+v", fake.tunnels)
+	}
 	fake.mu.Unlock()
 
-	// Voicechat Tunnel erstellen
-	_ = json.Unmarshal(admin.expect(201, "POST", "/api/servers/"+server.ID+"/tunnel", map[string]string{"type": "voice"}), &resp)
-	if resp.Server.PublicVoiceAddress == "" || resp.Tunnel.PublicAddress == "" {
-		t.Errorf("PublicVoiceAddress wurde nicht gesetzt: %+v", resp)
-	}
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Tunnel-Projekt", "kind": "server"}), &project)
+	var server ServerDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{Name: "Survival", NodeID: nodeID, Software: "paper", Version: "1.21.4", EULA: true}), &server)
 
-	// 3) Manuelle Adressänderung über PUT /api/servers/{id}/public-address
 	var updated ServerDTO
 	_ = json.Unmarshal(admin.expect(200, "PUT", "/api/servers/"+server.ID+"/public-address", map[string]string{
 		"address":      "play.example.org:25565",
@@ -598,21 +652,77 @@ func TestServerTunnelAndNodePlayitTunnels(t *testing.T) {
 	if updated.PublicAddress != "play.example.org:25565" || updated.PublicVoiceAddress != "voice.example.org:24454" {
 		t.Errorf("Adressen wurden nicht aktualisiert: %+v", updated)
 	}
-
-	// 4) Tunnel über DELETE /api/servers/{id}/tunnel löschen
-	var delResp struct {
-		Server ServerDTO `json:"server"`
-	}
-	_ = json.Unmarshal(admin.expect(200, "DELETE", "/api/servers/"+server.ID+"/tunnel?type=voice", nil), &delResp)
-	if delResp.Server.PublicVoiceAddress != "" {
-		t.Errorf("PublicVoiceAddress wurde nicht geleert: %+v", delResp)
+	// Ohne voiceAddress bleibt die Voicechat-Adresse stehen
+	var cleared ServerDTO
+	_ = json.Unmarshal(admin.expect(200, "PUT", "/api/servers/"+server.ID+"/public-address", map[string]string{"address": ""}), &cleared)
+	if cleared.PublicAddress != "" || cleared.PublicVoiceAddress != "voice.example.org:24454" {
+		t.Errorf("Adressen nach dem Leeren: %+v", cleared)
 	}
 
-	delResp = struct {
-		Server ServerDTO `json:"server"`
-	}{}
-	_ = json.Unmarshal(admin.expect(200, "DELETE", "/api/servers/"+server.ID+"/tunnel?type=server", nil), &delResp)
-	if delResp.Server.PublicAddress != "" {
-		t.Errorf("PublicAddress wurde nicht geleert: %+v", delResp)
+	// Mitglieder ohne Administratorrechte sehen die Tunnel der Nodes nicht
+	admin.expect(201, "POST", "/api/users", map[string]any{"username": "gast", "password": "ein-gutes-passwort"})
+	guest := newClient(t, web.URL)
+	guest.expect(200, "POST", "/api/auth/login", map[string]string{"username": "gast", "password": "ein-gutes-passwort"})
+	guest.expect(403, "GET", "/api/nodes/"+nodeID+"/playit/tunnels", nil)
+	guest.expect(403, "POST", "/api/nodes/"+nodeID+"/playit/tunnels", node.PlayitTunnelRequest{Name: "x", Kind: node.TunnelJava, LocalPort: 25570})
+}
+
+func TestNodeDetailAndPlayitOverview(t *testing.T) {
+	_, web, fake, nodeID := setupPanel(t)
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Mein Projekt", "kind": "server"}), &project)
+	admin.expect(201, "POST", "/api/projects/"+project.ID+"/servers", serverRequest{Name: "Survival", NodeID: nodeID, Software: "paper", Version: "1.21.4", EULA: true})
+
+	// GET /api/nodes
+	var nodes []nodeDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/nodes", nil), &nodes)
+	if len(nodes) != 1 || nodes[0].PingMs == nil {
+		t.Fatalf("Nodes-Liste unerwartet: %+v", nodes)
+	}
+
+	// GET /api/nodes/{id}
+	var detail nodeDetailDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/nodes/"+nodeID, nil), &detail)
+	if detail.ID != nodeID || len(detail.Servers) != 1 || detail.Servers[0].Name != "Survival" {
+		t.Fatalf("Node-Detail unerwartet: %+v", detail)
+	}
+	if detail.Projects[project.ID] != "Mein Projekt" {
+		t.Fatalf("Projektname fehlt im Node-Detail: %+v", detail.Projects)
+	}
+	if detail.PingMs == nil {
+		t.Fatalf("PingMs fehlt im Node-Detail")
+	}
+
+	// GET /api/nodes/{unknown}
+	admin.expect(404, "GET", "/api/nodes/non-existent-id", nil)
+
+	// Ohne Mitgliedschaft sieht man die Server und Projekte auf dem Node nicht, nur ihre Zahl
+	admin.expect(201, "POST", "/api/users", map[string]any{"username": "gast", "password": "ein-gutes-passwort"})
+	guest := newClient(t, web.URL)
+	guest.expect(200, "POST", "/api/auth/login", map[string]string{"username": "gast", "password": "ein-gutes-passwort"})
+	var hidden nodeDetailDTO
+	_ = json.Unmarshal(guest.expect(200, "GET", "/api/nodes/"+nodeID, nil), &hidden)
+	if len(hidden.Servers) != 0 || len(hidden.Projects) != 0 || hidden.ServerCount != 1 || hidden.URL != "" {
+		t.Fatalf("Node-Detail ohne Mitgliedschaft zeigt zu viel: %+v", hidden)
+	}
+
+	// GET /api/playit/overview
+	fake.mu.Lock()
+	fake.playitSecret = "test-secret"
+	fake.tunnels = []node.PlayitTunnel{
+		{ID: "tun-1", Name: "ls-" + detail.Servers[0].ID + "-java", Address: "test.joinmc.link:25565", State: "allocated"},
+	}
+	fake.mu.Unlock()
+
+	var playit PlayitOverviewDTO
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/playit/overview", nil), &playit)
+	if len(playit.Nodes) != 1 || !playit.Nodes[0].Online || !playit.Nodes[0].Status.Configured {
+		t.Fatalf("Playit Nodes Übersicht unerwartet: %+v", playit.Nodes)
+	}
+	if len(playit.Tunnels) != 1 || playit.Tunnels[0].ServerName != "Survival" || playit.Tunnels[0].Tunnel.Kind != "java" {
+		t.Fatalf("Playit Tunnels Übersicht unerwartet: %+v", playit.Tunnels)
 	}
 }

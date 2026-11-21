@@ -2,7 +2,7 @@
 
 import { Copy, Plus, Send, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button, Card, CardHeader, Checkbox, Switch, cx } from "@/components/ui/primitives";
+import { Button, Card, CardHeader, Checkbox, Select, Switch, cx } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
@@ -151,10 +151,16 @@ export function DiscordBotCard({ project }: { project: Project }) {
             {rules.map((rule, index) => (
               <div key={index} className="space-y-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <select className="field w-auto" value={rule.kind} onChange={(event) => updateRule(index, { kind: event.target.value as DiscordRule["kind"] })} aria-label={t("Art")}>
-                    <option value="role">{t("Rolle")}</option>
-                    <option value="user">{t("Benutzer")}</option>
-                  </select>
+                  <Select
+                    className="w-32 shrink-0"
+                    value={rule.kind}
+                    onChange={(value) => updateRule(index, { kind: value as DiscordRule["kind"] })}
+                    aria-label={t("Art")}
+                    options={[
+                      { value: "role", label: t("Rolle") },
+                      { value: "user", label: t("Benutzer") },
+                    ]}
+                  />
                   <input className="field min-w-[180px] flex-1 font-mono text-xs" value={rule.id} onChange={(event) => updateRule(index, { id: event.target.value.trim() })} placeholder={t("Discord-ID")} aria-label={t("Discord-ID")} />
                   <input className="field min-w-[140px] flex-1" value={rule.label ?? ""} onChange={(event) => updateRule(index, { label: event.target.value })} maxLength={48} placeholder={t("Bezeichnung, z. B. Moderatoren")} aria-label={t("Bezeichnung")} />
                   <Button variant="ghost" size="icon-sm" aria-label={t("Regel entfernen")} onClick={() => setRules((current) => current.filter((_, at) => at !== index))}>

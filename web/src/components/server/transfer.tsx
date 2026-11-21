@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRightLeft, Copy, Loader2, Truck } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, Checkbox, Meter } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Checkbox, Meter, Select } from "@/components/ui/primitives";
 import { Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
@@ -198,14 +198,12 @@ function MoveDialog({ open, onClose, project }: { open: boolean; onClose: () => 
         <>
           <div>
             <label className="label">{t("Ziel-Node")}</label>
-            <select className="field" value={chosen} onChange={(event) => setTarget(event.target.value)}>
-              {candidates.map((entry) => (
-                <option key={entry.id} value={entry.id} disabled={!entry.online}>
-                  {entry.name}
-                  {entry.online ? "" : t(" (nicht erreichbar)")}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={chosen}
+              onChange={setTarget}
+              aria-label={t("Ziel-Node")}
+              options={candidates.map((entry) => ({ value: entry.id, label: entry.online ? entry.name : `${entry.name}${t(" (nicht erreichbar)")}`, disabled: !entry.online }))}
+            />
             {storage?.online && storage.total > 0 && (
               <p className="mt-1 text-xs text-muted">
                 {t("Frei: {free} von {total}", { free: bytes(storage.free), total: bytes(storage.total) })}
@@ -293,7 +291,7 @@ function OpsList({ project }: { project: Project }) {
               </ul>
             )}
             {op.state === "done" && op.kind === "clone" && op.resultServerId && (
-              <Link href={`/server/?id=${op.resultServerId}`} className="text-xs text-accent hover:underline">
+              <Link href={`/server/${op.resultServerId}/`} className="text-xs text-accent hover:underline">
                 {t("Zur Kopie")}
               </Link>
             )}

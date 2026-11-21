@@ -2,7 +2,7 @@
 
 import { Pencil, Plus, ScanSearch, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, EmptyState, RowMenu, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, EmptyState, RowMenu, Select, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
@@ -178,14 +178,12 @@ function TriggerDialog({
         </div>
         <div>
           <label className="label">Server</label>
-          <select className="field" value={serverId} onChange={(event) => setServerId(event.target.value)}>
-            <option value="">{t("Alle Server des Projekts")}</option>
-            {project.servers.map((server) => (
-              <option key={server.id} value={server.id}>
-                {server.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={serverId}
+            onChange={setServerId}
+            aria-label="Server"
+            options={[{ value: "", label: t("Alle Server des Projekts") }, ...project.servers.map((server) => ({ value: server.id, label: server.name }))]}
+          />
         </div>
       </div>
       <div>
@@ -198,24 +196,20 @@ function TriggerDialog({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label">{t("Stufe des Ereignisses")}</label>
-          <select className="field" value={level} onChange={(event) => setLevel(event.target.value as TriggerLevel)}>
-            {(Object.keys(levelLabel()) as TriggerLevel[]).map((entry) => (
-              <option key={entry} value={entry}>
-                {levelLabel()[entry]}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={level}
+            onChange={(value) => setLevel(value as TriggerLevel)}
+            aria-label={t("Stufe des Ereignisses")}
+            options={(Object.keys(levelLabel()) as TriggerLevel[]).map((entry) => ({ value: entry, label: levelLabel()[entry] }))}
+          />
         </div>
         <div>
           <label className="label">{t("Zeitplan starten")}</label>
-          <select className="field" value={scheduleId} onChange={(event) => setScheduleId(event.target.value)}>
-            <option value="">{t("Keinen")}</option>
-            {schedules.map((schedule) => (
-              <option key={schedule.id} value={schedule.id}>
-                {schedule.name} ({schedule.serverName})
-              </option>
-            ))}
-          </select>
+          <Select
+            value={scheduleId}
+            onChange={setScheduleId}
+            options={[{ value: "", label: t("Keinen") }, ...schedules.map((schedule) => ({ value: schedule.id, label: `${schedule.name} (${schedule.serverName})` }))]}
+          />
         </div>
       </div>
     </Dialog>

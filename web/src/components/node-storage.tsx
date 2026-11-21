@@ -54,7 +54,7 @@ function Usage({ data }: { data: NodeStorage }) {
         <ul className="space-y-1 text-[11px]">
           {servers.map((server) => (
             <li key={server.id} className="flex items-center gap-2">
-              <Link href={`/server/?id=${server.id}`} className="min-w-0 flex-1 truncate text-ink/80 hover:text-ink hover:underline">
+              <Link href={`/server/${server.id}/`} className="min-w-0 flex-1 truncate text-ink/80 hover:text-ink hover:underline">
                 {server.name}
                 <span className="text-muted"> · {server.projectName}</span>
               </Link>

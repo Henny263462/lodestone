@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Archive, BarChart3, ChevronLeft, FolderOpen, Globe, Puzzle, Settings, SlidersHorizontal, Terminal, Users, type LucideIcon } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Archive, BarChart3, FolderOpen, Globe, Puzzle, Settings, SlidersHorizontal, Terminal, Users, type LucideIcon } from "lucide-react";
 import { Suspense } from "react";
-import { Badge, Meter, cx, loadTone } from "@/components/ui/primitives";
+import { useAppNavigation } from "@/components/layout/navigation";
+import { Badge, PageHeader, PageTabs, type PageTab } from "@/components/ui/primitives";
+import { BlockIcon } from "@/components/ui/mc";
+import { softwareName } from "@/components/server-list";
 import { ErrorState, Loading } from "@/components/ui/async";
-import { PowerButtons, StateBadge } from "@/components/status";
-import { SecondarySidebar } from "@/components/layout/shell";
+import { CopyAddress, PowerButtons, StateBadge } from "@/components/status";
 import { AddonsTab } from "@/components/server/addons";
 import { BlocksTab } from "@/components/server/blocks";
 import { BackupsTab } from "@/components/server/backups";
@@ -23,13 +24,12 @@ import { StatsTab } from "@/components/server/stats";
 import { useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
 import { usePoll } from "@/lib/live";
-import { useUrlState } from "@/lib/url-state";
 import { can, type Permission, type Project, type ServerAccess } from "@/lib/types";
 import { t } from "@/lib/i18n";
 
 export default function ServerPage() {
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={null}>
       <ServerView />
     </Suspense>
   );
@@ -43,21 +43,32 @@ interface Entry {
   icon: LucideIcon;
 }
 
-interface Group {
-  label: string;
-  entries: Entry[];
+/** Server-ID und Bereich aus dem sauberen Pfad (/server/<id>/<bereich>/) oder aus alten Suchparametern (?id=…&tab=…). */
+function parseServerRoute(pathname: string, searchParams: URLSearchParams): { id: string | null; tab: string | null } {
+  const segments = pathname.split("/").filter(Boolean);
+  let id: string | null = null;
+  let tabPart: string | null = null;
+  if (segments[0] === "server" && segments[1]) {
+    id = segments[1];
+    tabPart = segments[2] || null;
+  }
+  if (!id) {
+    id = searchParams.get("id");
+  }
+  return { id, tab: tabPart || searchParams.get("tab") };
 }
 
 function ServerView() {
-  const router = useRouter();
-  const id = useSearchParams().get("id");
+  const navigation = useAppNavigation();
+  const pathname = usePathname() ?? "";
+  const params = useSearchParams();
+  const { id, tab: routeTab } = parseServerRoute(pathname, params);
   // Zustandswechsel kommen über den Live-Kanal; solange der Server läuft, halten kürzere Abfragen CPU und RAM frisch
   const poll = usePoll(60000, 3000);
   const { data, error, mutate } = useApi<ServerAccess>(id ? `/servers/${id}` : null, {
     refreshInterval: (latest) => (latest?.server.view?.state === "running" ? Math.min(poll, 10000) : poll),
   });
   const { data: project } = useApi<Project>(data ? `/projects/${data.server.projectId}` : null);
-  const [tab, setTab] = useUrlState<Tab>("tab", "console", ["section"]);
 
   if (!id) return <ErrorState error={new Error(t("Kein Server angegeben. Öffne ihn über sein Projekt."))} />;
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
@@ -72,141 +83,57 @@ function ServerView() {
   const hasWorlds = server.role !== "proxy" && server.software !== "velocity";
   const only = (condition: boolean, entry: Entry) => (condition ? [entry] : []);
 
-  // Bereiche in drei Gruppen: was gerade passiert, was auf dem Server liegt, wie er eingestellt ist
-  const allGroups: Group[] = [
-    {
-      label: t("Betrieb"),
-      entries: [
-        ...only(allowed("console.read"), { id: "console", label: t("Konsole"), icon: Terminal }),
-        { id: "stats", label: t("Statistiken"), icon: BarChart3 },
-        { id: "players", label: t("Spieler"), icon: Users },
-      ],
-    },
-    {
-      label: t("Inhalte"),
-      entries: [
-        ...only(allowed("files.read"), { id: "files", label: t("Dateien"), icon: FolderOpen }),
-        ...only(!!extensions, { id: "addons", label: extensions ?? "", icon: Puzzle }),
-        ...only(allowed("files.read") && hasWorlds, { id: "worlds", label: t("Welten"), icon: Globe }),
-        ...only(allowed("backups.read"), { id: "backups", label: "Backups", icon: Archive }),
-      ],
-    },
-    {
-      label: t("Konfiguration"),
-      entries: [
-        ...only(allowed("files.read") && hasWorlds, { id: "properties", label: t("Spieleinstellungen"), icon: SlidersHorizontal }),
-        ...only(allowed("settings") || allowed("servers"), { id: "settings", label: t("Einstellungen"), icon: Settings }),
-      ],
-    },
+  // Bereiche nach Rechten, in der Reihenfolge: was gerade passiert, was auf dem Server liegt, wie er eingestellt ist
+  const base = `/server/${server.id}/`;
+  const entries: Entry[] = [
+    ...only(allowed("console.read"), { id: "console", label: t("Konsole"), icon: Terminal }),
+    { id: "stats", label: t("Statistiken"), icon: BarChart3 },
+    { id: "players", label: t("Spieler"), icon: Users },
+    ...only(allowed("files.read"), { id: "files", label: t("Dateien"), icon: FolderOpen }),
+    ...only(!!extensions, { id: "addons", label: extensions ?? "", icon: Puzzle }),
+    ...only(allowed("files.read") && hasWorlds, { id: "worlds", label: t("Welten"), icon: Globe }),
+    ...only(allowed("backups.read"), { id: "backups", label: "Backups", icon: Archive }),
+    ...only(allowed("files.read") && hasWorlds, { id: "properties", label: t("Spieleinstellungen"), icon: SlidersHorizontal }),
+    ...only(allowed("settings") || allowed("servers"), { id: "settings", label: t("Einstellungen"), icon: Settings }),
   ];
-  const groups = allGroups.filter((group) => group.entries.length > 0);
-  const entries = groups.flatMap((group) => group.entries);
-  const active = entries.some((entry) => entry.id === tab) ? tab : entries[0].id;
-  const stats = view?.stats;
-  const memoryPercent = stats && stats.memoryLimit > 0 ? (stats.memoryBytes / stats.memoryLimit) * 100 : 0;
+  const active: Tab = entries.find((entry) => entry.id === routeTab)?.id ?? entries[0].id;
+  // Die Konsole liegt direkt unter /server/<id>/, die anderen Bereiche haben einen eigenen Pfad
+  const tabs: PageTab[] = entries.map((entry) => ({
+    id: entry.id,
+    label: entry.label,
+    href: entry.id === "console" ? base : `${base}${entry.id}/`,
+    icon: <entry.icon className="h-3.5 w-3.5" />,
+  }));
 
   return (
     <>
-      <SecondarySidebar>
-        <div className="flex flex-col gap-4 p-4 lg:min-h-full lg:p-5">
-          <Link href={`/project/?id=${server.projectId}`} className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-ink">
-            <ChevronLeft className="h-3.5 w-3.5" />
-            {project?.name ?? t("Projekt")}
-          </Link>
+      <PageHeader
+        crumbs={[{ label: t("Übersicht"), href: "/" }, { label: project?.name ?? t("Projekt"), href: `/project/${server.projectId}/` }, { label: server.name }]}
+        icon={<BlockIcon name={server.name} size={44} />}
+        title={server.name}
+        meta={
+          <>
+            <StateBadge server={server} />
+            {server.role === "proxy" && <Badge tone="accent">Proxy</Badge>}
+            {server.role === "backend" && <Badge>Backend</Badge>}
+            <span className="min-w-0 break-words">
+              {softwareName(server.software)} {view?.version}
+              {view && ` · ${megabytes(view.memoryMB)}`} {t("· Node")} {server.nodeName}
+            </span>
+            {server.address && <CopyAddress address={server.address} />}
+          </>
+        }
+        action={<PowerButtons server={server} onDone={() => mutate()} size="md" enabled={allowed("power")} />}
+      />
 
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold tracking-tight">{server.name}</p>
-            <p className="mt-0.5 truncate text-xs text-muted">
-              {server.software} {view?.version}
-            </p>
-            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              <StateBadge server={server} />
-              {server.role === "proxy" && <Badge tone="accent">Proxy</Badge>}
-              {server.role === "backend" && <Badge>Backend</Badge>}
-            </div>
-          </div>
-
-          {/* Kleine Bildschirme: eine Auswahl statt einer Leiste, die seitlich aus dem Bild läuft */}
-          <select className="field lg:hidden" aria-label={t("Bereich des Servers")} value={active} onChange={(event) => setTab(event.target.value as Tab)}>
-            {groups.map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {group.entries.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-
-          <nav aria-label={t("Bereiche des Servers")} className="hidden lg:block">
-            {groups.map((group, index) => (
-              <div key={group.label} className={cx(index > 0 && "mt-4")}>
-                <p className="px-3 pb-1 text-[10.5px] font-medium uppercase tracking-wider text-muted/70">{group.label}</p>
-                <div className="space-y-0.5">
-                  {group.entries.map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      aria-current={active === entry.id ? "page" : undefined}
-                      onClick={() => setTab(entry.id)}
-                      className={cx(
-                        "flex w-full items-center gap-3 whitespace-nowrap rounded-lg border px-3 py-2 text-left text-[13px] transition duration-150 active:scale-[0.97]",
-                        active === entry.id ? "border-white/[0.07] bg-white/[0.07] text-ink" : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
-                      )}
-                    >
-                      <entry.icon className={cx("h-4 w-4 shrink-0", active === entry.id ? "text-ink" : "text-muted")} />
-                      {entry.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>
-
-          {state === "running" && stats && (
-            <div className="mt-auto hidden space-y-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 lg:block">
-              <div>
-                <div className="mb-1.5 flex justify-between text-[11px] text-muted">
-                  <span>CPU</span>
-                  <span className="tabular-nums text-ink/80">{stats.cpuPercent.toFixed(0)} %</span>
-                </div>
-                <Meter value={stats.cpuPercent} max={100} tone={loadTone(stats.cpuPercent)} />
-              </div>
-              <div>
-                <div className="mb-1.5 flex justify-between text-[11px] text-muted">
-                  <span>{t("Arbeitsspeicher")}</span>
-                  <span className="tabular-nums text-ink/80">{Math.round(stats.memoryBytes / 1024 ** 2)} MB</span>
-                </div>
-                <Meter value={memoryPercent} max={100} tone={loadTone(memoryPercent)} />
-              </div>
-            </div>
-          )}
-        </div>
-      </SecondarySidebar>
-
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{entries.find((entry) => entry.id === active)?.label}</h1>
-          <p className="mt-1 break-words text-[13px] text-muted">
-            {server.name} · {view ? megabytes(view.memoryMB) : "–"} {t("· Node")} {server.nodeName}
-            {server.address && (
-              <>
-                {" · "}
-                <span className="font-mono text-ink/80">{server.address}</span>
-              </>
-            )}
-          </p>
-        </div>
-        <PowerButtons server={server} onDone={() => mutate()} size="md" enabled={allowed("power")} />
-      </div>
+      <PageTabs value={active} items={tabs} />
 
       <ModpackBanner server={server} />
       {view?.lastError && state === "offline" && <p className="mb-5 rounded-lg border border-bad/25 bg-bad/10 px-4 py-3 text-xs text-bad">{view.lastError}</p>}
       {state === "installing" && <p className="mb-5 rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-xs text-info">{t("Die Server-Datei wird heruntergeladen. Das dauert einen Moment.")}</p>}
 
       {/* Neuer Schlüssel pro Bereich: Der Inhalt blendet beim Wechsel kurz ein */}
-      <div key={active} className="animate-fade-in">
+      <div key={active} className="animate-fade-in motion-reduce:animate-none">
         {active === "console" && <ConsoleTab serverId={server.id} canCommand={allowed("console.command")} state={state} />}
         {active === "stats" && <StatsTab server={server} />}
         {active === "files" && (
@@ -230,7 +157,7 @@ function ServerView() {
         {active === "worlds" && <WorldsTab server={server} canManage={allowed("settings", "files.write")} canOperate={allowed("files.write")} />}
         {active === "properties" && <PropertiesTab server={server} canWrite={allowed("settings")} />}
         {active === "settings" && (
-          <SettingsTab server={server} permissions={myPermissions} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />
+          <SettingsTab server={server} permissions={myPermissions} onChanged={() => mutate()} onDeleted={() => navigation.replace(`/project/${server.projectId}/`)} />
         )}
       </div>
     </>

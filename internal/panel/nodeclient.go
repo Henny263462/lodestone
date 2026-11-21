@@ -33,10 +33,11 @@ type NodeClient struct {
 	http *http.Client
 	// transport ersetzt den Standard-Transport (für Nodes, die sich selbst zum Panel verbinden); nil = direkt per HTTP.
 	transport http.RoundTripper
+	slow      *http.Client
 }
 
 func newNodeClient(node Node) *NodeClient {
-	return &NodeClient{node: node, http: &http.Client{Timeout: 30 * time.Second}}
+	return &NodeClient{node: node, http: &http.Client{Timeout: 30 * time.Second}, slow: &http.Client{Timeout: 5 * time.Minute}}
 }
 
 func (c *NodeClient) url(path string) string {
@@ -45,6 +46,15 @@ func (c *NodeClient) url(path string) string {
 
 // Do sendet eine Anfrage mit JSON-Körper und liest die JSON-Antwort in out (kann nil sein).
 func (c *NodeClient) Do(ctx context.Context, method, path string, body, out any) error {
+	return c.do(ctx, c.http, method, path, body, out)
+}
+
+// DoSlow ist Do mit langem Zeitlimit für Aufgaben, die dauern, etwa das Laden eines Docker-Images beim Update.
+func (c *NodeClient) DoSlow(ctx context.Context, method, path string, body, out any) error {
+	return c.do(ctx, c.slow, method, path, body, out)
+}
+
+func (c *NodeClient) do(ctx context.Context, client *http.Client, method, path string, body, out any) error {
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -61,7 +71,7 @@ func (c *NodeClient) Do(ctx context.Context, method, path string, body, out any)
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	response, err := c.http.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("%w (%s): %v", ErrNodeOffline, c.node.Name, err)
 	}

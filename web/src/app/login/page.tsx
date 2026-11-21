@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowRight, Eye, EyeOff, Loader2, Lock, User } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, User } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/primitives";
 import { LodestoneLogo, Wordmark } from "@/components/ui/mc";
 import { PasskeySecondFactor, SignInOptions } from "@/components/sign-in";
 import { LanguageSwitch } from "@/components/language";
@@ -63,20 +64,18 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:26px_26px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]" />
-
-      <div className="relative w-full max-w-[400px]">
+    <main className="flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="w-full max-w-[400px]">
         <div className="mb-7 flex flex-col items-center text-center">
-          <LodestoneLogo size={56} className="mb-4" />
-          <Wordmark className="text-xs text-muted" />
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{setup ? t("Einrichtung") : t("Willkommen zurück")}</h1>
-          <p className="mt-1.5 text-sm text-muted">
+          <LodestoneLogo size={72} className="mb-4" />
+          <Wordmark className="text-2xl" />
+          <h1 className="mt-4 font-display text-lg tracking-wide">{setup ? t("Einrichtung") : t("Willkommen zurück")}</h1>
+          <p className="mt-1 text-sm text-muted">
             {setup ? t("Lege den ersten Administrator an.") : t("Melde dich an, um deine Server zu verwalten.")}
           </p>
         </div>
 
-        <form onSubmit={submit} className="rounded-xl border border-white/[0.08] bg-surface p-6 shadow-panel">
+        <form onSubmit={submit} className="rounded-xl border border-white/[0.07] bg-surface p-6 shadow-panel">
           <div className="space-y-4">
             {ticket ? (
               methods.includes("totp") && (
@@ -146,15 +145,10 @@ export default function LoginPage() {
             {ticket && methods.includes("passkey") && <PasskeySecondFactor ticket={ticket} next={nextTarget} onError={setError} />}
 
             {!passwordOff && (!ticket || methods.includes("totp")) && (
-            <button
-              type="submit"
-              disabled={busy}
-              className="group inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-accent text-sm font-semibold text-white transition duration-100 hover:bg-accent/90 active:scale-[0.97] active:brightness-90 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <Button type="submit" variant="primary" size="lg" loading={busy} className="w-full">
               {busy ? t("Einen Moment") : ticket ? t("Bestätigen") : setup ? t("Administrator anlegen") : t("Anmelden")}
-              {!busy && <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />}
-            </button>
+              {!busy && <ArrowRight className="h-4 w-4" />}
+            </Button>
             )}
 
             {!ticket && !setup && status && <SignInOptions status={status} divider={!passwordOff} next={nextTarget} onError={setError} />}

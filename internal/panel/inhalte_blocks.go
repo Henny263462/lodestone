@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lodestone-mc/lodestone/internal/node"
@@ -44,11 +45,11 @@ func modpackSoftware(loaders []string) (string, error) {
 
 // backendRefusal erklärt, warum eine Software nicht hinter Velocity laufen kann.
 func backendRefusal(info software.Info) string {
-	if info.ID == software.Forge || info.ID == software.NeoForge {
+	if info.ID == software.Forge {
 		return info.Name + " kann in Lodestone nicht hinter Velocity laufen: Dafür braucht der Server einen Forwarding-Mod und der Proxy ein eigenes Plugin, " +
-			"und beides funktioniert nicht für alle Versionen zuverlässig. Lege den Server als eigenes Server-Projekt an."
+			"und beides funktioniert nicht für alle Versionen zuverlässig. Nimm NeoForge oder lege den Server als eigenes Server-Projekt an."
 	}
-	return info.Name + " kann nicht hinter Velocity laufen (Paper, Purpur, Folia und Fabric gehen)"
+	return info.Name + " kann nicht hinter Velocity laufen (Paper, Purpur, Folia, Leaf, Fabric und NeoForge gehen)"
 }
 
 // redactView entfernt den Inhalt geschriebener Dateien (Forwarding-Geheimnis, Floodgate-Schlüssel) aus der Ansicht,
@@ -96,7 +97,7 @@ type BlockDTO struct {
 
 func geyserPlatform(softwareName string) string {
 	switch softwareName {
-	case "paper", "purpur":
+	case "paper", "purpur", "leaf":
 		return "spigot"
 	case "velocity":
 		return "velocity"
@@ -117,7 +118,7 @@ func geyserConfigFile(softwareName string) string {
 // floodgateDir ist der Ordner von Floodgate (dort liegt key.pem); leer, wenn Floodgate dort nicht läuft.
 func floodgateDir(softwareName string) string {
 	switch softwareName {
-	case "paper", "purpur", "velocity":
+	case "paper", "purpur", "leaf", "velocity":
 		return "plugins/floodgate"
 	case "fabric":
 		return "config/floodgate"
@@ -127,7 +128,7 @@ func floodgateDir(softwareName string) string {
 
 func blueMapConfigFile(softwareName string) string {
 	switch softwareName {
-	case "paper", "purpur", "folia":
+	case "paper", "purpur", "folia", "leaf":
 		return "plugins/BlueMap/core.conf"
 	case "fabric", "forge", "neoforge":
 		return "config/bluemap/core.conf"
@@ -516,7 +517,7 @@ func (p *Panel) installFloodgate(ctx context.Context, row ServerRow) error {
 	}
 	block := ServerBlock{ServerID: row.ID, Block: BlockFloodgate}
 	switch row.Software {
-	case "paper", "purpur":
+	case "paper", "purpur", "leaf":
 		if block.Files, err = p.installGeyserMC(ctx, client, row, "spigot", "floodgate"); err != nil {
 			return err
 		}
@@ -539,6 +540,8 @@ func (p *Panel) installBlockRequirements(ctx context.Context, row ServerRow) err
 	if row.Role != RoleBackend {
 		return nil
 	}
+	unlock := lockGeyser(row.ProjectID)
+	defer unlock()
 	if _, enabled := p.networkFloodgateKey(row.ProjectID); !enabled {
 		return nil
 	}
@@ -660,10 +663,11 @@ func (p *Panel) putProjectBlock(w http.ResponseWriter, r *http.Request) {
 				bg, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 				defer cancel()
 				for _, row := range rows {
-					if row.Role == RoleBackend {
-						if err := p.installFloodgate(bg, row); err != nil {
-							p.log.Warn("Floodgate nicht installiert", "server", row.Name, "error", err)
-						}
+					if row.Role != RoleBackend {
+						continue
+					}
+					if !p.installFloodgateWhileEnabled(bg, project.ID, row) {
+						return
 					}
 				}
 				if _, err := p.syncNetwork(bg, project.ID); err != nil {
@@ -707,6 +711,8 @@ func (p *Panel) enableNetworkGeyser(ctx context.Context, project Project, proxy 
 }
 
 func (p *Panel) disableNetworkGeyser(ctx context.Context, project Project, proxy ServerRow, rows []ServerRow) error {
+	unlock := lockGeyser(project.ID)
+	defer unlock()
 	client, _, err := p.client(proxy.NodeID)
 	if err != nil {
 		return err
@@ -729,16 +735,45 @@ func (p *Panel) disableNetworkGeyser(ctx context.Context, project Project, proxy
 		}
 	}
 	for _, row := range rows {
-		blocks, err := p.store.ServerBlocks(row.ID)
-		if err != nil {
-			continue
-		}
-		if block, ok := blocks[BlockFloodgate]; ok {
-			if backend, _, err := p.client(row.NodeID); err == nil {
-				p.removeFiles(ctx, backend, row, block.Files)
-			}
-			_ = p.store.DeleteServerBlock(row.ID, BlockFloodgate)
-		}
+		p.removeFloodgate(ctx, row)
 	}
 	return p.store.DeleteProjectBlock(project.ID, BlockGeyser)
+}
+
+// geyserLocks hält je Projekt eine Sperre, damit das Ausschalten von Geyser nicht mit dem Laden von Floodgate
+// im Hintergrund überlappt (sonst bliebe Floodgate auf einem Server liegen).
+var geyserLocks sync.Map
+
+func lockGeyser(projectID string) func() {
+	value, _ := geyserLocks.LoadOrStore(projectID, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
+// installFloodgateWhileEnabled lädt Floodgate nur, solange Geyser im Projekt eingeschaltet ist.
+func (p *Panel) installFloodgateWhileEnabled(ctx context.Context, projectID string, row ServerRow) bool {
+	unlock := lockGeyser(projectID)
+	defer unlock()
+	if _, on := p.networkFloodgateKey(projectID); !on {
+		return false
+	}
+	if err := p.installFloodgate(ctx, row); err != nil {
+		p.log.Warn("Floodgate nicht installiert", "server", row.Name, "error", err)
+	}
+	return true
+}
+
+// removeFloodgate nimmt Floodgate von einem Server hinter dem Proxy wieder herunter.
+func (p *Panel) removeFloodgate(ctx context.Context, row ServerRow) {
+	blocks, err := p.store.ServerBlocks(row.ID)
+	if err != nil {
+		return
+	}
+	if block, ok := blocks[BlockFloodgate]; ok {
+		if backend, _, err := p.client(row.NodeID); err == nil {
+			p.removeFiles(ctx, backend, row, block.Files)
+		}
+		_ = p.store.DeleteServerBlock(row.ID, BlockFloodgate)
+	}
 }

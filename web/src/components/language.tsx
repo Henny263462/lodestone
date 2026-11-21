@@ -2,7 +2,7 @@
 
 import { Languages } from "lucide-react";
 import { useState } from "react";
-import { Card, CardHeader } from "@/components/ui/primitives";
+import { Card, CardHeader, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
@@ -40,17 +40,18 @@ export function LanguageCard() {
         <Loading />
       ) : (
         <div className="space-y-2 px-5 py-4">
-          <label className="label" htmlFor="language">
-            {t("Sprache der Oberfläche")}
-          </label>
-          <select id="language" className="field sm:max-w-xs" value={data.language ?? ""} disabled={saving} onChange={(event) => choose(event.target.value as LanguageChoice)}>
-            <option value="">{t("Wie der Browser ({language})", { language: languageNames[browserLanguage()] })}</option>
-            {choices.map((choice) => (
-              <option key={choice} value={choice}>
-                {languageNames[choice]}
-              </option>
-            ))}
-          </select>
+          <p className="label">{t("Sprache der Oberfläche")}</p>
+          <Select
+            className="sm:max-w-xs"
+            value={data.language ?? ""}
+            disabled={saving}
+            onChange={(value) => choose(value as LanguageChoice)}
+            aria-label={t("Sprache der Oberfläche")}
+            options={[
+              { value: "", label: t("Wie der Browser ({language})", { language: languageNames[browserLanguage()] }) },
+              ...choices.map((choice) => ({ value: choice, label: languageNames[choice] })),
+            ]}
+          />
           <p className="text-xs text-muted">{t("Vor der Anmeldung und auf öffentlichen Statusseiten gilt die Sprache des Browsers.")}</p>
         </div>
       )}
@@ -62,16 +63,16 @@ export function LanguageCard() {
 export function LanguageSwitch() {
   const { language, setLanguage } = useLanguage();
   return (
-    <label className="flex items-center gap-2 text-xs text-muted">
+    <div className="flex items-center gap-2 text-xs text-muted">
       <Languages className="h-3.5 w-3.5" />
-      <span className="sr-only">{t("Sprache")}</span>
-      <select className="field w-auto py-1.5 text-xs" value={language} onChange={(event) => void setLanguage(event.target.value as Language)}>
-        {choices.map((choice) => (
-          <option key={choice} value={choice}>
-            {languageNames[choice]}
-          </option>
-        ))}
-      </select>
-    </label>
+      <Select
+        size="sm"
+        className="w-32"
+        value={language}
+        onChange={(value) => void setLanguage(value as Language)}
+        aria-label={t("Sprache")}
+        options={choices.map((choice) => ({ value: choice, label: languageNames[choice] }))}
+      />
+    </div>
   );
 }

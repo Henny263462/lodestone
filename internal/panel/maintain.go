@@ -14,6 +14,7 @@ func (p *Panel) Maintain(ctx context.Context) {
 	go p.sftpLoop(ctx)
 	go p.storageLoop(ctx)
 	go p.automatikLoop(ctx)
+	go p.updateLoop(ctx)
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 	for {

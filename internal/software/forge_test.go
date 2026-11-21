@@ -48,7 +48,7 @@ func fakeForge(t *testing.T) (*Resolver, *httptest.Server, []byte) {
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	resolver := &Resolver{HTTP: server.Client(), MojangManifest: server.URL + "/mojang", ForgeMaven: server.URL + "/forge", ForgePromotions: server.URL + "/promotions.json"}
+	resolver := &Resolver{HTTP: server.Client(), MojangManifest: server.URL + "/mojang", ForgeMaven: server.URL + "/forge", ForgePromos: server.URL + "/promotions.json"}
 	return resolver, server, installer
 }
 

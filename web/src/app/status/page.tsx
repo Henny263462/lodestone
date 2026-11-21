@@ -1,15 +1,15 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { LodestoneLogo } from "@/components/ui/mc";
-import { Badge, Button, Card, Dot } from "@/components/ui/primitives";
+import { BlockIcon, LodestoneLogo, SignalBars } from "@/components/ui/mc";
+import { Badge, Button, Card } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import type { PublicStatus } from "@/lib/types";
 import { t } from "@/lib/i18n";
 
-/** Öffentliche Statusseite eines Projekts, ohne Anmeldung. Aufruf: /status/?p=<Kürzel>, mit &embed=1 ohne Rahmen. */
+/** Öffentliche Statusseite eines Projekts, ohne Anmeldung. Aufruf: /status/<Kürzel>/ oder /status/?p=<Kürzel>, mit &embed=1 ohne Rahmen. */
 export default function StatusPage() {
   return (
     <Suspense fallback={null}>
@@ -18,9 +18,18 @@ export default function StatusPage() {
   );
 }
 
+function parseStatusSlug(pathname: string, searchParams: URLSearchParams): string | null {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] === "status" && segments[1]) {
+    return segments[1];
+  }
+  return searchParams.get("p");
+}
+
 function StatusView() {
+  const pathname = usePathname() ?? "";
   const params = useSearchParams();
-  const slug = params.get("p");
+  const slug = parseStatusSlug(pathname, params);
   const embed = params.get("embed") === "1";
   const [status, setStatus] = useState<PublicStatus | null>(null);
   const [missing, setMissing] = useState(false);
@@ -63,21 +72,21 @@ function StatusView() {
         {missing && !status ? (
           <Card className="p-8 text-center">
             <p className="text-sm text-muted">404</p>
-            <h1 className="mt-1 text-xl font-semibold">{t("Diese Statusseite gibt es nicht")}</h1>
+            <h1 className="mt-1 font-display text-xl tracking-wide">{t("Diese Statusseite gibt es nicht")}</h1>
             <p className="mt-2 text-sm text-muted">{t("Sie ist nicht veröffentlicht oder der Link stimmt nicht.")}</p>
           </Card>
         ) : !status ? (
           <p className="text-center text-sm text-muted">{t("Wird geladen")}</p>
         ) : (
-          <Card>
+          <Card className="overflow-hidden">
             <div className="flex items-center gap-3 border-b border-white/[0.06] p-5">
-              <LodestoneLogo size={32} />
+              <BlockIcon name={status.name} size={40} />
               <div className="min-w-0 flex-1">
-                <h1 className="truncate text-lg font-semibold tracking-tight">{status.name}</h1>
+                <h1 className="truncate font-display text-lg tracking-wide text-pixel-shadow">{status.name}</h1>
                 {status.description && <p className="truncate text-xs text-muted">{status.description}</p>}
               </div>
-              <Badge tone={status.online ? "good" : "bad"} className="shrink-0">
-                <Dot tone={status.online ? "good" : "bad"} />
+              <Badge tone={status.online ? "good" : "bad"}>
+                <SignalBars level={status.online ? 5 : 0} />
                 {status.online ? "Online" : "Offline"}
               </Badge>
             </div>
@@ -85,20 +94,20 @@ function StatusView() {
             <div className="grid grid-cols-2 gap-px bg-white/[0.05]">
               <div className="bg-surface p-5">
                 <p className="text-xs text-muted">{t("Spieler")}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                <p className="mt-1 font-display text-2xl tabular-nums tracking-wide">
                   {status.online ? status.players : "–"}
                   {status.online && status.maxPlayers ? <span className="text-base font-normal text-muted"> / {status.maxPlayers}</span> : null}
                 </p>
               </div>
               <div className="bg-surface p-5">
                 <p className="text-xs text-muted">{t("Version")}</p>
-                <p className="mt-1 truncate text-2xl font-semibold">{status.version || "–"}</p>
+                <p className="mt-1 truncate font-display text-2xl tracking-wide">{status.version || "–"}</p>
               </div>
             </div>
 
             {status.address && (
               <div className="flex items-center gap-2 border-t border-white/[0.06] p-4">
-                <code className="min-w-0 flex-1 truncate rounded-md bg-black/30 px-3 py-2 font-mono text-sm">{status.address}</code>
+                <code className="min-w-0 flex-1 truncate rounded-md border border-white/[0.08] bg-black/30 px-3 py-1.5 font-mono text-sm shadow-sunken">{status.address}</code>
                 <Button size="sm" onClick={copy}>
                   {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />}
                   {copied ? t("Kopiert") : t("Kopieren")}
@@ -110,7 +119,7 @@ function StatusView() {
               <ul className="divide-y divide-white/[0.05] border-t border-white/[0.06]">
                 {status.servers.map((server) => (
                   <li key={server.name} className="flex items-center gap-3 px-5 py-2.5 text-sm">
-                    <Dot tone={server.online ? "good" : "bad"} />
+                    <SignalBars level={server.online ? 5 : 0} className={server.online ? "text-good" : "text-bad"} />
                     <span className="min-w-0 flex-1 truncate">{server.name}</span>
                     <span className="text-xs tabular-nums text-muted">{server.online ? t("{players} Spieler", { players: server.maxPlayers ? `${server.players} / ${server.maxPlayers}` : server.players }) : "offline"}</span>
                   </li>
@@ -119,7 +128,7 @@ function StatusView() {
             )}
           </Card>
         )}
-        {!embed && status && <p className="mt-4 text-center text-[11px] text-muted/70">{t("Angetrieben von Lodestone")}</p>}
+        {!embed && status && <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-muted/80"><LodestoneLogo size={12} /> {t("Angetrieben von Lodestone")}</p>}
       </div>
     </main>
   );

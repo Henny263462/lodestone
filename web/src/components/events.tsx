@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, Bell, History, Info, Pencil, Plus, ScanSearch, Send, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, RowMenu, SectionLayout, Switch, type Section } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, RowMenu, SectionLayout, Select, Switch, type Section } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { ConsoleTriggersCard } from "@/components/console-triggers";
@@ -33,6 +33,8 @@ export const eventLabels = (): Record<string, string> => ({
   sleep: t("Server schläft ein"),
   wake: t("Server wacht auf"),
   sftp_login: t("SFTP-Anmeldung"),
+  update_available: t("Update verfügbar"),
+  update_started: t("Update gestartet"),
 });
 
 const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory", "storage"];
@@ -94,7 +96,7 @@ function HistoryCard({ project }: { project: Project }) {
                   {event.serverId && names.has(event.serverId) && (
                     <>
                       {" · "}
-                      <Link href={`/server/?id=${event.serverId}`} className="hover:text-ink hover:underline">
+                      <Link href={`/server/${event.serverId}/`} className="hover:text-ink hover:underline">
                         {names.get(event.serverId)}
                       </Link>
                     </>
@@ -271,10 +273,14 @@ function WebhookDialog({ project, hook, onClose, onDone }: { project: Project; h
         </div>
         <div>
           <label className="label">{t("Art")}</label>
-          <select className="field" value={kind} onChange={(event) => setKind(event.target.value as "discord" | "generic")}>
-            <option value="discord">Discord</option>
-            <option value="generic">{t("Allgemein (JSON)")}</option>
-          </select>
+          <Select
+            value={kind}
+            onChange={(value) => setKind(value as "discord" | "generic")}
+            options={[
+              { value: "discord", label: "Discord" },
+              { value: "generic", label: t("Allgemein (JSON)") },
+            ]}
+          />
         </div>
       </div>
       <div>

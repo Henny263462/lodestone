@@ -13,7 +13,7 @@ Browser ──HTTP──▶ Panel (cmd/lodestone-panel, internal/panel) ──HT
 | Paket | Aufgabe | Darf nicht |
 | --- | --- | --- |
 | `internal/panel` | Benutzer, Rechte, Projekte, Netzwerke, Gruppen, Zeitpläne, Ereignisse, Weboberfläche; spricht **nur über `NodeClient`** mit Nodes | Docker oder Server-Dateien direkt anfassen |
-| `internal/node` | Docker-Container, Server-Dateien (`os.Root`), Backups, Modpacks, playit, Speicherprüfung; kennt weder Benutzer noch Projekte | auf die Panel-Datenbank zugreifen, Rechte entscheiden |
+| `internal/node` | Docker-Container, Server-Dateien (`os.Root`), Backups, Modpacks, playit (Agent, Tunnel über die playit-Schnittstelle in `playit_api.go`, Verbindung per Claim in `playit_claim.go`), Speicherprüfung; kennt weder Benutzer noch Projekte | auf die Panel-Datenbank zugreifen, Rechte entscheiden |
 | `internal/software` | Software-Katalog, Versionslisten, Prüfsummen, Java-Wahl | von `panel` oder `node` importieren |
 | `internal/nodelink` | Protokoll der Verbindung, die ein Node selbst zum Panel aufbaut (Websocket + yamux, Kopfzeilen, Limits) | Benutzer, Docker oder Fachlogik kennen; von `panel` oder `node` importieren |
 | `cmd/*` | Start, Umgebungsvariablen, Verdrahtung | Fachlogik |
@@ -38,6 +38,10 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 | `groups.go`, `scheduler.go`, `events.go`, `metrics.go`, `maintain.go` | Hintergrundschleifen und ihre Logik |
 | `modrinth.go` | Modrinth-Client (mit Cache) |
 | `automatik.go`, `handlers_automatik.go`, `store_automatik.go`, `discord.go`, `prometheus.go` | Automatik: Konsolen-Ereignisse und -Auslöser, Schlafmodus, Absturzanalyse, Discord-Bot, `/metrics` (Node-Seite: `internal/node/automatik.go`, `sleep.go`, `crash_analysis.go`) |
+| `tunnels.go` | playit-Tunnel pro Server (`/api/servers/{id}/tunnels`, Recht `network` zum Anlegen und Löschen); Verwaltung des Agenten, Claim und Übersicht für Administratoren in `handlers_extra.go` |
+| `handlers_admin.go`, `store_admin.go` | Verwaltung für globale Administratoren (`/api/admin/…`: Übersicht, Benutzer mit Sitzungen und Projekten, alle Projekte); jede Route beginnt mit `requireAdmin` |
+| `updater.go` | Updates von Panel und Nodes (Kanäle Stabil/Dev, Auto-Update, `/api/updates`, `/api/nodes/{id}/update`), nur Administratoren |
+| `handlers_packs.go` | Position-Packs (`/api/packs`, Vorlagen der Software aus `internal/software/pack.go`); Lesen für alle Angemeldeten, Ändern nur Administratoren |
 | `updates.go` | Live-Kanal zum Browser (`GET /api/live`, Server-Sent Events): `publish(Update{…})`, Zustandswechsel aus `nodeViews` (`observeViews`), Rechteprüfung je Empfänger (`updateVisible`) |
 | `*_test.go` | Tests, siehe Abschnitt 8 |
 

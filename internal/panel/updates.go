@@ -163,8 +163,8 @@ func (p *Panel) observeViews(nodeID string, views map[string]node.View, err erro
 	}
 }
 
-// changeOf leitet aus einer erfolgreichen, verändernden Anfrage die Meldung ab: alles unter /api/servers/{id} und
-// /api/projects/{id}. Das Projekt eines Servers wird vor dem Handler gelesen (danach ist er vielleicht gelöscht).
+// changeOf leitet aus einer erfolgreichen, verändernden Anfrage die Meldung ab: alles unter /api/servers/{id},
+// /api/projects/{id} und /api/nodes/{id} (Einstellungen, playit, Updates). Das Projekt eines Servers wird vor dem Handler gelesen (danach ist er vielleicht gelöscht).
 func (p *Panel) changeOf(r *http.Request) (Update, bool) {
 	if p.updates == nil || p.updates.count() == 0 {
 		return Update{}, false // niemand hört zu: keine Datenbankabfrage
@@ -186,6 +186,12 @@ func (p *Panel) changeOf(r *http.Request) (Update, bool) {
 		return Update{Topic: "server", ProjectID: row.ProjectID, ServerID: row.ID, Area: area}, true
 	case "projects":
 		return Update{Topic: "project", ProjectID: parts[2], Area: area}, true
+	case "nodes":
+		nodeID := parts[2]
+		if nodeID == "update-all" {
+			nodeID = ""
+		}
+		return Update{Topic: "node", NodeID: nodeID, Area: area}, true
 	}
 	return Update{}, false
 }
