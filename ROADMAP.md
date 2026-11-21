@@ -29,7 +29,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 
 - [ ] **Englische Oberfläche (M).** Die Oberfläche ist komplett deutsch. Texte in Sprachdateien auslagern (Deutsch und Englisch), Sprache pro Benutzer wählbar, Browser-Sprache als Vorgabe. Danach Website und README zweisprachig. Das ist der größte Hebel für andere Nutzer.
 - [ ] **Geplante und automatische Backups (M).** Zeitplan pro Server (täglich, wöchentlich), Aufbewahrung nach Alter und Anzahl, **Ziel außerhalb der Maschine** (S3/MinIO, SFTP, `restic`), Backup vor Updates, Versionswechsel und Modpack-Update automatisch. 
-  - *Teilweise erledigt:* Zeitpläne können Backups auslösen (Aufbewahrung nach Anzahl). Offen: Ziel außerhalb der Maschine (S3/SFTP/restic) und automatische Backups vor Updates.
+  - *Teilweise erledigt:* Zeitpläne können Backups auslösen (Aufbewahrung nach Anzahl), externes S3-kompatibles Ziel pro Projekt (Hochladen per Zeitplan oder von Hand, getrennte Aufbewahrung, Wiederherstellen aus dem Ziel), Ausschlüsse und Festhalten. Offen: SFTP/restic, inkrementelle Backups, Aufbewahrung nach Alter und automatische Backups vor Updates.
 - [x] **Zeitpläne und Aufgaben (M).** Neustart um 04:00, Befehl senden (z. B. `say Neustart in 5 Minuten`), Ankündigungen vor dem Neustart, Aufgabenketten („sichern, dann stoppen, dann starten“). 
   - *Erledigt:* Aufgabenketten (Backup, Befehl, Neustart, Start, Stopp, Warten), Intervall/täglich/wöchentlich, Vorwarnung, Nachholen, Zeitzone.
 - [x] **Absturzerkennung und Auto-Restart (S).** Pro Server wählbar, mit Pause und Obergrenze (ähnlich wie bei den Gruppen), Hinweis mit letzten Log-Zeilen. Dazu **Benachrichtigungen** per Discord-Webhook, E-Mail und Telegram: Absturz, Backup fehlgeschlagen, wenig Speicher, Update verfügbar. 

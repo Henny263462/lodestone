@@ -93,6 +93,8 @@ type Step struct {
 	Action string `json:"action"`
 	// Value ist der Befehl (command), die Bezeichnung (backup) oder die Sekunden (wait).
 	Value string `json:"value,omitempty"`
+	// Remote lädt ein Backup zusätzlich zum Backup-Ziel des Projekts hoch.
+	Remote bool `json:"remote,omitempty"`
 }
 
 // Schedule führt zu festen Zeiten Schritte auf einem Server aus.

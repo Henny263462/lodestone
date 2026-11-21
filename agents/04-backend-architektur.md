@@ -27,7 +27,8 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 | `panel.go` | `Config`, `Panel`, **alle Routen** (`routes()`), Middleware, `writeJSON`/`writeError`/`fail`/`decode`, Rechte (`rank*`, `requireProject/Server/Admin`) |
 | `auth.go`, `security.go`, `handlers_users.go` | Anmeldung, Sitzungen, Zwei-Faktor, API-Schlüssel, Benutzer |
 | `handlers_projects.go`, `handlers_servers.go`, `handlers_nodes.go`, `handlers_addons.go`, `handlers_extra.go`, `handlers_more.go` | HTTP-Handler nach Thema |
-| `store.go` (Kern + Schema), `store_ext.go`, `store_more.go` | Datenbank: Tabellen, Abfragen. **Nur hier steht SQL.** |
+| `store.go` (Kern + Schema), `store_ext.go`, `store_more.go`, `store_backups.go` | Datenbank: Tabellen, Abfragen. **Nur hier steht SQL.** |
+| `handlers_backups.go`, `s3.go` | Backups mit externem Ziel: Handler und Abläufe bzw. S3-Client (Signatur V4, vorsignierte Adressen) |
 | `nodeclient.go` | HTTP-Client zum Node (`Do`, `Raw`, `Proxy`, `DialWS`) |
 | `network.go` | Autoconfig-Erzeugung für Velocity/Paper/Fabric (reine Funktionen, gut testbar) |
 | `groups.go`, `scheduler.go`, `events.go`, `metrics.go`, `maintain.go` | Hintergrundschleifen und ihre Logik |
@@ -71,7 +72,9 @@ Regeln:
 
 ## 4. Datenbank (SQLite, `modernc.org/sqlite`)
 
-- Schema steht als `schema`/`schemaMore` (Strings mit `CREATE TABLE IF NOT EXISTS`). **Neue Tabelle** → in `schemaMore`.
+- Schema steht als `schema`/`schemaMore` (Strings mit `CREATE TABLE IF NOT EXISTS`). **Neue Tabelle** → in `schemaMore`, oder bei einem
+  eigenen Thema als eigene Konstante in dessen Store-Datei, die `OpenStore` mit einer Zeile ausführt (Vorbild `schemaBackups`
+  in `store_backups.go`).
 - **Neue Spalte** an einer bestehenden Tabelle → Eintrag in `moreColumns` (`{table, name, definition}`), sie wird beim Start per `ensureColumn`
   nachgezogen. Die Definition braucht einen Standardwert (`INTEGER NOT NULL DEFAULT 0`).
 - Nie Spalten löschen, umbenennen oder Typen ändern; nie Daten verwerfen. Ältere Datenbanken müssen weiter starten.
@@ -105,7 +108,9 @@ hält Sperren (`sync.Mutex`) kurz und nie über Netzwerkaufrufe. Neue Hinweise a
 1. Rechte bei **jeder** Anfrage im Backend (Abschnitt 3). Die Oberfläche versteckt nur.
 2. Eingaben, die in Befehle, Dateinamen, Konfigurationsdateien oder Adressen wandern, werden **streng** geprüft (Whitelist-Regex, wie `playerName`,
    `ipAddress`, `Slugify`) und nie in eine Shell eingesetzt. Konsolenbefehle: Zeilenumbrüche entfernen.
-3. Ausgehende Anfragen auf Wunsch von Benutzern (Webhooks) nur über `newHookClient` (sperrt interne Adressen, keine Weiterleitungen).
+3. Ausgehende Anfragen auf Wunsch von Benutzern (Webhooks) nur über `newHookClient` (sperrt interne Adressen, keine Weiterleitungen),
+   zu Backup-Zielen über `newS3HTTPClient` (ebenso, Freigabe mit `LODESTONE_BACKUP_ALLOW_INTERNAL`). Zugangsdaten externer Dienste
+   bleiben im Panel (mit `seal` verschlüsselt); der Node bekommt höchstens vorsignierte, ablaufende Adressen.
 4. Schreibende Browser-Anfragen brauchen den Header `X-Lodestone: 1` (CSRF); der Websocket prüft die Herkunft. Cookies `HttpOnly`, `SameSite=Strict`.
 5. Antworten setzen `Cache-Control: no-store`; nichts Geheimes in URLs.
 6. Anmeldeversuche sind gedrosselt; Registrierung gibt es nicht (nur Einrichtung beim ersten Start oder Admin legt an).

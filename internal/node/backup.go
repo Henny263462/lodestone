@@ -25,6 +25,8 @@ type Backup struct {
 	Size     int64  `json:"size"`
 	Created  int64  `json:"created"`
 	Creating bool   `json:"creating,omitempty"`
+	// Locked: festgehaltene Backups löscht weder die Aufbewahrung noch ein Löschbefehl.
+	Locked bool `json:"locked,omitempty"`
 }
 
 var (
@@ -60,7 +62,7 @@ func (s *Server) ListBackups() ([]Backup, error) {
 			continue
 		}
 		created, _ := time.ParseInLocation("20060102-150405", match[1], time.UTC)
-		list = append(list, Backup{Name: name, Label: match[2], Size: info.Size(), Created: created.UnixMilli(), Creating: creating})
+		list = append(list, Backup{Name: name, Label: match[2], Size: info.Size(), Created: created.UnixMilli(), Creating: creating, Locked: !creating && s.backupLocked(name)})
 	}
 	sort.Slice(list, func(i, j int) bool {
 		if list[i].Created != list[j].Created {
@@ -73,6 +75,14 @@ func (s *Server) ListBackups() ([]Backup, error) {
 
 // CreateBackup startet ein Backup im Hintergrund und gibt den Eintrag zurück.
 func (s *Server) CreateBackup(label string) (Backup, error) {
+	return s.CreateBackupExcluding(label, nil)
+}
+
+// CreateBackupExcluding startet ein Backup, in dem die Pfade fehlen, auf die eines der Muster passt (siehe matchExclude).
+func (s *Server) CreateBackupExcluding(label string, exclude []string) (Backup, error) {
+	if err := validateExcludes(exclude); err != nil {
+		return Backup{}, err
+	}
 	if !s.backupBusy.CompareAndSwap(false, true) {
 		return Backup{}, errBusy
 	}
@@ -89,16 +99,16 @@ func (s *Server) CreateBackup(label string) (Backup, error) {
 		s.backupBusy.Store(false)
 		return Backup{}, err
 	}
-	go s.runBackup(name)
+	go s.runBackup(name, exclude)
 	return Backup{Name: name, Label: label, Created: time.Now().UnixMilli(), Creating: true}, nil
 }
 
-func (s *Server) runBackup(name string) {
+func (s *Server) runBackup(name string, exclude []string) {
 	defer s.backupBusy.Store(false)
 	s.logf("Backup %s wird erstellt", name)
 	quiet := s.quiesce()
 	part := filepath.Join(s.backupDir(), name+".part")
-	err := s.writeArchive(part)
+	err := s.writeArchive(part, exclude)
 	if quiet {
 		_ = s.Command("save-on")
 	}
@@ -143,18 +153,22 @@ func (s *Server) quiesce() bool {
 	}
 }
 
-func (s *Server) writeArchive(dst string) error {
+func (s *Server) writeArchive(dst string, exclude []string) error {
 	file, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
 	gz := gzip.NewWriter(file)
 	archive := tar.NewWriter(gz)
+	if err := writeBackupMeta(archive, exclude); err != nil {
+		_ = errors.Join(archive.Close(), gz.Close(), file.Close())
+		return err
+	}
 	walkErr := fs.WalkDir(s.fs.root.FS(), ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil || name == "." {
 			return nil // unlesbares überspringen
 		}
-		if strings.HasPrefix(name, restoreTemp) || strings.HasSuffix(name, ".lodestone-part") {
+		if strings.HasPrefix(name, restoreTemp) || strings.HasSuffix(name, ".lodestone-part") || name == backupMetaName || matchExclude(exclude, name) {
 			if entry.IsDir() {
 				return fs.SkipDir
 			}
@@ -214,7 +228,7 @@ func (s *Server) pruneBackups() {
 	keep := s.snapshot().BackupKeep
 	finished := list[:0:0]
 	for _, backup := range list {
-		if !backup.Creating {
+		if !backup.Creating && !backup.Locked { // festgehaltene zählen nicht mit und bleiben
 			finished = append(finished, backup)
 		}
 	}
@@ -236,11 +250,14 @@ func (s *Server) BackupFile(name string) (string, error) {
 	return file, nil
 }
 
-// DeleteBackup löscht ein Backup.
+// DeleteBackup löscht ein Backup. Festgehaltene Backups müssen erst entsperrt werden.
 func (s *Server) DeleteBackup(name string) error {
 	file, err := s.BackupFile(name)
 	if err != nil {
 		return err
+	}
+	if s.backupLocked(name) {
+		return errLocked
 	}
 	return os.Remove(file)
 }
@@ -298,6 +315,7 @@ func (s *Server) extract(file string) error {
 		return err
 	}
 	archive := tar.NewReader(gz)
+	var meta backupMeta
 	for {
 		header, err := archive.Next()
 		if errors.Is(err, io.EOF) {
@@ -311,6 +329,12 @@ func (s *Server) extract(file string) error {
 			return fail(fmt.Errorf("das Archiv enthält einen ungültigen Pfad: %q", header.Name))
 		}
 		if name == "" {
+			continue
+		}
+		if name == backupMetaName {
+			if err := readBackupMeta(archive, &meta); err != nil {
+				return fail(err)
+			}
 			continue
 		}
 		target := path.Join(restoreTemp, name)
@@ -336,7 +360,16 @@ func (s *Server) extract(file string) error {
 			}
 		}
 	}
-	// Alles ist entpackt: Altes entfernen, Neues an seinen Platz
+	// Alles ist entpackt: Altes entfernen, Neues an seinen Platz. Was beim Erstellen ausgeschlossen war, bleibt stehen.
+	if len(meta.Exclude) > 0 {
+		if err := s.removeExcept(".", meta.Exclude); err != nil {
+			return fail(err)
+		}
+		if err := s.mergeMove(restoreTemp, "."); err != nil {
+			return err
+		}
+		return root.RemoveAll(restoreTemp)
+	}
 	old, err := s.fs.List(".")
 	if err != nil {
 		return fail(err)

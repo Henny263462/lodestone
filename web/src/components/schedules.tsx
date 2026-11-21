@@ -2,7 +2,7 @@
 
 import { CalendarClock, Pencil, Play, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, EmptyState, Switch, cx } from "@/components/ui/primitives";
+import { Badge, Button, Card, Checkbox, EmptyState, Switch, cx } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
@@ -36,7 +36,7 @@ export function scheduleText(schedule: Pick<Schedule, "kind" | "everyMinutes" | 
 function stepText(step: ScheduleStep): string {
   if (step.action === "command") return `Befehl: ${step.value}`;
   if (step.action === "wait") return `${step.value} s warten`;
-  if (step.action === "backup" && step.value) return `Backup „${step.value}“`;
+  if (step.action === "backup") return (step.value ? `Backup „${step.value}“` : actionLabel.backup) + (step.remote ? " + extern" : "");
   return actionLabel[step.action];
 }
 
@@ -301,7 +301,7 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
           {draft.steps.map((step, index) => (
             <div key={index} className="flex items-center gap-2">
               <span className="w-5 text-center text-xs text-muted">{index + 1}</span>
-              <select className="field w-48" value={step.action} onChange={(event) => setStep(index, { action: event.target.value as StepAction, value: "" })}>
+              <select className="field w-48" value={step.action} onChange={(event) => setStep(index, { action: event.target.value as StepAction, value: "", remote: undefined })}>
                 {(Object.keys(actionLabel) as StepAction[]).map((action) => (
                   <option key={action} value={action}>
                     {actionLabel[action]}
@@ -317,6 +317,12 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
                   inputMode={step.action === "wait" ? "numeric" : undefined}
                   maxLength={200}
                 />
+              )}
+              {step.action === "backup" && (
+                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-muted" title="Lädt das Backup zusätzlich zum Backup-Ziel des Projekts hoch">
+                  <Checkbox checked={!!step.remote} onChange={(value) => setStep(index, { remote: value || undefined })} label="Auch extern hochladen" />
+                  auch extern
+                </label>
               )}
               <Button variant="ghost" size="icon-sm" disabled={draft.steps.length === 1} onClick={() => patch({ steps: draft.steps.filter((_, position) => position !== index) })} aria-label="Schritt entfernen">
                 <X className="h-3.5 w-3.5" />

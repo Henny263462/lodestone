@@ -23,6 +23,8 @@ type Config struct {
 	SecureCookies bool
 	// AllowInternalWebhooks erlaubt Webhooks an interne Adressen (127.0.0.1, 192.168.x.x …). Standard: gesperrt.
 	AllowInternalWebhooks bool
+	// AllowInternalBackupTargets erlaubt Backup-Ziele im internen Netz (z. B. MinIO im LAN). Standard: gesperrt.
+	AllowInternalBackupTargets bool
 	// DataDir ist der Ordner der Datenbank; dort liegt auch secret.key.
 	DataDir string
 	// Location ist die Zeitzone der Zeitpläne (nil = die der Maschine).
@@ -70,6 +72,8 @@ type Panel struct {
 	scaleLast map[string]time.Time   // letzte Skalierung je Gruppe
 	idleSince map[string]time.Time   // seit wann eine Instanz leer ist
 	restarts  map[string][]time.Time // Neustart-Versuche abgestürzter Instanzen
+
+	backups backupRuntime // laufende Backups und Übertragungen (handlers_backups.go)
 
 	// nodeClient lässt sich in Tests ersetzen.
 	nodeClient func(Node) *NodeClient
@@ -192,6 +196,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("POST /api/webhooks/{id}/test", p.authenticate(p.testWebhook))
 	mux.HandleFunc("POST /api/servers/{id}/addons/check", p.authenticate(p.addonsCheck))
 	mux.HandleFunc("POST /api/servers/{id}/addons/update", p.authenticate(p.addonsUpdate))
+	p.registerBackupRoutes(mux)
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {

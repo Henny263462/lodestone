@@ -84,7 +84,8 @@ func (a *API) listBackups(w http.ResponseWriter, _ *http.Request, server *Server
 
 func (a *API) createBackup(w http.ResponseWriter, r *http.Request, server *Server) {
 	var body struct {
-		Label string `json:"label"`
+		Label   string   `json:"label"`
+		Exclude []string `json:"exclude"`
 	}
 	if r.ContentLength != 0 {
 		if err := decode(r, &body); err != nil {
@@ -92,7 +93,7 @@ func (a *API) createBackup(w http.ResponseWriter, r *http.Request, server *Serve
 			return
 		}
 	}
-	backup, err := server.CreateBackup(body.Label)
+	backup, err := server.CreateBackupExcluding(body.Label, body.Exclude)
 	if err != nil {
 		writeError(w, err)
 		return
