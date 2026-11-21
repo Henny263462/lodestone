@@ -3,8 +3,10 @@
 import { ArrowRight, Eye, EyeOff, Loader2, Lock, User } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { LodestoneLogo, Wordmark } from "@/components/ui/mc";
+import { PasskeySecondFactor, SignInOptions } from "@/components/sign-in";
 import { api } from "@/lib/api";
-import type { AuthStatus } from "@/lib/types";
+import { signInErrorText } from "@/lib/sign-in";
+import type { AuthStatus, LoginStep, SecondFactor } from "@/lib/types";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -16,13 +18,20 @@ export default function LoginPage() {
   // Zweiter Schritt der Anmeldung (Zwei-Faktor): Ticket vom Server und der Code aus der App
   const [ticket, setTicket] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  const [status, setStatus] = useState<AuthStatus | null>(null);
+  const [methods, setMethods] = useState<SecondFactor[]>(["totp"]);
+  const passwordOff = !setup && status?.passwordLogin === false;
 
   useEffect(() => {
+    // Rücksprung von einer Anmeldung über OIDC mit Fehlercode
+    const failed = new URLSearchParams(window.location.search).get("error");
+    if (failed) setError(signInErrorText(failed));
     api
       .get<AuthStatus>("/auth/status")
       .then((status) => {
         if (status.user) window.location.replace(nextTarget());
         setSetup(status.setupRequired);
+        setStatus(status);
       })
       .catch(() => null);
   }, []);
@@ -37,9 +46,10 @@ export default function LoginPage() {
         window.location.replace(nextTarget());
         return;
       }
-      const answer = await api.post<{ needsTotp?: boolean; ticket?: string }>(setup ? "/auth/setup" : "/auth/login", { username, password });
+      const answer = await api.post<LoginStep>(setup ? "/auth/setup" : "/auth/login", { username, password });
       if (answer?.needsTotp && answer.ticket) {
         setTicket(answer.ticket);
+        setMethods(answer.secondFactor ?? ["totp"]);
         return;
       }
       window.location.replace(nextTarget());
@@ -67,6 +77,7 @@ export default function LoginPage() {
         <form onSubmit={submit} className="rounded-xl border border-white/[0.08] bg-surface p-6 shadow-panel">
           <div className="space-y-4">
             {ticket ? (
+              methods.includes("totp") && (
               <div>
                 <label className="label" htmlFor="code">
                   Code aus deiner Authenticator-App
@@ -84,6 +95,9 @@ export default function LoginPage() {
                 />
                 <p className="mt-2 text-xs text-muted">Du hast die App nicht zur Hand? Gib stattdessen einen Wiederherstellungscode ein (z. B. a1b2c-d3e4f).</p>
               </div>
+              )
+            ) : passwordOff ? (
+              <p className="text-center text-xs text-muted">Die Anmeldung mit Passwort ist auf diesem Panel abgeschaltet.</p>
             ) : (
             <>
             <div>
@@ -127,6 +141,9 @@ export default function LoginPage() {
 
             {error && <p className="rounded-lg border border-bad/25 bg-bad/10 px-3 py-2 text-xs leading-relaxed text-bad">{error}</p>}
 
+            {ticket && methods.includes("passkey") && <PasskeySecondFactor ticket={ticket} next={nextTarget} onError={setError} />}
+
+            {!passwordOff && (!ticket || methods.includes("totp")) && (
             <button
               type="submit"
               disabled={busy}
@@ -136,6 +153,9 @@ export default function LoginPage() {
               {busy ? "Einen Moment" : ticket ? "Bestätigen" : setup ? "Administrator anlegen" : "Anmelden"}
               {!busy && <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />}
             </button>
+            )}
+
+            {!ticket && !setup && status && <SignInOptions status={status} divider={!passwordOff} next={nextTarget} onError={setError} />}
           </div>
         </form>
       </div>

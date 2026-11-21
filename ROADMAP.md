@@ -71,6 +71,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [ ] **Offene Schnittstelle (M).** Dokumentierte REST-API (OpenAPI), Webhooks, ein Kommandozeilenprogramm `lodestonectl`, ein Terraform-Provider.
 - [ ] **Betrieb im größeren Maßstab (L).** Prometheus-Metriken und fertiges Grafana-Dashboard, PostgreSQL statt SQLite wählbar, Sicherung der Panel-Datenbank (Litestream), Hochverfügbarkeit des Panels.
 - [ ] **Anmeldung über Dritte (M).** OIDC/SSO (Authentik, Keycloak, Discord), LDAP.
+  - *Teilweise erledigt:* OIDC (Authentik, Keycloak, Authelia, Google …) mit Verknüpfung, Auto-Create und Admin-Gruppe, Passkeys (ohne Passwort und als zweiter Faktor). Offen: LDAP, Discord (spricht kein OIDC, nur über einen Vermittler wie Authentik).
 - [ ] **Mobil (M).** Installierbare Web-App (PWA), Push-Benachrichtigungen, Konsole auf kleinen Bildschirmen.
 - [ ] **Sicherheitsprüfung von außen (L).** Unabhängige Prüfung vor der Öffnung für fremde Benutzer (Rechte, Dateizugriff, Docker-Isolation), danach ein Bug-Bounty-Hinweis in `SECURITY.md`.
 

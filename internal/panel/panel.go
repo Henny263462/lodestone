@@ -32,6 +32,8 @@ type Config struct {
 	// TrustProxy vertraut X-Forwarded-For für die IP bei der Anmelde-Drosselung.
 	TrustProxy bool
 	Version    string
+	// SSO ist die Anmeldung über OIDC und Passkeys (anmeldung.go).
+	SSO SSOConfig
 }
 
 // Panel ist das Backend: HTTP-Schnittstelle, Datenbank und die Verbindung zu den Nodes.
@@ -78,6 +80,9 @@ type Panel struct {
 
 	// nodeClient lässt sich in Tests ersetzen.
 	nodeClient func(Node) *NodeClient
+
+	// sso hält laufende OIDC- und Passkey-Abläufe (anmeldung.go).
+	sso *ssoState
 }
 
 type viewEntry struct {
@@ -121,6 +126,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/me/sessions/{id}", p.authenticate(p.sessionOnly(p.deleteSession)))
 	mux.HandleFunc("DELETE /api/users/{id}/totp", p.authenticate(p.sessionOnly(p.resetTotp)))
 	mux.HandleFunc("GET /api/audit", p.authenticate(p.listAudit))
+	p.registerAnmeldungRoutes(mux)
 
 	// Benutzer
 	mux.HandleFunc("GET /api/users", p.authenticate(p.listUsers))

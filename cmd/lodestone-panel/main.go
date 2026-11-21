@@ -65,6 +65,7 @@ func run(logger *slog.Logger) error {
 		AllowInternalWebhooks: flag("LODESTONE_WEBHOOK_ALLOW_INTERNAL"),
 		Version:               version,
 		DataDir:               dataDir,
+		SSO:                   ssoConfig(),
 	}
 	cfg.AllowInternalBackupTargets = flag("LODESTONE_BACKUP_ALLOW_INTERNAL")
 	if zone := env("LODESTONE_TZ", ""); zone != "" {

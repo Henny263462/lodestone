@@ -7,6 +7,7 @@ import { Badge, Button, Card, CardHeader, PageHeader } from "@/components/ui/pri
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
+import { OidcCard, PasskeysCard } from "@/components/account-sign-in";
 import { PixelAvatar } from "@/components/ui/mc";
 import { SftpAccountCard } from "@/components/sftp-account";
 import { api, useApi } from "@/lib/api";
@@ -28,6 +29,8 @@ export default function AccountPage() {
         </Card>
         <PasswordCard />
         <TwoFactorCard />
+        <PasskeysCard />
+        <OidcCard />
         <KeysCard />
         <SftpAccountCard />
         <SessionsCard />

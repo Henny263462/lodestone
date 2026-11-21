@@ -272,6 +272,7 @@ async function api(req, res, url) {
   if (rechteApi(res, method, body, a, b, c, d)) return;
   if (sftpDemo(res, method, body, a, b, c, d)) return;
   if (backupsDemo(res, parts, method, body, url)) return;
+  if (anmeldungDemo(res, method, body, parts)) return;
 
   if (a === "auth") {
     if (b === "status") return send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin" });
@@ -815,4 +816,84 @@ function backupsDemo(res, parts, method, body, url) {
     return reply(204);
   }
   return reply(404, { error: "unbekannte Adresse (Demo)" });
+}
+
+// --- anmeldung (OIDC und Passkeys)
+// Die Demo prüft keine Passkeys und spricht mit keinem Anbieter: Zeremonien liefern gültig aussehende Optionen
+// (der Browser fragt dann wirklich nach einem Passkey), und jede Antwort wird angenommen.
+
+let demoPasskeys = [{ id: "pk1", name: "MacBook (Touch ID)", createdAt: now() - 12 * 24 * HOUR, lastUsed: now() - 5 * HOUR }];
+let demoOidcLink = null;
+
+function demoChallenge() {
+  return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString("base64url");
+}
+
+function demoRedirect(res, location) {
+  res.writeHead(302, { Location: location, "Cache-Control": "no-store" });
+  res.end();
+}
+
+function anmeldungDemo(res, method, body, parts) {
+  const [a, b, c, d] = parts;
+  const rp = { id: "localhost", name: "Lodestone" };
+  if (a === "auth" && b === "status") {
+    send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin", passwordLogin: true, passkeys: true, oidc: { name: "Authentik" } });
+    return true;
+  }
+  if (a === "auth" && b === "oidc") {
+    if (c === "start") demoRedirect(res, "/");
+    else if (c === "callback") {
+      demoOidcLink = { issuer: "https://auth.example.org/application/o/lodestone/", email: "admin@example.org", autoCreated: false, createdAt: now(), lastLogin: 0 };
+      demoRedirect(res, "/account/?oidc=linked");
+    } else send(res, 404, { error: "unbekannte Adresse (Demo)" });
+    return true;
+  }
+  if (a === "auth" && b === "passkey") {
+    const begin = c === "begin" || (c === "second" && d === "begin");
+    if (begin) {
+      const allowCredentials = c === "second" ? [{ type: "public-key", id: Buffer.from("demo-passkey").toString("base64url") }] : [];
+      send(res, 200, { flow: id(), options: { publicKey: { challenge: demoChallenge(), rpId: rp.id, timeout: 300000, userVerification: c === "second" ? "preferred" : "required", allowCredentials } } });
+    } else send(res, 200, user);
+    return true;
+  }
+  if (a === "me" && b === "passkeys") {
+    if (method === "GET") send(res, 200, demoPasskeys);
+    else if (c === "begin") {
+      send(res, 200, {
+        flow: id(),
+        options: {
+          publicKey: {
+            challenge: demoChallenge(), rp, user: { id: Buffer.from(user.id).toString("base64url"), name: user.username, displayName: user.username },
+            pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }], timeout: 300000, attestation: "none",
+            authenticatorSelection: { residentKey: "preferred", requireResidentKey: false, userVerification: "preferred" }, excludeCredentials: [],
+          },
+        },
+      });
+    } else if (c === "finish") {
+      const key = { id: id(), name: body.name || "Passkey", createdAt: now(), lastUsed: 0 };
+      demoPasskeys = [key, ...demoPasskeys];
+      send(res, 201, key);
+    } else if (method === "PATCH") {
+      demoPasskeys = demoPasskeys.map((key) => (key.id === c ? { ...key, name: body.name || key.name } : key));
+      send(res, 204);
+    } else if (method === "DELETE") {
+      demoPasskeys = demoPasskeys.filter((key) => key.id !== c);
+      send(res, 204);
+    } else send(res, 404, { error: "unbekannte Adresse (Demo)" });
+    return true;
+  }
+  if (a === "me" && b === "oidc") {
+    if (c === "link") send(res, 200, { url: "/api/auth/oidc/callback?demo=1" });
+    else if (method === "DELETE") {
+      demoOidcLink = null;
+      send(res, 204);
+    } else send(res, 200, { configured: true, name: "Authentik", link: demoOidcLink ?? undefined, hasPassword: true, passwordLogin: true });
+    return true;
+  }
+  if (a === "users" && c === "passkeys" && method === "DELETE") {
+    send(res, 204);
+    return true;
+  }
+  return false;
 }

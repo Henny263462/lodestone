@@ -121,6 +121,15 @@ Sicherheit (`security.go`, `auth.go`): TOTP-Geheimnisse liegen mit AES-GCM versc
 `data/secret.key`), API-Schlüssel (`lds_…`) nur als SHA-256-Hash und nur für Anfragen, nicht für Konto-Änderungen. Jede
 verändernde Anfrage landet im Protokoll (Muster und Pfad, ohne Inhalt).
 
+Anmeldung über OIDC und Passkeys (`anmeldung.go` Einstellung und Abläufe, `handlers_anmeldung.go` Handler,
+`store_anmeldung.go` Tabellen `oidc_links` und `passkeys`): OIDC läuft als Authorization Code Flow mit PKCE (`golang.org/x/oauth2`),
+das ID-Token prüft `github.com/coreos/go-oidc/v3` (Signatur über JWKS, Aussteller, Empfänger, Ablauf) und das Panel die `nonce`.
+`state`, PKCE-Verifier und `nonce` liegen nur im Speicher des Panels (zehn Minuten, einmal gültig) und sind an ein
+`SameSite=Lax`-Cookie gebunden, damit der Rücksprung aus demselben Browser kommen muss. Konten werden über `issuer` + `sub`
+verknüpft. Passkeys nutzen `github.com/go-webauthn/webauthn`; die Zeremonien (Herausforderungen) liegen ebenfalls nur im
+Speicher (fünf Minuten, einmal gültig), gespeichert werden nur öffentlicher Schlüssel, Zähler und Merkmale. RP-ID und
+Herkunft folgen aus `LODESTONE_PUBLIC_URL`. Nach jeder Anmeldung entsteht dieselbe Sitzung wie bei der Passwort-Anmeldung.
+
 Der Node prüft vor jedem Start den freien Arbeitsspeicher (`/proc/meminfo`, Reserve `LODESTONE_NODE_MEMORY_RESERVE_MB`) und
 meldet beim Beenden eines Containers den Exit-Code mit dem Merkmal „angefordert“; so unterscheidet das Panel Absturz und Stopp.
 

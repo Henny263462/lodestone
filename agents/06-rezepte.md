@@ -79,6 +79,9 @@ Vorbild: `purpur` in `internal/software/software.go` und `software_test.go`.
 
 Vorbild: `app/(app)/account/page.tsx` (`KeysCard`). Eigene Komponente in derselben Datei oder daneben, `Card` + `CardHeader`, eigene `useApi`-Abfrage,
 Aktionen mit `toast.run`. Backend-Routen für Konto-Dinge hinter `sessionOnly`.
+Vorbild mit allen vier Zuständen in einer Karte, `RowMenu`, Umbenennen im `Dialog` und Entfernen im `ConfirmDialog`:
+`PasskeysCard` in `components/account-sign-in.tsx`. Browser-Schnittstellen ohne Bibliothek (hier `navigator.credentials`)
+kapselst du in `lib/` (Vorbild `lib/webauthn.ts`).
 
 ## H. Text, Farbe oder Abstand korrigieren
 

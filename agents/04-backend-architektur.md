@@ -27,6 +27,7 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 | `panel.go` | `Config`, `Panel`, **alle Routen** (`routes()`), Middleware, `writeJSON`/`writeError`/`fail`/`decode`, Rollen (`rank*`, `requireProject/Server/Admin`) |
 | `rechte.go`, `handlers_rechte.go`, `store_rechte.go` | Einzelrechte: Katalog, Vorlagen der Rollen, `requireProjectPermission`/`requireServerPermission`, `proxyPermissions`, Mitglieder-DTO, Eskalationsschutz |
 | `auth.go`, `security.go`, `handlers_users.go` | Anmeldung, Sitzungen, Zwei-Faktor, API-Schlüssel, Benutzer |
+| `anmeldung.go`, `handlers_anmeldung.go`, `store_anmeldung.go` | Anmeldung über OIDC und Passkeys (Einstellung, Abläufe im Speicher, Handler, Tabellen `oidc_links`/`passkeys`, Routen in `registerAnmeldungRoutes`) |
 | `handlers_projects.go`, `handlers_servers.go`, `handlers_nodes.go`, `handlers_addons.go`, `handlers_extra.go`, `handlers_more.go` | HTTP-Handler nach Thema |
 | `store.go` (Kern + Schema), `store_ext.go`, `store_more.go`, `store_backups.go` | Datenbank: Tabellen, Abfragen. **Nur hier steht SQL.** |
 | `handlers_backups.go`, `s3.go` | Backups mit externem Ziel: Handler und Abläufe bzw. S3-Client (Signatur V4, vorsignierte Adressen) |
@@ -58,7 +59,7 @@ func (p *Panel) putAutoRestart(w http.ResponseWriter, r *http.Request) {
 Route in `panel.go`: `mux.HandleFunc("PUT /api/servers/{id}/auto-restart", p.authenticate(p.putAutoRestart))`.
 
 Regeln:
-- **Jede** Route außer `healthz`, `auth/status|setup|login|totp` und `public/status/*` läuft durch `p.authenticate(...)`. Routen, die Konto
+- **Jede** Route außer `healthz`, `auth/status|setup|login|totp`, `auth/oidc/*`, `auth/passkey/*` und `public/status/*` läuft durch `p.authenticate(...)`. Routen, die Konto
   oder Zugangsdaten betreffen, zusätzlich durch `p.sessionOnly(...)` (API-Schlüssel dürfen dort nicht hin).
 - **Rechte prüfen** (`rechte.go`): Projekt-Routen mit `p.requireProjectPermission(r, projectID, PermXyz…)`, Server-Routen mit
   `p.requireServerPermission(r, PermXyz…)`. Ohne Recht genügt die Mitgliedschaft (Lesen, wie früher `rankViewer`). Mehrere

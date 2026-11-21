@@ -574,3 +574,76 @@ export interface BackupTarget {
 export interface ScheduleStep {
   remote?: boolean;
 }
+
+// --- anmeldung
+
+/** Ergänzt AuthStatus (Zusammenführung der Schnittstelle): welche Anmeldewege das Panel anbietet. */
+export interface AuthStatus {
+  /** false, wenn LODESTONE_OIDC_ONLY die Passwort-Anmeldung abschaltet */
+  passwordLogin?: boolean;
+  passkeys?: boolean;
+  oidc?: { name: string };
+}
+
+export type SecondFactor = "totp" | "passkey";
+
+export interface LoginStep {
+  needsTotp?: boolean;
+  ticket?: string;
+  secondFactor?: SecondFactor[];
+}
+
+export interface Passkey {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastUsed: number;
+}
+
+export interface OidcLink {
+  issuer: string;
+  email: string;
+  autoCreated: boolean;
+  createdAt: number;
+  lastLogin: number;
+}
+
+export interface OidcAccount {
+  configured: boolean;
+  name?: string;
+  link?: OidcLink;
+  hasPassword: boolean;
+  passwordLogin: boolean;
+}
+
+interface PasskeyDescriptor {
+  type: string;
+  id: string;
+  transports?: string[];
+}
+
+/** Optionen für navigator.credentials.create, wie das Panel sie schickt (Binärfelder als base64url). */
+export interface PasskeyCreationOptions {
+  publicKey: {
+    challenge: string;
+    rp: { id?: string; name: string };
+    user: { id: string; name: string; displayName: string };
+    excludeCredentials?: PasskeyDescriptor[];
+    [key: string]: unknown;
+  };
+}
+
+/** Optionen für navigator.credentials.get (Binärfelder als base64url). */
+export interface PasskeyAssertionOptions {
+  publicKey: {
+    challenge: string;
+    rpId?: string;
+    allowCredentials?: PasskeyDescriptor[];
+    [key: string]: unknown;
+  };
+}
+
+export interface PasskeyCeremony<T> {
+  flow: string;
+  options: T;
+}
