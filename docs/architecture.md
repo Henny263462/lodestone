@@ -86,6 +86,23 @@ verändernde Anfrage landet im Protokoll (Muster und Pfad, ohne Inhalt).
 Der Node prüft vor jedem Start den freien Arbeitsspeicher (`/proc/meminfo`, Reserve `LODESTONE_NODE_MEMORY_RESERVE_MB`) und
 meldet beim Beenden eines Containers den Exit-Code mit dem Merkmal „angefordert“; so unterscheidet das Panel Absturz und Stopp.
 
+## Welten, server.properties und eigene Ordnung
+
+- **Node** (`internal/node/welten.go`, `properties.go`): Die `server.properties` wird mit einem eigenen Parser im Format von
+  `java.util.Properties` gelesen (Kommentare, Fortsetzungszeilen, `\uXXXX`-Escapes). Beim Speichern ändert er nur die Zeilen
+  der gesetzten Schlüssel, alles andere bleibt Byte für Byte; Nicht-ASCII schreibt er als `\uXXXX`, damit alte und neue
+  Server die Datei gleich lesen. Welten sind Ordner direkt im Serverordner mit `level.dat`; Namen prüft eine strenge
+  Regex, Zugriffe laufen über `FS` (`os.Root`). Zurücksetzen und Ersetzen gehen nur bei ausgeschaltetem Server; der
+  Server steht dabei auf `restoring`, damit ihn niemand startet. Ein Welt-Upload wird erst vollständig in einen
+  Hilfsordner entpackt (`Extract`: keine Symlinks, keine Pfade nach außen, Größenlimit) und auf `level.dat` geprüft,
+  bevor die alte Welt weicht. Datapacks müssen ein Zip mit `pack.mcmeta` sein.
+- **Panel** (`handlers_welten.go`, `welten.go`): eigene Handler mit Rechteprüfung (Lesen ab Operator, Zurücksetzen,
+  Ersetzen und Formular-Speichern ab Admin, Datapacks ab Operator) und Prüfung der bekannten Schlüssel (Zahlbereiche,
+  Auswahlwerte). `server-port` und im Netzwerk `online-mode` sind gesperrt, weil Lodestone sie selbst setzt.
+  Downloads und Uploads reicht das Panel als Strom durch (`NodeClient.Proxy`).
+- **Ordnung** (`store_welten.go`, Tabelle `project_prefs`): Favorit, Position und Schlagwörter je Benutzer und Projekt.
+  Die Projektliste selbst bleibt unverändert; die Oberfläche ordnet sie mit `/api/me/project-prefs` (`lib/order.ts`).
+
 ## Grenzen in v0.1
 
 - Ein Netzwerk liegt auf **einem** Node (die Server erreichen sich über das Docker-Netz `lodestone`).

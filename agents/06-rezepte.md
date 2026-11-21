@@ -38,6 +38,9 @@ Oberfläche `components/server/modpack.tsx`.
 
 1. **Node:** Logik in eigener Datei (`internal/node/xyz.go`), nur über `FS`/`Runtime`; Route in `api.go`/`api_extra.go`; Test mit Attrappen.
 2. **Panel:** Rang in `requiredRank` eintragen **oder** eigener Handler, der `NodeClient.Do` aufruft (dann Rechte selbst prüfen).
+   Vorbild für eigene Handler mit eigener Routen-Funktion: `handlers_welten.go` (`registerWorldRoutes`, unterschiedliche Stufen je
+   Aktion, Eingaben vorab geprüft, Up- und Downloads als Strom über `NodeClient.Proxy`). Solche Routen sind spezifischer als
+   `/api/servers/{id}/{rest...}` und gehen deshalb vor.
 3. `fakeNode` in `panel_test.go` um die Route erweitern; Panel-Test.
 4. Oberfläche und Demo wie in A/B.
 5. Dauert die Aktion: Fortschritt als Status-Endpunkt (`state: idle|running|done|failed`, `done`, `total`) und in der Oberfläche per `refreshInterval` abfragen.

@@ -440,3 +440,49 @@ export interface PublicStatus {
   servers: { name: string; online: boolean; players: number; maxPlayers?: number }[];
   updated: number;
 }
+
+// --- welten
+
+export interface ServerProperty {
+  key: string;
+  value: string;
+}
+
+export interface ServerProperties {
+  exists: boolean;
+  entries: ServerProperty[];
+  /** Schlüssel, die Lodestone selbst verwaltet, mit dem Grund. */
+  locked: Record<string, string>;
+}
+
+export type WorldKind = "overworld" | "nether" | "end" | "other";
+
+export interface World {
+  name: string;
+  kind: WorldKind;
+  main: boolean;
+  size: number;
+  modified: number;
+  datapacks: number;
+}
+
+export interface WorldList {
+  levelName: string;
+  seed: string;
+  worlds: World[];
+}
+
+export interface Datapack {
+  name: string;
+  dir: boolean;
+  size: number;
+  modified: number;
+}
+
+/** Eigene Ordnung eines Projekts (pro Benutzer). position 0 = keine eigene Reihenfolge. */
+export interface ProjectPref {
+  projectId: string;
+  favorite: boolean;
+  position: number;
+  tags: string[];
+}

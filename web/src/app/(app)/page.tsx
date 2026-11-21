@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Cpu, FolderPlus, Network, Play, Plus, Server as ServerIcon, Users } from "lucide-react";
+import { ArrowUpDown, Cpu, FolderPlus, Network, Play, Plus, Server as ServerIcon, Tag, Users } from "lucide-react";
 import { useState } from "react";
+import { FavoriteButton, OrganizeDialog, ProjectFilterChips, ProjectTags, prefOf, useProjectPrefs } from "@/components/project-order";
+import { filterProjects, orderProjects, type ProjectFilter } from "@/lib/order";
 import { Badge, Button, Card, EmptyState, PageHeader, StatCard } from "@/components/ui/primitives";
 import { Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
@@ -16,9 +18,15 @@ export default function OverviewPage() {
   const { data: projects, error, mutate } = useApi<Project[]>("/projects", { refreshInterval: 5000 });
   const { data: nodes } = useApi<NodeInfo[]>("/nodes", { refreshInterval: 15000 });
   const [creating, setCreating] = useState(false);
+  const { data: prefs, mutate: mutatePrefs } = useProjectPrefs();
+  const [filter, setFilter] = useState<ProjectFilter>({ kind: "all" });
+  const [organizing, setOrganizing] = useState(false);
 
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!projects) return <Loading />;
+
+  const ordered = orderProjects(projects, prefs);
+  const shown = filterProjects(ordered, prefs, filter);
 
   const servers = projects.flatMap((project) => project.servers);
   const running = servers.filter((server) => server.view?.state === "running").length;
@@ -30,10 +38,18 @@ export default function OverviewPage() {
         title="Übersicht"
         description="Deine Projekte – einzelne Server und Netzwerke."
         action={
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" />
-            Neues Projekt
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {projects.length > 1 && (
+              <Button onClick={() => setOrganizing(true)}>
+                <ArrowUpDown className="h-4 w-4" />
+                Ordnen
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              Neues Projekt
+            </Button>
+          </div>
         }
       />
 
@@ -66,8 +82,15 @@ export default function OverviewPage() {
             </div>
           </Card>
         ) : (
+          <>
+          <ProjectFilterChips prefs={prefs} value={filter} onChange={setFilter} />
+          {shown.length === 0 && (
+            <Card>
+              <EmptyState icon={<Tag className="h-6 w-6" />} title="Kein Projekt passt zum Filter" text="Wähle „Alle“ oder ordne Projekten unter „Ordnen“ Schlagwörter zu." />
+            </Card>
+          )}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => {
+            {shown.map((project) => {
               const live = project.servers.filter((server) => server.view?.state === "running").length;
               const first = project.servers[0];
               return (
@@ -83,9 +106,13 @@ export default function OverviewPage() {
                           <p className="text-xs text-muted">{project.kind === "network" ? "Netzwerk" : "Einzelner Server"}</p>
                         </div>
                       </div>
-                      {project.kind === "server" && first ? <StateBadge server={first} /> : <Badge tone={live > 0 ? "good" : "neutral"}>{live}/{project.servers.length} laufen</Badge>}
+                      <div className="flex shrink-0 items-center gap-1">
+                        {project.kind === "server" && first ? <StateBadge server={first} /> : <Badge tone={live > 0 ? "good" : "neutral"}>{live}/{project.servers.length} laufen</Badge>}
+                        <FavoriteButton project={project} pref={prefOf(prefs, project.id)} onChanged={() => mutatePrefs()} />
+                      </div>
                     </div>
                     {project.description && <p className="mt-3 line-clamp-2 text-xs text-muted">{project.description}</p>}
+                    <ProjectTags pref={prefOf(prefs, project.id)} />
                     <div className="mt-4 flex items-center gap-3 text-xs text-muted">
                       <span className="inline-flex items-center gap-1">
                         <Users className="h-3.5 w-3.5" />
@@ -98,9 +125,11 @@ export default function OverviewPage() {
               );
             })}
           </div>
+          </>
         )}
       </div>
 
+      <OrganizeDialog open={organizing} onClose={() => setOrganizing(false)} projects={ordered} prefs={prefs} onSaved={() => mutatePrefs()} />
       <NewProjectDialog
         open={creating}
         onClose={() => setCreating(false)}

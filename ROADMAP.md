@@ -55,6 +55,9 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
   - *Teilweise erledigt:* Suche, Stufenfilter, Log-Download, Erklärung häufiger Fehler. Offen: ältere Logs durchblättern, Makros, mclo.gs.
 - [ ] **Dateimanager (M).** Verlauf und Rückgängig bei Konfigurationsänderungen (Diff), Suche in Dateien, Upload mit Wiederaufnahme, **SFTP-Zugang** pro Server.
 - [ ] **Welten (M).** Welt hoch- und herunterladen, zurücksetzen, wechseln; Chunky-Vorberechnung mit einem Klick; BlueMap oder Dynmap über das Panel erreichbar.
+  - *Teilweise erledigt:* Weltenliste mit Größe, Download, Upload/Ersetzen per Zip, Zurücksetzen mit Backup und Seed, Datapacks, `server.properties` als Formular. Wechseln geht über den Weltordner (`level-name`) in den Spieleinstellungen. Offen: Chunky, BlueMap/Dynmap.
+- [x] **Eigene Ordnung (S).** Häufigster Wunsch von Pelican-Nutzern: Projekte anheften, Reihenfolge in Seitenleiste und Übersicht selbst bestimmen (pro Benutzer), Schlagwörter zum Filtern, Server eines Projekts nach Name, Zustand oder Spielern sortieren.
+  - *Erledigt:* alles oben. Offen: Ordnen per Ziehen (heute mit Pfeilen im Dialog „Ordnen“), Gruppierung in eigenen Abschnitten statt Filter.
 - [ ] **Öffentliche Statusseite (M).** Pro Projekt: online/offline, Spielerzahl, MOTD, einbettbar (Widget) – plus Hilfe für **Domain und SRV-Eintrag** (Cloudflare-DNS-Anbindung: `mc.deine-domain.de` automatisch). 
   - *Teilweise erledigt:* Seite, Einbettung und JSON-Schnittstelle. Offen: Domain- und SRV-Hilfe / DNS-Anbindung.
 - [ ] **playit weiterdenken (M).** Tunnel-Status im Panel anzeigen, Tunnel automatisch anlegen, falls playit eine API dafür anbietet (heute nur im Dashboard möglich), und eine Tunnel-Schnittstelle für Alternativen (Tailscale, frp).

@@ -5,9 +5,9 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 ## 1. Informationsarchitektur
 
 ```
-Übersicht (/)                      Projekte als Karten, Kennzahlen, Nodes
+Übersicht (/)                      Projekte als Karten (angeheftete zuerst, eigene Reihenfolge, Filter nach Schlagwort), Kennzahlen, Nodes
 Projekt (/project/?id=)            Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
-  └─ Server (/server/?id=&tab=)    Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Einstellungen
+  └─ Server (/server/?id=&tab=)    Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Welten · Spieleinstellungen · Einstellungen
 Nodes (/nodes/)                    Maschinen, Speicher, playit
 Benutzer (/users/)                 nur Administratoren
 Protokoll (/audit/)                nur Administratoren

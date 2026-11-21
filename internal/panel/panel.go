@@ -192,6 +192,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("POST /api/webhooks/{id}/test", p.authenticate(p.testWebhook))
 	mux.HandleFunc("POST /api/servers/{id}/addons/check", p.authenticate(p.addonsCheck))
 	mux.HandleFunc("POST /api/servers/{id}/addons/update", p.authenticate(p.addonsUpdate))
+	p.registerWorldRoutes(mux)
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {

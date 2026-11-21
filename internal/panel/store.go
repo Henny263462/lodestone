@@ -45,6 +45,10 @@ func OpenStore(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("Schema anlegen: %w", err)
 	}
+	if _, err := db.Exec(schemaWelten); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("Schema anlegen: %w", err)
+	}
 	// Spalten, die erst später dazukamen
 	for _, column := range append([]struct{ table, name, definition string }{
 		{"projects", "voicechat", "INTEGER NOT NULL DEFAULT 0"},
