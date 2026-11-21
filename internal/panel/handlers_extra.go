@@ -172,7 +172,7 @@ type addonDetail struct {
 
 // addonsDetails sagt zu jeder installierten Datei, welches Modrinth-Projekt und welche Version sie ist.
 func (p *Panel) addonsDetails(w http.ResponseWriter, r *http.Request) {
-	row, _, err := p.modrinthContext(r, rankViewer)
+	row, _, err := p.modrinthContext(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -232,7 +232,7 @@ func (p *Panel) addonsDetails(w http.ResponseWriter, r *http.Request) {
 
 // addonsSwitch tauscht eine installierte Erweiterung gegen eine andere Version desselben Projekts.
 func (p *Panel) addonsSwitch(w http.ResponseWriter, r *http.Request) {
-	row, gameVersion, err := p.modrinthContext(r, rankOperator)
+	row, gameVersion, err := p.modrinthContext(r, PermAddons)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -313,7 +313,7 @@ func (p *Panel) addonsSwitch(w http.ResponseWriter, r *http.Request) {
 var addressPattern = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(:[0-9]{1,5})?$`)
 
 func (p *Panel) putPublicAddress(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -527,7 +527,7 @@ func (p *Panel) nodePlayitTunnelDelete(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- Server-Tunnel (automatische Erstellung über playit)
 
 func (p *Panel) postServerTunnel(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermNetwork)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -627,7 +627,7 @@ func (p *Panel) postServerTunnel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) deleteServerTunnel(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermNetwork)
 	if err != nil {
 		writeError(w, err)
 		return

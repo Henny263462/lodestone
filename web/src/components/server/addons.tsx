@@ -11,7 +11,9 @@ import type { Addon, AddonDetail, ModrinthHit, UpdateEntry } from "@/lib/types";
 
 type View = "installed" | "browse";
 
-export function AddonsTab({ serverId, canWrite, noun, running }: { serverId: string; canWrite: boolean; noun: "Plugins" | "Mods"; running: boolean }) {
+// canWrite erlaubt Modrinth (Installieren, Aktualisieren, Version wechseln); Hochladen, Abschalten und Löschen sind
+// Dateiaktionen und brauchen zusätzlich canFiles.
+export function AddonsTab({ serverId, canWrite, canFiles, noun, running }: { serverId: string; canWrite: boolean; canFiles: boolean; noun: "Plugins" | "Mods"; running: boolean }) {
   const [view, setView] = useState<View>("installed");
   return (
     <div className="space-y-4">
@@ -23,12 +25,12 @@ export function AddonsTab({ serverId, canWrite, noun, running }: { serverId: str
           ...(canWrite ? [{ id: "browse" as const, label: "Modrinth durchsuchen" }] : []),
         ]}
       />
-      {view === "installed" ? <Installed serverId={serverId} canWrite={canWrite} noun={noun} running={running} /> : <Browse serverId={serverId} noun={noun} onInstalled={() => setView("installed")} />}
+      {view === "installed" ? <Installed serverId={serverId} canWrite={canWrite} canFiles={canFiles} noun={noun} running={running} /> : <Browse serverId={serverId} noun={noun} onInstalled={() => setView("installed")} />}
     </div>
   );
 }
 
-function Installed({ serverId, canWrite, noun, running }: { serverId: string; canWrite: boolean; noun: string; running: boolean }) {
+function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: string; canWrite: boolean; canFiles: boolean; noun: string; running: boolean }) {
   const toast = useToast();
   const { data, error, mutate } = useApi<Addon[]>(`/servers/${serverId}/addons`);
   const [updates, setUpdates] = useState<Record<string, UpdateEntry> | null>(null);
@@ -83,22 +85,26 @@ function Installed({ serverId, canWrite, noun, running }: { serverId: string; ca
         title={`Installierte ${noun}`}
         description={running ? "Änderungen werden nach einem Neustart des Servers wirksam." : undefined}
         action={
-          canWrite && (
+          (canWrite || canFiles) && (
             <div className="flex gap-2">
-              <Button size="sm" onClick={check} loading={checking}>
-                <RefreshCw className="h-3.5 w-3.5" />
-                Updates prüfen
-              </Button>
-              {pending.length > 0 && (
+              {canWrite && (
+                <Button size="sm" onClick={check} loading={checking}>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Updates prüfen
+                </Button>
+              )}
+              {canWrite && pending.length > 0 && (
                 <Button size="sm" variant="primary" onClick={() => toast.run(() => updateAll(pending.map((entry) => entry.file)))}>
                   <ArrowUpCircle className="h-3.5 w-3.5" />
                   Alle aktualisieren ({pending.length})
                 </Button>
               )}
-              <Button size="sm" onClick={() => picker.current?.click()}>
-                <Upload className="h-3.5 w-3.5" />
-                Hochladen
-              </Button>
+              {canFiles && (
+                <Button size="sm" onClick={() => picker.current?.click()}>
+                  <Upload className="h-3.5 w-3.5" />
+                  Hochladen
+                </Button>
+              )}
               <input
                 ref={picker}
                 type="file"
@@ -190,24 +196,28 @@ function Installed({ serverId, canWrite, noun, running }: { serverId: string; ca
                   </Badge>
                 )}
                 {update && !update.known && <span title="Nicht bei Modrinth gefunden"><Badge>Unbekannt</Badge></span>}
-                {canWrite && (
+                {(canWrite || canFiles) && (
                   <div className="flex items-center gap-1">
-                    {update?.updateAvailable && (
+                    {canWrite && update?.updateAvailable && (
                       <Button size="sm" onClick={() => toast.run(() => updateAll([addon.file]))}>
                         Aktualisieren
                       </Button>
                     )}
-                    {detail?.known && detail.projectId && (
+                    {canWrite && detail?.known && detail.projectId && (
                       <Button variant="ghost" size="icon-sm" onClick={() => setSwitching(detail)} title="Version wechseln" aria-label="Version wechseln">
                         <Repeat className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon-sm" onClick={() => toggle(addon)} title={addon.enabled ? "Deaktivieren" : "Aktivieren"} aria-label="Umschalten">
-                      <Power className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setRemove(addon)} title="Löschen" aria-label="Löschen">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {canFiles && (
+                      <Button variant="ghost" size="icon-sm" onClick={() => toggle(addon)} title={addon.enabled ? "Deaktivieren" : "Aktivieren"} aria-label="Umschalten">
+                        <Power className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canFiles && (
+                      <Button variant="ghost" size="icon-sm" onClick={() => setRemove(addon)} title="Löschen" aria-label="Löschen">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

@@ -24,7 +24,8 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 
 | Datei | Inhalt |
 | --- | --- |
-| `panel.go` | `Config`, `Panel`, **alle Routen** (`routes()`), Middleware, `writeJSON`/`writeError`/`fail`/`decode`, Rechte (`rank*`, `requireProject/Server/Admin`) |
+| `panel.go` | `Config`, `Panel`, **alle Routen** (`routes()`), Middleware, `writeJSON`/`writeError`/`fail`/`decode`, Rollen (`rank*`, `requireProject/Server/Admin`) |
+| `rechte.go`, `handlers_rechte.go`, `store_rechte.go` | Einzelrechte: Katalog, Vorlagen der Rollen, `requireProjectPermission`/`requireServerPermission`, `proxyPermissions`, Mitglieder-DTO, Eskalationsschutz |
 | `auth.go`, `security.go`, `handlers_users.go` | Anmeldung, Sitzungen, Zwei-Faktor, API-Schlüssel, Benutzer |
 | `handlers_projects.go`, `handlers_servers.go`, `handlers_nodes.go`, `handlers_addons.go`, `handlers_extra.go`, `handlers_more.go` | HTTP-Handler nach Thema |
 | `store.go` (Kern + Schema), `store_ext.go`, `store_more.go` | Datenbank: Tabellen, Abfragen. **Nur hier steht SQL.** |
@@ -43,7 +44,7 @@ Vorbild: `putAutoRestart` in `events.go`.
 
 ```go
 func (p *Panel) putAutoRestart(w http.ResponseWriter, r *http.Request) {
-    row, _, _, err := p.requireServer(r, rankAdmin)      // 1. Rechte (immer zuerst!)
+    row, _, _, err := p.requireServerPermission(r, PermSettings)  // 1. Rechte (immer zuerst!)
     if err != nil { writeError(w, err); return }
     var body struct{ Enabled bool `json:"enabled"` }       // 2. Eingabe, strikt (unbekannte Felder = 400)
     if err := decode(r, &body); err != nil { writeError(w, err); return }
@@ -58,8 +59,21 @@ Route in `panel.go`: `mux.HandleFunc("PUT /api/servers/{id}/auto-restart", p.aut
 Regeln:
 - **Jede** Route außer `healthz`, `auth/status|setup|login|totp` und `public/status/*` läuft durch `p.authenticate(...)`. Routen, die Konto
   oder Zugangsdaten betreffen, zusätzlich durch `p.sessionOnly(...)` (API-Schlüssel dürfen dort nicht hin).
-- Mindeststufe wählen: Lesen `rankViewer`, Steuern/Dateien `rankOperator`, Einstellungen `rankAdmin`, Löschen `rankOwner`,
-  Systemweites `requireAdmin(r)`. Im Zweifel die höhere Stufe.
+- **Rechte prüfen** (`rechte.go`): Projekt-Routen mit `p.requireProjectPermission(r, projectID, PermXyz…)`, Server-Routen mit
+  `p.requireServerPermission(r, PermXyz…)`. Ohne Recht genügt die Mitgliedschaft (Lesen, wie früher `rankViewer`). Mehrere
+  Rechte heißen „alle nötig“. Zurück kommt `Access` (`Rank`, `Has(…)`, `List()`) für Entscheidungen im Handler
+  (Beispiel: Befehle im Konsolen-Websocket nur mit `access.Has(PermConsoleCommand)`).
+- Welches Recht? Das, dessen Erklärung im Katalog die Tat beschreibt: Lesen von Konsole/Protokoll `PermConsoleRead`, Befehle
+  `PermConsoleCommand`, Start/Stopp `PermPower`, Dateien `PermFilesRead`/`PermFilesWrite`, Backups `PermBackups*`, Plugins/Mods
+  `PermAddons`, Spieler `PermPlayers`, Einstellungen `PermSettings`, Server anlegen/löschen `PermServers`, Zeitpläne, Webhooks,
+  Mitglieder, Netzwerk. Passt keines, ein **neues Recht** in `permissionCatalog` anlegen (ID-Konstante, Gruppe, deutscher Name,
+  Erklärung, Mindestrolle = die Stufe, die du sonst gewählt hättest), den Typ `Permission` in `web/src/lib/types.ts` und den
+  Katalog in `web/demo/server.mjs` ergänzen. Im Zweifel die strengere Wahl.
+- **Rang statt Recht** nur für Eigentümer-Dinge (`requireProject(r, id, rankOwner)`: Projekt löschen) und Systemweites
+  (`requireAdmin(r)`). `requireProject`/`requireServer` mit Mindeststufe gibt es weiter; neuer Code nimmt die Einzelrechte.
+- Kann ein Handler etwas anstoßen, das weitere Rechte braucht (ein Zeitplan führt Befehle aus, eine Gruppe legt Server an),
+  verlangt er auch diese (`stepPermissions`). Wer anderen Rechte gibt, prüft mit `checkGrant`, dass nichts dazukommt, was er
+  selbst nicht hat.
 - Fremde Projekte „gibt es nicht“: `errNotFound` (404), nicht 403 (macht `requireProject` schon).
 - Fehler immer mit `fail(status, "deutscher Satz mit Ursache")` oder einem vorhandenen Fehler (`ErrNotFound`, `ErrExists`, `errForbidden`).
   Fehler vom Node reichen `writeError`/`NodeError` durch. Keine rohen `err.Error()` aus Bibliotheken an Benutzer, wenn sie Pfade oder
@@ -67,7 +81,8 @@ Regeln:
 - Antworten sind JSON mit camelCase-Tags. Listen als `[]` (nie `null`: leere Slices anlegen).
 - Jede **verändernde** Route erscheint automatisch im Protokoll (`authenticate` schreibt es). Nichts Persönliches in den Pfad legen.
 - Durchgereichte Node-Routen (`/api/servers/{id}/…`) müssen in `requiredRank` (handlers_servers.go) mit Stufe und erlaubter Methode eingetragen
-  sein, sonst sind sie gesperrt. Neue Node-Funktion → dort eintragen, **und** `fakeNode` im Test erweitern.
+  sein, sonst sind sie gesperrt, **und** in `proxyPermissions` (rechte.go) ihr Recht bekommen (fehlt es dort, gilt die Stufe).
+  Neue Node-Funktion → beides eintragen, die Route in `TestProxyPermissionsMatchRanks` aufnehmen **und** `fakeNode` im Test erweitern.
 
 ## 4. Datenbank (SQLite, `modernc.org/sqlite`)
 
@@ -114,7 +129,8 @@ hält Sperren (`sync.Mutex`) kurz und nie über Netzwerkaufrufe. Neue Hinweise a
 ## 8. Tests
 
 - Jede neue Funktion bekommt Tests in der passenden `*_test.go`. Fehler- und Rechte-Fälle gehören dazu (z. B. „Betrachter bekommt 403“,
-  „fremdes Projekt 404“, „ungültige Eingabe 400“).
+  „fremdes Projekt 404“, „ungültige Eingabe 400“). Neue Routen gehören zusätzlich mit ihrer Mindeststufe in die Liste von
+  `TestRolesKeepTheirAccess` (`rechte_test.go`), die jede Route mit jeder Rolle prüft.
 - Panel-Tests: `setupPanel(t)` startet Panel + `fakeNode` (HTTP-Attrappe des Nodes in `panel_test.go`); `newClient(t, url)` mit
   `expect(status, method, path, body)`. Neuer Node-Endpunkt → `fakeNode` in `panel_test.go` ergänzen.
 - Node-Tests: `fake_test.go` ersetzt Docker. Echte Docker-Tests liegen getrennt (`docker_integration_test.go`) und laufen nicht standardmäßig.

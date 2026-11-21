@@ -97,7 +97,7 @@ mutate();
 ## 7. Rezept: neuer Bereich im Server oder neuer Tab im Projekt
 
 Vorbild `components/server/backups.tsx` (einfach) oder `players.tsx` (mit Diagrammen). Komponente `XyzTab({ server | project, canWrite })`,
-Eintrag im `entries`-Array von `server/page.tsx` (Rang beachten) bzw. im Tab-Array von `project/page.tsx`, Anzeige per `{active === "xyz" && <XyzTab … />}`.
+Eintrag im `entries`-Array von `server/page.tsx` (Recht beachten: `allowed("…")` bzw. `can(myPermissions, "…")`) bzw. im Tab-Array von `project/page.tsx`, Anzeige per `{active === "xyz" && <XyzTab … />}`.
 
 ## 8. Nicht tun
 

@@ -17,6 +17,10 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 
 - **Projekte:** ein einzelner Server oder ein **Netzwerk** (Velocity + Server dahinter). Mitglieder mit Rollen
   *Betrachter, Operator, Admin, Eigentümer* pro Projekt; globale Administratoren sehen alles
+- **Feine Rechte pro Mitglied:** Die Rolle ist eine Vorlage, unter „Mitglieder → Rechte“ lassen sich 18 Einzelrechte
+  (Konsole lesen, Befehle, Starten/Stoppen, Dateien ansehen/ändern, SFTP, Backups ansehen/erstellen/wiederherstellen/löschen,
+  Plugins/Mods, Spieler, Einstellungen, Server anlegen/löschen, Zeitpläne, Webhooks, Mitglieder, Netzwerk) dazugeben oder
+  wegnehmen – niemand kann mehr vergeben, als er selbst hat
 - **Server-Arten:** Paper, Purpur, Folia, Fabric, NeoForge, Vanilla, Velocity – Version, Download mit Prüfsumme und Java-Version
   werden automatisch bestimmt
 - **Konsole live** (Websocket, mit Verlauf und ANSI-Farben), Start/Stopp/Neustart/Kill, CPU-/RAM-Anzeige
@@ -153,8 +157,8 @@ Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_P
 - Anmeldung mit **argon2id**-Passwörtern, Sitzungen als HttpOnly-/SameSite=Strict-Cookie (nur der Hash liegt in der
   Datenbank), zusätzlicher Header gegen CSRF, Herkunftsprüfung beim Websocket, Drosselung nach Fehlversuchen
 - Rechte werden bei **jeder** Anfrage serverseitig geprüft (Betrachter lesen Konsole/Spieler, Operatoren steuern
-  Server und Dateien, Admins ändern Einstellungen, Eigentümer löschen Projekte); Projekte, in denen man nicht
-  Mitglied ist, „gibt es nicht“ (404)
+  Server und Dateien, Admins ändern Einstellungen, Eigentümer löschen Projekte; angepasste Einzelrechte gelten genauso);
+  Projekte, in denen man nicht Mitglied ist, „gibt es nicht“ (404)
 - Optional **Zwei-Faktor** (TOTP, TOTP-Geheimnisse mit AES-GCM verschlüsselt abgelegt), API-Schlüssel nur als Hash
   gespeichert und ohne Zugriff auf Konto-Einstellungen; Änderungen werden im **Protokoll** festgehalten
 - Das Token des Nodes verlässt das Panel nie; die Node-API gehört nur ins interne Netz oder hinter TLS/VPN

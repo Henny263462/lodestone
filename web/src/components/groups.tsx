@@ -8,15 +8,16 @@ import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { StateBadge } from "@/components/status";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
-import { roleRank, type Group, type Project, type SoftwareInfo } from "@/lib/types";
+import { can, type Group, type Project, type SoftwareInfo } from "@/lib/types";
 
 const memoryOptions = [512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192];
 const backendSoftware = ["paper", "purpur", "folia", "fabric"];
 
 export function GroupsTab({ project, refresh }: { project: Project; refresh: () => void }) {
   const toast = useToast();
-  const canManage = roleRank[project.myRole] >= roleRank.admin;
-  const canOperate = roleRank[project.myRole] >= roleRank.operator;
+  // Gruppen legen selbst Server an und löschen sie, darum braucht Verwalten auch „Server anlegen und löschen“
+  const canManage = can(project.myPermissions, "network", "servers");
+  const canOperate = can(project.myPermissions, "power");
   const [editing, setEditing] = useState<Group | "new" | null>(null);
   const [removing, setRemoving] = useState<Group | null>(null);
   const hasProxy = project.servers.some((server) => server.role === "proxy");

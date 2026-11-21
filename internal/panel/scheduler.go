@@ -487,7 +487,7 @@ func (s *Schedule) validate() error {
 }
 
 func (p *Panel) listSchedules(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankViewer)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -501,7 +501,7 @@ func (p *Panel) listSchedules(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) createSchedule(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, access, err := p.requireProjectPermission(r, r.PathValue("id"), PermSchedules)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -526,6 +526,10 @@ func (p *Panel) createSchedule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if missing := access.missing(stepPermissions(schedule.Steps)); len(missing) > 0 {
+		writeError(w, errMissing(missing))
+		return
+	}
 	created, err := p.store.CreateSchedule(schedule)
 	if err != nil {
 		writeError(w, err)
@@ -534,19 +538,20 @@ func (p *Panel) createSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, p.scheduleDTOs([]Schedule{created})[0])
 }
 
-func (p *Panel) requireSchedule(r *http.Request, minimum int) (Schedule, error) {
+func (p *Panel) requireSchedule(r *http.Request, needed ...Permission) (Schedule, Access, error) {
 	schedule, err := p.store.ScheduleByID(r.PathValue("id"))
 	if err != nil {
-		return Schedule{}, errNotFound
+		return Schedule{}, Access{}, errNotFound
 	}
-	if _, _, err := p.requireProject(r, schedule.ProjectID, minimum); err != nil {
-		return Schedule{}, err
+	_, access, err := p.requireProjectPermission(r, schedule.ProjectID, needed...)
+	if err != nil {
+		return Schedule{}, Access{}, err
 	}
-	return schedule, nil
+	return schedule, access, nil
 }
 
 func (p *Panel) updateSchedule(w http.ResponseWriter, r *http.Request) {
-	schedule, err := p.requireSchedule(r, rankAdmin)
+	schedule, access, err := p.requireSchedule(r, PermSchedules)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -561,6 +566,10 @@ func (p *Panel) updateSchedule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if missing := access.missing(stepPermissions(schedule.Steps)); len(missing) > 0 {
+		writeError(w, errMissing(missing))
+		return
+	}
 	if err := p.store.UpdateSchedule(schedule); err != nil {
 		writeError(w, err)
 		return
@@ -569,7 +578,7 @@ func (p *Panel) updateSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) deleteSchedule(w http.ResponseWriter, r *http.Request) {
-	schedule, err := p.requireSchedule(r, rankAdmin)
+	schedule, _, err := p.requireSchedule(r, PermSchedules)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -581,11 +590,16 @@ func (p *Panel) deleteSchedule(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// runScheduleNow führt einen Zeitplan sofort aus (zusätzlich zu seinen festen Zeiten).
+// runScheduleNow führt einen Zeitplan sofort aus (zusätzlich zu seinen festen Zeiten). Das braucht „Starten und
+// Stoppen“ und die Rechte seiner Schritte.
 func (p *Panel) runScheduleNow(w http.ResponseWriter, r *http.Request) {
-	schedule, err := p.requireSchedule(r, rankOperator)
+	schedule, access, err := p.requireSchedule(r, PermPower)
 	if err != nil {
 		writeError(w, err)
+		return
+	}
+	if missing := access.missing(stepPermissions(schedule.Steps)); len(missing) > 0 {
+		writeError(w, errMissing(missing))
 		return
 	}
 	if !p.beginRun(schedule.ID) {

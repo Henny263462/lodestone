@@ -7,7 +7,7 @@ import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Switch } from "@
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
-import { roleRank, type Project, type ProjectEvent, type Webhook } from "@/lib/types";
+import { can, type Project, type ProjectEvent, type Webhook } from "@/lib/types";
 
 export const eventLabels: Record<string, string> = {
   crash: "Absturz",
@@ -25,7 +25,7 @@ export const eventLabels: Record<string, string> = {
 const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory"];
 
 export function EventsTab({ project }: { project: Project }) {
-  const canManage = roleRank[project.myRole] >= roleRank.admin;
+  const canManage = can(project.myPermissions, "webhooks");
   const { data } = useApi<ProjectEvent[]>(`/projects/${project.id}/events`, { refreshInterval: 10000 });
   const names = new Map(project.servers.map((server) => [server.id, server.name]));
 

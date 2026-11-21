@@ -338,7 +338,7 @@ func (p *Panel) checkMemory(ctx context.Context, nodeID, name string, list []Ser
 // ---------------------------------------------------------------- Schnittstelle
 
 func (p *Panel) listEvents(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankViewer)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -397,7 +397,7 @@ func (p *Panel) applyWebhook(hook *Webhook, body webhookRequest) error {
 }
 
 func (p *Panel) listWebhooks(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermWebhooks)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -411,7 +411,7 @@ func (p *Panel) listWebhooks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) createWebhook(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermWebhooks)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -444,7 +444,7 @@ func (p *Panel) requireWebhook(r *http.Request) (Webhook, error) {
 	if err != nil {
 		return Webhook{}, errNotFound
 	}
-	if _, _, err := p.requireProject(r, hook.ProjectID, rankAdmin); err != nil {
+	if _, _, err := p.requireProjectPermission(r, hook.ProjectID, PermWebhooks); err != nil {
 		return Webhook{}, err
 	}
 	return hook, nil
@@ -499,7 +499,7 @@ func (p *Panel) testWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) putAutoRestart(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return

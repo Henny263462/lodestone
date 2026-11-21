@@ -193,6 +193,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("POST /api/servers/{id}/addons/check", p.authenticate(p.addonsCheck))
 	mux.HandleFunc("POST /api/servers/{id}/addons/update", p.authenticate(p.addonsUpdate))
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
+	p.registerRechteRoutes(mux)
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unbekannte Adresse"})

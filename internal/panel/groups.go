@@ -168,8 +168,10 @@ func (r groupRequest) validateLimits(g *Group) error {
 	return nil
 }
 
+// Gruppen anlegen, ändern und löschen braucht „Netzwerk“ und „Server anlegen und löschen“, weil eine Gruppe selbst
+// Server anlegt und wieder löscht.
 func (p *Panel) createGroup(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermNetwork, PermServers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -236,17 +238,17 @@ func (p *Panel) createGroup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (p *Panel) requireGroup(r *http.Request, minimum int) (Group, Project, error) {
+func (p *Panel) requireGroup(r *http.Request, needed ...Permission) (Group, Project, error) {
 	group, err := p.store.GroupByID(r.PathValue("id"))
 	if err != nil {
 		return Group{}, Project{}, errNotFound
 	}
-	project, _, err := p.requireProject(r, group.ProjectID, minimum)
+	project, _, err := p.requireProjectPermission(r, group.ProjectID, needed...)
 	return group, project, err
 }
 
 func (p *Panel) updateGroup(w http.ResponseWriter, r *http.Request) {
-	group, _, err := p.requireGroup(r, rankAdmin)
+	group, _, err := p.requireGroup(r, PermNetwork, PermServers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -275,7 +277,7 @@ func (p *Panel) updateGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) deleteGroup(w http.ResponseWriter, r *http.Request) {
-	group, project, err := p.requireGroup(r, rankAdmin)
+	group, project, err := p.requireGroup(r, PermNetwork, PermServers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -309,7 +311,7 @@ func (p *Panel) deleteGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) addInstance(w http.ResponseWriter, r *http.Request) {
-	group, project, err := p.requireGroup(r, rankOperator)
+	group, project, err := p.requireGroup(r, PermPower)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -789,7 +791,7 @@ func hasUDPPort(ports []node.PortMapping, container int) bool {
 // putVoicechat schaltet Simple Voice Chat über den Proxy ein oder aus: Der Proxy bekommt das Proxy-Plugin und einen
 // UDP-Port, die Server nur das normale Plugin. Spieler brauchen dann nur noch diesen einen Port.
 func (p *Panel) putVoicechat(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermNetwork)
 	if err != nil {
 		writeError(w, err)
 		return

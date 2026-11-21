@@ -10,10 +10,10 @@ Oberfläche `components/server/settings.tsx`.
 1. **Spalte:** Eintrag in `moreColumns` (`store_more.go`), z. B. `{"servers", "quiet_mode", "INTEGER NOT NULL DEFAULT 0"}`.
 2. **Zeile/DTO:** Feld in `ServerRow` (`store.go`) lesen/schreiben (SELECT-Liste und `Scan` beachten) und in `ServerDTO`, falls die Oberfläche es braucht.
 3. **Store:** `SetQuietMode(serverID string, on bool) error`.
-4. **Handler:** `putQuietMode` nach dem Handler-Muster (`04` §3), Stufe `rankAdmin`. Route in `panel.go`.
+4. **Handler:** `putQuietMode` nach dem Handler-Muster (`04` §3), Recht `PermSettings` (`requireServerPermission`). Route in `panel.go`.
 5. **Test:** in `internal/panel/*_test.go` — Erfolg, Betrachter/Operator bekommt 403, fremdes Projekt 404, unbekanntes Feld 400.
 6. **Typ:** Feld in `Server` (`web/src/lib/types.ts`).
-7. **Oberfläche:** Karte/Zeile in `settings.tsx` mit `Switch` + `toast.run(() => api.put(...), "…")` + `onDone()`.
+7. **Oberfläche:** Karte/Zeile in `settings.tsx` mit `Switch` + `toast.run(() => api.put(...), "…")` + `onDone()`; sichtbar nach Recht (`can(myPermissions, "settings")`).
 8. **Demo:** Zweig in `web/demo/server.mjs` (`if (c === "quiet-mode") …`), Beispielwert in `makeServer`/`projects`.
 9. Doku (README „Was geht“), dann „Fertig heißt“ (`05` §2).
 
@@ -23,12 +23,13 @@ Vorbild: Webhooks – `events.go` (Handler `listWebhooks`, `createWebhook`, `upd
 `web/src/components/events.tsx` (`WebhooksCard`).
 
 1. Tabelle in `schemaMore`, Struct mit `json`-Tags, Store-Methoden (Create, List, ByID, Update, Delete).
-2. Handler je Aktion; Liste `rankViewer`/`rankOperator`, Ändern `rankAdmin`; Hilfsfunktion `requireXyz` (wie `requireWebhook`), die das Objekt
-   lädt **und** die Projektrechte prüft. Eingaben streng validieren (Länge, Muster, Anzahl pro Projekt begrenzen).
+2. Handler je Aktion mit Einzelrechten (`requireProjectPermission(r, id, PermXyz)`; Lesen ohne Recht = Mitgliedschaft); Hilfsfunktion
+   `requireXyz` (wie `requireWebhook`), die das Objekt lädt **und** die Projektrechte prüft. Passt kein vorhandenes Recht, eines in
+   `permissionCatalog` anlegen (`04` §3). Eingaben streng validieren (Länge, Muster, Anzahl pro Projekt begrenzen).
 3. Routen in `panel.go` (REST: `GET/POST /api/projects/{id}/xyz`, `PATCH/DELETE /api/xyz/{id}`).
-4. Tests inkl. Rechte und Grenzen.
+4. Tests inkl. Rechte und Grenzen; neue Routen in die Liste von `TestRolesKeepTheirAccess` (`rechte_test.go`).
 5. Typ in `types.ts`; Komponente `XyzCard` mit den vier Zuständen, Zeilen mit `RowMenu`, Anlegen/Bearbeiten im `Dialog`, Löschen im `ConfirmDialog`.
-6. In `project/page.tsx` als Tab/Karte einhängen (Rang beachten).
+6. In `project/page.tsx` als Tab/Karte einhängen (Recht beachten: `can(project.myPermissions, "…")`).
 7. Demo-Endpunkte + Beispieldaten; Doku.
 
 ## C. Neue Aktion an einem Server, die der Node ausführen muss
@@ -37,7 +38,8 @@ Vorbild: Modpack – Node `internal/node/modpack.go` + Routen in `api_extra.go`,
 Oberfläche `components/server/modpack.tsx`.
 
 1. **Node:** Logik in eigener Datei (`internal/node/xyz.go`), nur über `FS`/`Runtime`; Route in `api.go`/`api_extra.go`; Test mit Attrappen.
-2. **Panel:** Rang in `requiredRank` eintragen **oder** eigener Handler, der `NodeClient.Do` aufruft (dann Rechte selbst prüfen).
+2. **Panel:** Rang in `requiredRank` **und** Recht in `proxyPermissions` eintragen **oder** eigener Handler, der `NodeClient.Do` aufruft
+   (dann Rechte selbst prüfen mit `requireServerPermission`).
 3. `fakeNode` in `panel_test.go` um die Route erweitern; Panel-Test.
 4. Oberfläche und Demo wie in A/B.
 5. Dauert die Aktion: Fortschritt als Status-Endpunkt (`state: idle|running|done|failed`, `done`, `total`) und in der Oberfläche per `refreshInterval` abfragen.
