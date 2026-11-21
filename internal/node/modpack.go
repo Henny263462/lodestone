@@ -188,6 +188,9 @@ func (m *Manager) runModpack(ctx context.Context, s *Server, request ModpackRequ
 		return fmt.Errorf("das Modpack hat zu viele Dateien (%d)", len(index.Files))
 	}
 	loader := index.loader()
+	if err := m.pinModpackLoader(ctx, s, index); err != nil {
+		return err
+	}
 	files := make([]mrpackFile, 0, len(index.Files))
 	for _, file := range index.Files {
 		if file.Env != nil && file.Env.Server == "unsupported" {

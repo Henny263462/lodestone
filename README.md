@@ -17,8 +17,9 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 
 - **Projekte:** ein einzelner Server oder ein **Netzwerk** (Velocity + Server dahinter). Mitglieder mit Rollen
   *Betrachter, Operator, Admin, Eigentümer* pro Projekt; globale Administratoren sehen alles
-- **Server-Arten:** Paper, Purpur, Folia, Fabric, NeoForge, Vanilla, Velocity – Version, Download mit Prüfsumme und Java-Version
-  werden automatisch bestimmt
+- **Server-Arten:** Paper, Purpur, Folia, Fabric, NeoForge, Forge (ab Minecraft 1.12), Vanilla, Velocity – Version, Download mit
+  Prüfsumme und Java-Version werden automatisch bestimmt. Forge und NeoForge laufen nicht hinter Velocity (dafür bräuchte es
+  einen Forwarding-Mod und ein Proxy-Plugin, das nicht für alle Versionen zuverlässig geht) – das Panel sagt das beim Anlegen
 - **Konsole live** (Websocket, mit Verlauf und ANSI-Farben), Start/Stopp/Neustart/Kill, CPU-/RAM-Anzeige
 - **Dateien** mit Editor und Syntax-Highlight (JSON, YAML, TOML, XML, Properties, Markdown …), Upload per Drag & Drop,
   Verschieben, Archivieren (`.zip`, `.tar.gz`), Entpacken und Mehrfachauswahl (Verschieben, Archivieren, Löschen)
@@ -26,8 +27,15 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   zu Software und Version, inklusive benötigter Abhängigkeiten), Updates prüfen und einspielen, Jar hochladen,
   aktivieren/deaktivieren. Zu jeder installierten Datei zeigt das Panel **Modrinth-Seite, Version, Lizenz und
   Quellcode** und lässt die **Version wechseln**
-- **Modpacks:** Beim Anlegen eines Servers ein **Modrinth-Modpack** (Fabric, `.mrpack`) suchen und Version wählen. Mods
-  und Konfiguration werden mit Prüfsummen geladen, der Fortschritt steht im Server
+- **Weitere Quellen:** In der Suche wählst du die Quelle – **Hangar** (Paper, Purpur, Folia, Velocity; mit SHA-256),
+  **Spigot** über die Spiget-API (Paper, Purpur; nur freie, auf Spigot gehostete Plugins in der neuesten Version, die für
+  die Minecraft-Version getestet sind; Spiget nennt keine Prüfsumme) und **CurseForge** für Mods (Fabric, Forge, NeoForge;
+  nur mit `LODESTONE_CURSEFORGE_KEY`). Dateien, deren Autor Downloads über andere Programme verbietet
+  (`allowModDistribution`), zeigt das Panel als „nicht ladbar“ mit Link zur Seite. **Updates prüfen** gilt für alle Quellen
+  (die Herkunft merkt sich das Panel beim Installieren)
+- **Modpacks:** Beim Anlegen eines Servers ein **Modrinth-Modpack** (Fabric, NeoForge oder Forge, `.mrpack`) suchen und
+  Version wählen. Mods und Konfiguration werden mit Prüfsummen geladen, bei NeoForge und Forge genau die Loader-Version
+  des Modpacks, der Fortschritt steht im Server. Quilt-Modpacks gehen nicht (Quilt gibt es nicht als Server-Software)
 - **playit.gg:** Der Node startet den playit-Agenten (Schlüssel unter **Nodes** eintragen), die Tunnel-Adresse
   speichert man beim Server unter *Einstellungen → Öffentliche Adresse*. Keine Portfreigabe im Router nötig
 - **Backups** (tar.gz, bei laufendem Server mit `save-off`), Wiederherstellen (sicher, nur bei ausgeschaltetem Server),
@@ -38,6 +46,11 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   `online-mode=false` und Forwarding bei Paper/Purpur/Folia, FabricProxy-Lite bei Fabric (wird installiert)
 - **Simple Voice Chat** pro Server einschaltbar: Plugin bzw. Mod wird installiert, der UDP-Port veröffentlicht und
   `voice_host` gesetzt
+- **Bausteine** (wie Simple Voice Chat): **Geyser + Floodgate** für Bedrock-Spieler – beim einzelnen Server (Paper, Purpur,
+  Velocity) unter *Plugins → Bausteine*, im Netzwerk unter *Netzwerk*: Geyser und Floodgate auf dem Proxy, Floodgate auf den
+  Servern dahinter (Paper, Purpur, Fabric) mit gemeinsamem, verschlüsselt gespeichertem `key.pem`; Bedrock-Port ab 19132
+  (TCP und UDP). **BlueMap** (Paper, Purpur, Folia, Fabric, Forge, NeoForge): Plugin bzw. Mod, `accept-download`, Port der
+  Karte wird veröffentlicht und als Link beim Server angezeigt
 - Server hinter dem Proxy sind **nicht** nach außen veröffentlicht, nur der Proxy (und der Voicechat-UDP-Port)
 - **Zeitpläne:** Ketten aus Backup, Befehl, Neustart, Start, Stopp und Warten – alle N Minuten, täglich oder an
   gewählten Wochentagen, mit Vorwarnung im Chat und Nachholen nach einem Panel-Neustart (Zeitzone über `LODESTONE_TZ`)
@@ -143,6 +156,7 @@ Für schlanke Maschinen: `sh scripts/package.sh` baut Linux-Binaries nach `dist/
 | `LODESTONE_SECURE_COOKIES`, `LODESTONE_TRUST_PROXY` | hinter HTTPS-Proxy auf `true` |
 | `LODESTONE_TZ` | Zeitzone für Zeitpläne, z. B. `Europe/Berlin` (Standard: Zeitzone des Panels, sonst UTC) |
 | `LODESTONE_WEBHOOK_ALLOW_INTERNAL` | `true` erlaubt Webhooks an Adressen im internen Netz (Standard: gesperrt) |
+| `LODESTONE_CURSEFORGE_KEY` | API-Schlüssel von [console.curseforge.com](https://console.curseforge.com/); schaltet CurseForge als Quelle für Mods frei. Er bleibt im Panel und geht nie an Browser oder Node |
 
 Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_PORT_RANGE` (z. B. `28000-28099`),
 `_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`
@@ -184,6 +198,10 @@ go build -o bin/lodestone-node ./cmd/lodestone-node
 
 Beim ersten Start wird `config.json` mit einem zufälligen Token angelegt und ausgegeben. Die Schnittstelle lauscht
 standardmäßig nur auf `127.0.0.1:8480`.
+
+`pullHosts` sind die Hosts, von denen Plugins und Mods geladen werden dürfen. Eine schon vorhandene `config.json` behält ihre
+Liste; für Spigot, CurseForge und Geyser ergänze dort `api.spiget.org`, `cdn.spiget.org`, `edge.forgecdn.net`,
+`mediafilez.forgecdn.net` und `download.geysermc.org` (im Container ohne `config.json` gelten sie automatisch).
 
 ```json
 {

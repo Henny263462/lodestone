@@ -64,15 +64,15 @@ func (a *Autoconfig) Validate() error {
 			return errors.New("jede Änderung braucht einen Dateinamen")
 		}
 		switch edit.Format {
-		case "properties", "yaml", "toml":
+		case "properties", "yaml", "toml", "hocon":
 		default:
-			return fmt.Errorf("unbekanntes Format %q (properties, yaml, toml)", edit.Format)
+			return fmt.Errorf("unbekanntes Format %q (properties, yaml, toml, hocon)", edit.Format)
 		}
 		if len(edit.Set) > maxSets || len(edit.Delete) > maxSets {
 			return errors.New("zu viele Werte in einer Datei")
 		}
 		for _, op := range edit.Set {
-			if len(op.Path) == 0 || (edit.Format == "properties" && len(op.Path) != 1) {
+			if len(op.Path) == 0 || ((edit.Format == "properties" || edit.Format == "hocon") && len(op.Path) != 1) {
 				return fmt.Errorf("ungültiger Pfad in %s", edit.File)
 			}
 			for _, part := range op.Path {
@@ -123,6 +123,12 @@ func ApplyAutoconfig(files *FS, a Autoconfig) (changed bool, missing []string, e
 }
 
 func writeFile(files *FS, name, content string) error {
+	// Ordner wie plugins/floodgate/ gibt es vor dem ersten Start noch nicht
+	if dir := parentDir(name); dir != "" {
+		if err := files.Mkdir(dir); err != nil {
+			return err
+		}
+	}
 	err := files.Write(name, strings.NewReader(content), maxConfigSize, true)
 	if errors.Is(err, fs.ErrExist) {
 		err = files.Write(name, strings.NewReader(content), maxConfigSize, false)
@@ -155,6 +161,8 @@ func applyEdit(files *FS, edit Edit) (bool, error) {
 		updated, changed, err = editYAML(data, edit)
 	case "toml":
 		updated, changed, err = editTOML(data, edit)
+	case "hocon":
+		updated, changed = editHOCON(data, edit)
 	}
 	if err != nil {
 		return false, err

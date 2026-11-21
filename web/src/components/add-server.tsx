@@ -55,7 +55,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
   const { data: packs, error: packError, isLoading: packsLoading } = useApi<{ hits: ModrinthHit[] }>(open && mode === "modpack" ? `/modpacks/search?q=${encodeURIComponent(packSearch)}` : null);
   const { data: packInfo } = useApi<{ versions: ModpackVersion[] }>(pack ? `/modpacks/${encodeURIComponent(pack.project_id)}` : null);
   const chosenPackVersion = packInfo?.versions.find((entry) => entry.id === packVersion) ?? packInfo?.versions[0];
-  const canModpack = options.some((item) => item.id === "fabric");
+  const canModpack = options.some((item) => ["fabric", "neoforge", "forge"].includes(item.id));
 
   // Die gewählte Software muss immer eine der angebotenen sein. Nach dem Anlegen des Proxys fällt Velocity weg,
   // dann würde sonst die alte Wahl unsichtbar weiter gelten.
@@ -187,7 +187,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
       )}
       {mode === "modpack" && (
         <div className="space-y-2">
-          <SearchInput value={packQuery} onChange={(event) => setPackQuery(event.target.value)} placeholder="Fabric-Modpack auf Modrinth suchen" />
+          <SearchInput value={packQuery} onChange={(event) => setPackQuery(event.target.value)} placeholder="Modpack auf Modrinth suchen (Fabric, NeoForge oder Forge)" />
           {pack ? (
             <div className="flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/5 p-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -226,7 +226,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
               {packs && packs.hits.length === 0 && <p className="p-3 text-xs text-muted">Nichts gefunden.</p>}
             </div>
           )}
-          <p className="text-xs text-muted">Minecraft-Version und Fabric ergeben sich aus dem Modpack. Mods werden nach dem Anlegen automatisch heruntergeladen (Fortschritt im Server). Mindestens 4 GB RAM.</p>
+          <p className="text-xs text-muted">Minecraft-Version und Loader (Fabric, NeoForge oder Forge, genau in der Version des Modpacks) ergeben sich aus dem Modpack. Mods werden nach dem Anlegen automatisch heruntergeladen (Fortschritt im Server). Mindestens 4 GB RAM.</p>
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">

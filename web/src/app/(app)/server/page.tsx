@@ -9,6 +9,7 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { PowerButtons, StateBadge } from "@/components/status";
 import { SecondarySidebar } from "@/components/layout/shell";
 import { AddonsTab } from "@/components/server/addons";
+import { BlocksTab } from "@/components/server/blocks";
 import { BackupsTab } from "@/components/server/backups";
 import { ConsoleTab } from "@/components/server/console";
 import { FilesTab } from "@/components/server/files";
@@ -60,7 +61,7 @@ function ServerView() {
   const rank = roleRank[myRole];
   const view = server.view;
   const state = view?.state;
-  const extensions = server.software === "fabric" || server.software === "neoforge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
+  const extensions = server.software === "fabric" || server.software === "neoforge" || server.software === "forge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
 
   const entries: Entry[] = [
     { id: "console", label: "Konsole", icon: Terminal },
@@ -158,7 +159,7 @@ function ServerView() {
         {active === "console" && <ConsoleTab serverId={server.id} canCommand={rank >= roleRank.operator} state={state} />}
         {active === "stats" && <StatsTab server={server} />}
         {active === "files" && <FilesTab serverId={server.id} canWrite={rank >= roleRank.operator} />}
-        {active === "addons" && extensions && <AddonsTab serverId={server.id} canWrite={rank >= roleRank.operator} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />}
+        {active === "addons" && extensions && <AddonsTab serverId={server.id} canWrite={rank >= roleRank.operator} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} blocks={<BlocksTab server={server} canManage={rank >= roleRank.admin} offline={state === "offline"} />} />}
         {active === "players" && <PlayersTab server={server} canOperate={rank >= roleRank.operator} />}
         {active === "backups" && <BackupsTab serverId={server.id} canWrite={rank >= roleRank.operator} offline={state === "offline"} />}
         {active === "settings" && <SettingsTab server={server} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />}

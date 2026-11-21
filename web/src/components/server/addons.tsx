@@ -1,17 +1,20 @@
 "use client";
 
 import { ArrowUpCircle, CheckCircle2, Download, ExternalLink, Package, Plug, Power, RefreshCw, Repeat, Search, Trash2, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Badge, Button, Card, CardHeader, EmptyState, SearchInput, Tabs } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, upload, useApi } from "@/lib/api";
 import { bytes, compact } from "@/lib/format";
 import type { Addon, AddonDetail, ModrinthHit, UpdateEntry } from "@/lib/types";
+import { SourceBrowse } from "@/components/server/sources";
 
-type View = "installed" | "browse";
+type View = "installed" | "browse" | "blocks";
 
-export function AddonsTab({ serverId, canWrite, noun, running }: { serverId: string; canWrite: boolean; noun: "Plugins" | "Mods"; running: boolean }) {
+const sourceNames = { hangar: "Hangar", spigot: "Spigot", curseforge: "CurseForge" };
+
+export function AddonsTab({ serverId, canWrite, noun, running, blocks }: { serverId: string; canWrite: boolean; noun: "Plugins" | "Mods"; running: boolean; blocks?: ReactNode }) {
   const [view, setView] = useState<View>("installed");
   return (
     <div className="space-y-4">
@@ -20,10 +23,13 @@ export function AddonsTab({ serverId, canWrite, noun, running }: { serverId: str
         onChange={setView}
         items={[
           { id: "installed", label: `Installierte ${noun}` },
-          ...(canWrite ? [{ id: "browse" as const, label: "Modrinth durchsuchen" }] : []),
+          ...(canWrite ? [{ id: "browse" as const, label: "Durchsuchen" }] : []),
+          ...(blocks ? [{ id: "blocks" as const, label: "Bausteine" }] : []),
         ]}
       />
-      {view === "installed" ? <Installed serverId={serverId} canWrite={canWrite} noun={noun} running={running} /> : <Browse serverId={serverId} noun={noun} onInstalled={() => setView("installed")} />}
+      {view === "installed" && <Installed serverId={serverId} canWrite={canWrite} noun={noun} running={running} />}
+      {view === "browse" && <SourceBrowse serverId={serverId} noun={noun} onInstalled={() => setView("installed")} modrinth={<Browse serverId={serverId} noun={noun} onInstalled={() => setView("installed")} />} />}
+      {view === "blocks" && blocks}
     </div>
   );
 }
@@ -126,7 +132,7 @@ function Installed({ serverId, canWrite, noun, running }: { serverId: string; ca
         </div>
       )}
       {data.length === 0 ? (
-        <EmptyState icon={<Package className="h-6 w-6" />} title={`Keine ${noun} installiert`} text={canWrite ? "Durchsuche Modrinth oder lade eine .jar-Datei hoch." : undefined} />
+        <EmptyState icon={<Package className="h-6 w-6" />} title={`Keine ${noun} installiert`} text={canWrite ? "Durchsuche Modrinth und die anderen Quellen oder lade eine .jar-Datei hoch." : undefined} />
       ) : (
         <div className="divide-y divide-white/[0.05]">
           {data.map((addon) => {
@@ -158,7 +164,7 @@ function Installed({ serverId, canWrite, noun, running }: { serverId: string; ca
                       {detail.link && (
                         <a className="inline-flex items-center gap-1 hover:text-ink hover:underline" href={detail.link} target="_blank" rel="noreferrer">
                           <ExternalLink className="h-3 w-3" />
-                          Modrinth-Seite
+                          {detail.source ? sourceNames[detail.source] : "Modrinth"}-Seite
                         </a>
                       )}
                       {detail.sourceUrl && (
@@ -189,7 +195,7 @@ function Installed({ serverId, canWrite, noun, running }: { serverId: string; ca
                     Aktuell
                   </Badge>
                 )}
-                {update && !update.known && <span title="Nicht bei Modrinth gefunden"><Badge>Unbekannt</Badge></span>}
+                {update && !update.known && <span title="Keiner Quelle zugeordnet – lade die Datei über „Durchsuchen“, damit Lodestone Updates findet"><Badge>Unbekannt</Badge></span>}
                 {canWrite && (
                   <div className="flex items-center gap-1">
                     {update?.updateAvailable && (
@@ -197,7 +203,7 @@ function Installed({ serverId, canWrite, noun, running }: { serverId: string; ca
                         Aktualisieren
                       </Button>
                     )}
-                    {detail?.known && detail.projectId && (
+                    {detail?.known && detail.projectId && !detail.source && (
                       <Button variant="ghost" size="icon-sm" onClick={() => setSwitching(detail)} title="Version wechseln" aria-label="Version wechseln">
                         <Repeat className="h-3.5 w-3.5" />
                       </Button>

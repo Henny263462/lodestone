@@ -49,6 +49,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [x] **Befehlspalette (S).** `Strg+K` zum Springen zu Projekt, Server, Datei und zum Ausführen von Aktionen (gab es in Observer, fehlt hier). 
   - *Erledigt:* Strg+K springt zu Projekten, Servern und Seiten. Offen: Dateien und Aktionen.
 - [ ] **Mehr Modpack- und Plugin-Quellen (L).** Forge-, NeoForge- und Quilt-Modpacks (eigene Loader-Installer, andere Java-Versionen), **CurseForge**-Packs, Hangar (Paper-Plugins), GitHub-Releases. Modpack **aktualisieren** mit automatischem Backup und Konfliktanzeige. „Alle Server aktualisieren“ als Auftrag.
+  - *Teilweise erledigt:* Forge als Server-Software, Modrinth-Modpacks für NeoForge und Forge (mit der Loader-Version des Modpacks), Hangar, Spigot (Spiget) und CurseForge-Mods (mit API-Schlüssel) samt Updates. Offen: Quilt (keine Server-Software), CurseForge-Modpacks, GitHub-Releases, Modpack aktualisieren, „Alle Server aktualisieren“.
 - [x] **Spieler-Verwaltung (M).** Whitelist, Operatoren und Sperren als Oberfläche, Kick/Ban/Nachricht, Spielerseite mit Spielzeit über das ganze Netzwerk, Köpfe und Skins. 
   - *Erledigt:* Whitelist, Operatoren, Sperren, IP-Sperren, Kick/Nachricht, Köpfe. Offen: Spielerseite über das ganze Netzwerk.
 - [ ] **Konsole und Logs (M).** Suche und Filter, Log-Dateien durchblättern und herunterladen, gespeicherte Befehle/Makros, Teilen über mclo.gs, einfache Absturzanalyse (häufige Fehler erklären). 
@@ -60,7 +61,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [ ] **playit weiterdenken (M).** Tunnel-Status im Panel anzeigen, Tunnel automatisch anlegen, falls playit eine API dafür anbietet (heute nur im Dashboard möglich), und eine Tunnel-Schnittstelle für Alternativen (Tailscale, frp).
 - [ ] **Leistungsanalyse (M).** TPS-Verlauf, spark-Berichte verlinken, Festplattenverbrauch pro Server, Netzwerkverkehr als Diagramm, JVM-Voreinstellungen (Aikar-Flags) mit Erklärung.
 - [ ] **Proxy-Extras (M).** Geyser/Floodgate (Bedrock-Spieler) mit einem Klick, ViaVersion, Wartungsmodus für das ganze Netzwerk (MOTD, Whitelist), MOTD-Editor mit Vorschau. 
-  - *Teilweise erledigt:* MOTD-Editor mit Vorschau. Offen: Geyser/Floodgate, ViaVersion, Wartungsmodus.
+  - *Teilweise erledigt:* MOTD-Editor mit Vorschau, Geyser/Floodgate (einzelner Server und Netzwerk mit geteiltem `key.pem`), BlueMap. Offen: ViaVersion, Wartungsmodus.
 - [ ] **Kontingente für Mehrbenutzer-Betrieb (M).** Höchstzahl an Servern, RAM und Festplatte pro Benutzer oder Projekt – nötig, wenn andere auf deiner Maschine hosten.
 
 ## P3 – Langfristig

@@ -33,6 +33,7 @@ const (
 	Vanilla  ID = "vanilla"
 	Fabric   ID = "fabric"
 	NeoForge ID = "neoforge"
+	Forge    ID = "forge"
 	Velocity ID = "velocity"
 )
 
@@ -77,6 +78,7 @@ var catalog = []Info{
 	{ID: Folia, Name: "Folia", Kind: KindServer, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Fabric, Name: "Fabric", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: NeoForge, Name: "NeoForge", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: neoForgeStartup, StopCommand: "stop", ReadyPattern: `Done \(`},
+	{ID: Forge, Name: "Forge", Kind: KindServer, Extensions: ExtMods, DefaultPort: 25565, Startup: forgeStartup, StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Vanilla, Name: "Vanilla", Kind: KindServer, Extensions: ExtNone, DefaultPort: 25565, Startup: javaStartup + " nogui", StopCommand: "stop", ReadyPattern: `Done \(`},
 	{ID: Velocity, Name: "Velocity", Kind: KindProxy, Extensions: ExtPlugins, DefaultPort: 25565, Startup: javaStartup, StopCommand: "end", ReadyPattern: `Done \(|Listening on`},
 }
@@ -114,6 +116,9 @@ type Resolver struct {
 	FabricMeta     string
 	PurpurBase     string
 	NeoForgeMaven  string
+	// ForgeMaven und ForgePromotions sind die offiziellen Metadaten von Forge.
+	ForgeMaven      string
+	ForgePromotions string
 }
 
 // NewResolver nutzt die öffentlichen Adressen der Anbieter.
@@ -125,6 +130,9 @@ func NewResolver() *Resolver {
 		FabricMeta:     "https://meta.fabricmc.net",
 		PurpurBase:     "https://api.purpurmc.org",
 		NeoForgeMaven:  "https://maven.neoforged.net/releases/net/neoforged/neoforge",
+		// Forge: Maven-Metadaten (alle Builds) und Promotions (empfohlene Builds)
+		ForgeMaven:      "https://maven.minecraftforge.net/net/minecraftforge/forge",
+		ForgePromotions: "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json",
 	}
 }
 
@@ -245,6 +253,8 @@ func (r *Resolver) Versions(ctx context.Context, id ID, prerelease bool) ([]stri
 		}
 		sort.Slice(versions, func(i, j int) bool { return CompareVersions(versions[i], versions[j]) > 0 })
 		return versions, nil
+	case Forge:
+		return r.forgeVersions(ctx, prerelease)
 	default:
 		return nil, fmt.Errorf("unbekannte Software: %s", id)
 	}
@@ -445,6 +455,8 @@ func (r *Resolver) Resolve(ctx context.Context, id ID, version string) (Artifact
 		}
 		address := fmt.Sprintf("%s/%s/neoforge-%s-installer.jar", r.NeoForgeMaven, url.PathEscape(target), url.PathEscape(target))
 		return Artifact{URL: address, FileName: fmt.Sprintf("neoforge-%s-installer.jar", target)}, nil
+	case Forge:
+		return r.resolveForge(ctx, version)
 	}
 	return Artifact{}, fmt.Errorf("unbekannte Software: %s", id)
 }
@@ -518,6 +530,9 @@ func (r *Resolver) JavaMajor(ctx context.Context, id ID, version string) int {
 	mc := version
 	if id == NeoForge {
 		mc = NeoForgeToMinecraft(version)
+	}
+	if id == Forge {
+		mc = ForgeToMinecraft(version)
 	}
 	if detail, err := r.versionDetail(ctx, mc); err == nil && detail.JavaVersion.MajorVersion > 0 {
 		return detail.JavaVersion.MajorVersion

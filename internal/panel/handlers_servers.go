@@ -54,7 +54,7 @@ func (p *Panel) createServer(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err)
 			return
 		}
-		body.Software, body.Version = "fabric", pack.Info.Minecraft
+		body.Software, body.Version = pack.Software, pack.Info.Minecraft
 		if body.MemoryMB == 0 {
 			body.MemoryMB = 4096 // Modpacks brauchen deutlich mehr als ein einzelner Server
 		}
@@ -128,7 +128,7 @@ func (p *Panel) createServer(w http.ResponseWriter, r *http.Request) {
 				spec.Ports = []node.PortMapping{{Container: voicePort, Protocol: "udp"}}
 			}
 		default:
-			writeError(w, fail(http.StatusBadRequest, info.Name+" kann nicht hinter Velocity laufen (Paper, Purpur, Folia und Fabric gehen)"))
+			writeError(w, fail(http.StatusBadRequest, backendRefusal(info)))
 			return
 		}
 	}
@@ -511,6 +511,7 @@ func (p *Panel) syncNetwork(ctx context.Context, projectID string) (SyncResult, 
 		}
 	}
 	configs := BuildAutoconfigs(project.Secret, net, project.Voicechat)
+	p.addBlockConfigs(ctx, project, net, configs)
 	for _, dto := range dtos {
 		config, ok := configs[dto.ID]
 		if !ok {
@@ -580,6 +581,7 @@ func (p *Panel) installRequirements(ctx context.Context, row ServerRow) error {
 			errs = append(errs, fmt.Errorf("Simple Voice Chat: %w", err))
 		}
 	}
+	errs = append(errs, p.installBlockRequirements(ctx, row))
 	return errors.Join(errs...)
 }
 

@@ -19,6 +19,7 @@ func fakeModrinth(t *testing.T) *Modrinth {
 	versions := map[string]map[string]any{
 		"v1":        {"id": "v1", "project_id": "pack1", "name": "Pack 1.0", "version_number": "1.0", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"fabric"}, "files": []any{file("pack-1.0.mrpack")}, "date_published": "2026-01-01T00:00:00Z"},
 		"v-forge":   {"id": "v-forge", "project_id": "pack1", "name": "Forge", "version_number": "1.0-forge", "version_type": "release", "game_versions": []string{"1.20.1"}, "loaders": []string{"forge"}, "files": []any{file("pack-forge.mrpack")}},
+		"v-quilt":   {"id": "v-quilt", "project_id": "pack1", "name": "Quilt", "version_number": "1.0-quilt", "version_type": "release", "game_versions": []string{"1.21.1"}, "loaders": []string{"quilt"}, "files": []any{file("pack-quilt.mrpack")}},
 		"v-other":   {"id": "v-other", "project_id": "pack2", "name": "Anderes", "version_number": "9", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"fabric"}, "files": []any{file("other.mrpack")}},
 		"mod-v1":    {"id": "mod-v1", "project_id": "mod1", "name": "Cool 1", "version_number": "1.0.0", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"paper"}, "files": []any{file("cool-1.0.0.jar")}, "date_published": "2025-01-01T00:00:00Z"},
 		"mod-v2":    {"id": "mod-v2", "project_id": "mod1", "name": "Cool 2", "version_number": "2.0.0", "version_type": "release", "game_versions": []string{"1.21.4"}, "loaders": []string{"paper"}, "files": []any{file("cool-2.0.0.jar")}, "date_published": "2026-01-01T00:00:00Z"},
@@ -129,12 +130,12 @@ func TestServerFromModpack(t *testing.T) {
 	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Pack", "kind": "server"}), &project)
 	path := "/api/projects/" + project.ID + "/servers"
 
-	// Ablehnungen: EULA, fremde Version, Forge
+	// Ablehnungen: EULA, fremde Version, Quilt
 	admin.expect(400, "POST", path, serverRequest{Name: "Pack", NodeID: nodeID, Modpack: &modpackRef{Project: "mypack", VersionID: "v1"}})
 	admin.expect(400, "POST", path, serverRequest{Name: "Pack", NodeID: nodeID, EULA: true, Modpack: &modpackRef{Project: "mypack", VersionID: "v-other"}})
-	body := admin.expect(400, "POST", path, serverRequest{Name: "Pack", NodeID: nodeID, EULA: true, Modpack: &modpackRef{Project: "mypack", VersionID: "v-forge"}})
-	if !strings.Contains(string(body), "Fabric") || !strings.Contains(string(body), "forge") {
-		t.Errorf("Meldung zu Forge: %s", body)
+	body := admin.expect(400, "POST", path, serverRequest{Name: "Pack", NodeID: nodeID, EULA: true, Modpack: &modpackRef{Project: "mypack", VersionID: "v-quilt"}})
+	if !strings.Contains(string(body), "Quilt") || !strings.Contains(string(body), "Forge") {
+		t.Errorf("Meldung zu Quilt: %s", body)
 	}
 	admin.expect(404, "POST", path, serverRequest{Name: "Pack", NodeID: nodeID, EULA: true, Modpack: &modpackRef{Project: "mypack", VersionID: "gibtsnicht"}})
 	admin.expect(400, "POST", path, serverRequest{Name: "Pack", NodeID: nodeID, EULA: true, Modpack: &modpackRef{Project: "mypack", VersionID: "../x"}})

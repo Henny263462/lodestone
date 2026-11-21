@@ -3,7 +3,7 @@ package node
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/hex"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +21,8 @@ type PullRequest struct {
 	Path      string `json:"path"` // z. B. plugins/LuckPerms.jar
 	SHA1      string `json:"sha1,omitempty"`
 	Overwrite bool   `json:"overwrite,omitempty"`
+	// SHA256 prüft die Datei, wenn die Quelle keine SHA-1 nennt (Hangar, GeyserMC).
+	SHA256 string `json:"sha256,omitempty"`
 }
 
 func allowedHost(host string, allowed []string) bool {
@@ -102,11 +104,11 @@ func (m *Manager) Pull(ctx context.Context, s *Server, request PullRequest) erro
 
 	part := rel + ".lodestone-part"
 	_ = s.fs.Remove(part, false)
-	hash := sha1.New()
-	if err := s.fs.Write(part, io.TeeReader(response.Body, hash), maxPullBytes, true); err != nil {
+	hash, hash256 := sha1.New(), sha256.New()
+	if err := s.fs.Write(part, io.TeeReader(response.Body, io.MultiWriter(hash, hash256)), maxPullBytes, true); err != nil {
 		return err
 	}
-	if want := strings.ToLower(strings.TrimSpace(request.SHA1)); want != "" && hex.EncodeToString(hash.Sum(nil)) != want {
+	if !matches(hash, request.SHA1) || !matches(hash256, request.SHA256) {
 		_ = s.fs.Remove(part, false)
 		return errors.New("die Prüfsumme der Datei stimmt nicht")
 	}
