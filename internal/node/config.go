@@ -61,7 +61,8 @@ func DefaultConfig() Config {
 		MemoryReserveMB: 1024,
 		SFTPListen:      ":2022",
 		PullHosts: []string{"cdn.modrinth.com", "github.com", "githubusercontent.com", "hangarcdn.papermc.io",
-			"fill-data.papermc.io", "api.papermc.io", "maven.fabricmc.net", "meta.fabricmc.net", "maven.neoforged.net", "cdn.discordapp.com"},
+			"fill-data.papermc.io", "api.papermc.io", "maven.fabricmc.net", "meta.fabricmc.net", "maven.neoforged.net", "cdn.discordapp.com",
+			"api.spiget.org", "cdn.spiget.org", "edge.forgecdn.net", "mediafilez.forgecdn.net", "download.geysermc.org"},
 	}
 }
 

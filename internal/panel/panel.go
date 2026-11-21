@@ -34,6 +34,8 @@ type Config struct {
 	Version    string
 	// SSO ist die Anmeldung über OIDC und Passkeys (anmeldung.go).
 	SSO SSOConfig
+	// CurseForgeKey schaltet CurseForge als Quelle für Mods frei (LODESTONE_CURSEFORGE_KEY); er verlässt das Panel nie.
+	CurseForgeKey string
 }
 
 // Panel ist das Backend: HTTP-Schnittstelle, Datenbank und die Verbindung zu den Nodes.
@@ -86,6 +88,9 @@ type Panel struct {
 
 	// auto ist der Stand von Konsolen-Auslösern, Schlafmodus und Discord-Bot (automatik.go).
 	auto autoState
+
+	// content sind die weiteren Quellen für Plugins und Mods (Hangar, Spigot, CurseForge) und GeyserMC.
+	content *contentSources
 }
 
 type viewEntry struct {
@@ -99,7 +104,7 @@ func New(cfg Config, store *Store, logger *slog.Logger, web http.Handler) *Panel
 	return &Panel{
 		cfg: cfg, store: store, log: logger, web: web,
 		throttle: newThrottle(), sw: software.NewResolver(), modrinth: NewModrinth(),
-		views: map[string]viewEntry{}, nodeClient: newNodeClient,
+		views: map[string]viewEntry{}, nodeClient: newNodeClient, content: newContentSources(cfg.CurseForgeKey),
 		hookClient: newHookClient(cfg.AllowInternalWebhooks), watch: newWatcher(),
 		runningSchedules: map[string]bool{}, warnedKeys: map[string]bool{}, totpUsed: map[string]int64{}, statusCache: map[string]publicStatus{},
 		live: map[string]liveInfo{}, scaleLast: map[string]time.Time{}, idleSince: map[string]time.Time{}, restarts: map[string][]time.Time{},
@@ -210,6 +215,7 @@ func (p *Panel) Handler() http.Handler {
 	p.registerBackupRoutes(mux)
 	p.registerServerOpsRoutes(mux)
 	p.registerWorldRoutes(mux)
+	p.registerInhalteRoutes(mux)
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
 	p.registerRechteRoutes(mux)
 	p.registerAutomatikRoutes(mux)

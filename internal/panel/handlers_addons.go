@@ -24,6 +24,9 @@ func gameVersionFor(softwareName, version string) string {
 	if softwareName == "neoforge" {
 		return software.NeoForgeToMinecraft(version)
 	}
+	if softwareName == "forge" {
+		return software.ForgeToMinecraft(version)
+	}
 	return version
 }
 
@@ -244,6 +247,8 @@ type updateEntry struct {
 	LatestFile      string `json:"latestFile,omitempty"`
 	Known           bool   `json:"known"`
 	UpdateAvailable bool   `json:"updateAvailable"`
+	// Source ist hangar, spigot oder curseforge für Dateien, die nicht über Modrinth kamen.
+	Source string `json:"source,omitempty"`
 }
 
 func (p *Panel) latestFor(ctx context.Context, row ServerRow, gameVersion string, addons []node.Addon) (map[string]MVersion, map[string]MVersion, error) {
@@ -296,6 +301,7 @@ func (p *Panel) addonsCheck(w http.ResponseWriter, r *http.Request) {
 		}
 		result = append(result, entry)
 	}
+	p.applySourceChecks(r.Context(), row, gameVersion, result)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -332,6 +338,7 @@ func (p *Panel) addonsUpdate(w http.ResponseWriter, r *http.Request) {
 			selected = append(selected, addon)
 		}
 	}
+	selected, tracked := p.splitTracked(row, selected)
 	current, latest, err := p.latestFor(r.Context(), row, gameVersion, selected)
 	if err != nil {
 		writeError(w, fail(http.StatusBadGateway, err.Error()))
@@ -368,6 +375,9 @@ func (p *Panel) addonsUpdate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		results = append(results, out)
+	}
+	for _, out := range p.updateTracked(r.Context(), row, gameVersion, tracked) {
+		results = append(results, outcome(out))
 	}
 	writeJSON(w, http.StatusOK, results)
 }

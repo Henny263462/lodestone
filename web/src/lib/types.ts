@@ -819,3 +819,63 @@ export interface CrashAnalysis {
   mixins: string[];
   summary?: string;
 }
+
+// --- inhalte
+// Weitere Quellen für Plugins und Mods (Hangar, Spigot, CurseForge) und Bausteine (Geyser, BlueMap).
+
+export type SourceId = "modrinth" | "hangar" | "spigot" | "curseforge";
+
+export interface SourceInfo {
+  id: SourceId;
+  name: string;
+  available: boolean;
+  reason?: string;
+}
+
+export interface SourceHit {
+  id: string;
+  slug?: string;
+  title: string;
+  description: string;
+  author?: string;
+  downloads: number;
+  iconUrl?: string;
+  link?: string;
+  installable: boolean;
+  note?: string;
+}
+
+export interface SourceVersion {
+  id: string;
+  name: string;
+  versionNumber: string;
+  type: string;
+  published: string;
+  gameVersions: string[];
+  downloadable: boolean;
+  reason?: string;
+}
+
+export type BlockId = "geyser" | "bluemap";
+
+export interface BlockInfo {
+  id: BlockId;
+  name: string;
+  description: string;
+  available: boolean;
+  reason?: string;
+  enabled: boolean;
+  managed?: "network";
+  address?: string;
+  url?: string;
+  note?: string;
+}
+
+// Ergänzungen bestehender Antworten (TypeScript führt die Schnittstellen zusammen)
+export interface AddonDetail {
+  source?: Exclude<SourceId, "modrinth">;
+}
+
+export interface UpdateEntry {
+  source?: Exclude<SourceId, "modrinth">;
+}

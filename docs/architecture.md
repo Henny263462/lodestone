@@ -27,7 +27,7 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 
 - **Projekt**: Einzelserver oder Netzwerk; hat Mitglieder mit Rollen pro Projekt.
 - **Server** gehört zu einem Projekt und läuft auf einer Node. Er hat eine **Software** (Paper, Purpur, Folia, Fabric,
-  NeoForge, Vanilla, Velocity, später Forge), Version, Java-Version, Startzeile und Limits. Ein Server ist entweder
+  NeoForge, Forge, Vanilla, Velocity), Version, Java-Version, Startzeile und Limits. Ein Server ist entweder
   *statisch* (behält seine Daten) oder Instanz einer *Gruppe*.
 - **Netzwerk** = ein oder mehrere Proxys + beliebig viele statische Server + optional Gruppen. Auch ein kleines
   Netzwerk nur aus statischen Servern ist möglich.
@@ -49,7 +49,23 @@ Beim Hinzufügen eines Servers zu einem Netzwerk schreibt das Panel alles selbst
 - **Bausteine als Daten (YAML)** statt im Code, wie die „Configurators“ in SimpleCloud. Beispiele:
   - *Simple Voice Chat*: UDP-Port je Server, Config-Dateien (Paper/Fabric unterschiedlich), Port-Weiterleitung auf dem
     Proxy, Firewall-Hinweis. Die genauen Optionen vor dem Bau gegen die Doku prüfen.
-  - später: Geyser/Floodgate, geteilte LuckPerms-Datenbank, ViaVersion, BlueMap
+  - *Geyser + Floodgate* (umgesetzt, `internal/panel/inhalte_blocks.go`): Bedrock-Port ab 19132 mit gleichem Container- und
+    Host-Port über TCP und UDP; im Netzwerk Geyser und Floodgate auf dem Proxy (`send-floodgate-data: true`), Floodgate auf den
+    Servern dahinter, ein gemeinsamer `key.pem` (16 zufällige, druckbare Zeichen = AES-128-Schlüssel), mit `secret.key`
+    verschlüsselt in `project_blocks` gespeichert und über die Autoconfig (`writes`) verteilt. Die Ansicht der Server an den
+    Browser enthält den Inhalt geschriebener Dateien nicht (`redactView`).
+  - *BlueMap* (umgesetzt): Plugin/Mod von Modrinth, `accept-download: true` in `core.conf` (Autoconfig-Format `hocon`, nur
+    oberste Ebene), Port 8100 veröffentlicht, Link beim Server.
+  - später: geteilte LuckPerms-Datenbank, ViaVersion
+
+## Quellen für Plugins, Mods und Modpacks
+
+Neben Modrinth (`modrinth.go`, erkennt Dateien an der SHA-1) kennt das Panel Hangar, Spigot (Spiget-API) und CurseForge
+(`inhalte_sources.go`, gemeinsame Schnittstelle `contentSource`). Diese Quellen können Dateien nicht an der Prüfsumme
+wiedererkennen; das Panel merkt sich deshalb beim Installieren die Herkunft (`addon_sources`) und prüft Updates darüber.
+Der CurseForge-Schlüssel (`LODESTONE_CURSEFORGE_KEY`) bleibt im Panel. Modrinth-Modpacks gehen für Fabric, NeoForge und
+Forge; der Node stellt bei NeoForge/Forge die Loader-Version aus `modrinth.index.json` ein (`internal/node/inhalte.go`).
+Forge kommt aus dem offiziellen Maven (`maven-metadata.xml`, `promotions_slim.json`, Installer mit `.sha256`).
 
 ## Benutzer und Rechte
 
@@ -86,7 +102,8 @@ sie mit dem Panel verbindet. Datenbank hinter einer Schnittstelle, SQLite für k
 5. ✅ Netzwerk-Autoconfig (Try-Reihenfolge, Forced Hosts, statische Server, Voicechat)
 6. **Nächste Stufe:** Gruppen mit Scaling und Proxy-Plugin, Verbindung der Node nach außen, Netzwerke über mehrere
    Nodes, geplante Backups, Zwei-Faktor, Audit-Log
-7. Forge/NeoForge, Geyser/Floodgate und weitere Bausteine, Spieler-Verwaltung über Rechte (Torch optional)
+7. ✅ Forge/NeoForge, Geyser/Floodgate, BlueMap, weitere Quellen (Hangar, Spigot, CurseForge); offen: Spieler-Verwaltung über
+   Rechte (Torch optional), CurseForge-Modpacks
 
 ## Betrieb (Panel-Schleifen)
 

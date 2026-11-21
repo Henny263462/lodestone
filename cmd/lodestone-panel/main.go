@@ -68,6 +68,7 @@ func run(logger *slog.Logger) error {
 		SSO:                   ssoConfig(),
 	}
 	cfg.AllowInternalBackupTargets = flag("LODESTONE_BACKUP_ALLOW_INTERNAL")
+	cfg.CurseForgeKey = env("LODESTONE_CURSEFORGE_KEY", "")
 	if zone := env("LODESTONE_TZ", ""); zone != "" {
 		location, err := time.LoadLocation(zone)
 		if err != nil {

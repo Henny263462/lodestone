@@ -86,13 +86,28 @@ Vorbild: Mixin-Fehler. Backend: Regel in `analyzeCrash` (`internal/node/crash_an
 
 ## F. Neue Server-Software (z. B. weiterer Fork)
 
-Vorbild: `purpur` in `internal/software/software.go` und `software_test.go`.
+Vorbild: `purpur` in `internal/software/software.go` und `software_test.go`; mit Installer und Prüfsummendatei: `forge` in
+`internal/software/forge.go` und `forge_test.go`.
 
 1. `ID`-Konstante, Eintrag im Katalog (Name, Art `server|proxy`, Erweiterungen `plugins|mods|none`, Standardport), Versionsliste, Download-URL,
    Prüfsumme, Java-Regel. Alles aus der offiziellen Quelle des Herstellers, mit Prüfsumme.
 2. Test mit `httptest`-Attrappe der Herkunft.
 3. Autoconfig prüfen (`network.go`, `internal/node/autoconfig.go`): braucht die Software eigene Weiterleitungs-Einstellungen?
 4. Oberfläche: erscheint automatisch über `/api/software`; Beschriftung der Erweiterungen in `server/page.tsx` (`extensions`) prüfen; Demo-Liste ergänzen.
+5. Plugins/Mods: `loadersFor` und `addonDir` (`modrinth.go`), `gameVersionFor` (`handlers_addons.go`), Quellen in `contentSources.list`
+   (`inhalte_sources.go`). Kann sie nicht hinter Velocity: Begründung in `backendRefusal` (`inhalte_blocks.go`).
+
+## F2. Neue Quelle für Plugins/Mods oder neuer Baustein
+
+Quelle — Vorbild: `hangarSource` in `internal/panel/inhalte_sources.go` (Schnittstelle `contentSource`: `Search`, `Project`, `File`),
+Test mit `httptest` in `inhalte_test.go` (`newFakeSources`). Eintrag in `contentSources.list` (wann verfügbar, sonst Grund), Host der
+Downloads in `PullHosts` des Nodes (`config.go`), nur https, Prüfsumme wenn die Quelle eine nennt (`PullRequest.SHA1`/`SHA256`). Die
+Oberfläche (`components/server/sources.tsx`) zeigt neue Quellen ohne Änderung.
+
+Baustein — Vorbild: BlueMap in `internal/panel/inhalte_blocks.go`: Verfügbarkeit (`serverBlockDTOs`), Dateien + Port
+(`enableServerBlock`), Dateiänderungen (`blockEdits`, gelten im Netzwerk über `addBlockConfigs` und sonst über
+`applyServerAutoconfig`). Ports ändern sich nur bei ausgeschaltetem Server. Geheimnisse (wie `key.pem`) verschlüsselt speichern (`seal`)
+und nur über `writes` der Autoconfig verteilen. Oberfläche: `components/server/blocks.tsx`, Netzwerk: `components/geyser-network.tsx`.
 
 ## G. Neue Karte im Konto oder in den Einstellungen
 

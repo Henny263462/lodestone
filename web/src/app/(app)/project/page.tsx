@@ -24,6 +24,7 @@ import { ServerSortSelect, useServerSort } from "@/components/server-sort";
 import { sortServers } from "@/lib/order";
 import { useUser } from "@/components/layout/shell";
 import { PixelAvatar } from "@/components/ui/mc";
+import { GeyserNetworkCard } from "@/components/geyser-network";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
 import { can, roleLabel, roleRank, type Member, type Metrics, type Project, type Range, type Role, type Server, type SyncResult } from "@/lib/types";
@@ -282,6 +283,8 @@ function NetworkTab({ project, canManage, refresh }: { project: Project; canMana
       </Card>
 
       <VoicechatCard project={project} proxy={proxy} canManage={canManage} refresh={refresh} />
+
+      <GeyserNetworkCard project={project} proxy={proxy} canManage={canManage} refresh={refresh} />
 
       <MotdCard key={project.settings?.motd ?? ""} project={project} canManage={canManage} refresh={refresh} />
 

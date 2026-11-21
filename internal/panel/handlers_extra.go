@@ -27,6 +27,8 @@ type resolvedPack struct {
 	URL    string
 	SHA1   string
 	SHA512 string
+	// Software ist die Server-Software, die das Modpack braucht (fabric, neoforge, forge).
+	Software string
 }
 
 func (p *Panel) modpackSearch(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +41,7 @@ func (p *Panel) modpackSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// modpackVersions liefert die Fabric-Versionen eines Modpacks.
+// modpackVersions liefert die Versionen eines Modpacks für Fabric, NeoForge und Forge.
 func (p *Panel) modpackVersions(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("project")
 	info, err := p.modrinth.Project(r.Context(), id)
@@ -51,7 +53,7 @@ func (p *Panel) modpackVersions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fail(http.StatusBadRequest, "das ist kein Modpack"))
 		return
 	}
-	versions, err := p.modrinth.Versions(r.Context(), id, []string{"fabric"}, "")
+	versions, err := p.modrinth.Versions(r.Context(), id, modpackLoaders, "")
 	if err != nil {
 		writeError(w, fail(http.StatusBadGateway, err.Error()))
 		return
@@ -93,12 +95,9 @@ func (p *Panel) resolveModpack(ctx context.Context, ref modpackRef) (*resolvedPa
 	if info.ProjectType != "modpack" {
 		return nil, fail(http.StatusBadRequest, "das ist kein Modpack")
 	}
-	fabric := false
-	for _, loader := range version.Loaders {
-		fabric = fabric || loader == "fabric"
-	}
-	if !fabric {
-		return nil, fail(http.StatusBadRequest, "Nur Fabric-Modpacks lassen sich installieren – dieses nutzt: "+strings.Join(version.Loaders, ", "))
+	packSoftware, err := modpackSoftware(version.Loaders)
+	if err != nil {
+		return nil, err
 	}
 	if len(version.GameVersions) == 0 {
 		return nil, fail(http.StatusBadGateway, "das Modpack nennt keine Minecraft-Version")
@@ -109,7 +108,7 @@ func (p *Panel) resolveModpack(ctx context.Context, ref modpackRef) (*resolvedPa
 	}
 	return &resolvedPack{
 		Info: ModpackInfo{ProjectID: info.ID, Slug: info.Slug, Title: info.Title, IconURL: info.IconURL, VersionID: version.ID, VersionNumber: version.VersionNumber, Minecraft: version.GameVersions[0]},
-		URL:  file.URL, SHA1: file.Hashes.SHA1, SHA512: file.Hashes.SHA512,
+		URL:  file.URL, SHA1: file.Hashes.SHA1, SHA512: file.Hashes.SHA512, Software: packSoftware,
 	}, nil
 }
 
@@ -168,6 +167,8 @@ type addonDetail struct {
 	VersionType   string `json:"versionType,omitempty"`
 	Published     string `json:"published,omitempty"`
 	VersionLink   string `json:"versionLink,omitempty"`
+	// Source ist hangar, spigot oder curseforge für Dateien, die nicht über Modrinth kamen.
+	Source string `json:"source,omitempty"`
 }
 
 // addonsDetails sagt zu jeder installierten Datei, welches Modrinth-Projekt und welche Version sie ist.
@@ -227,6 +228,7 @@ func (p *Panel) addonsDetails(w http.ResponseWriter, r *http.Request) {
 		}
 		result = append(result, detail)
 	}
+	p.applySourceDetails(row, result)
 	writeJSON(w, http.StatusOK, result)
 }
 

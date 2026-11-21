@@ -277,6 +277,7 @@ async function api(req, res, url) {
   if (serveropsApi(res, parts, method, body)) return;
   const automatik = automatikDemo(method, parts, body);
   if (automatik) return send(res, automatik.status, automatik.body);
+  if (inhalteApi(res, url, method, body, parts)) return;
 
   if (a === "auth") {
     if (b === "status") return send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin" });
@@ -337,7 +338,7 @@ async function api(req, res, url) {
   if (a === "nodes") return send(res, method === "GET" ? 200 : 201, method === "GET" ? nodes : nodes[0]);
   if (a === "software") {
     if (b && c === "versions") {
-      return send(res, 200, b === "velocity" ? ["3.5.1", "3.4.0", "4.3.1"] : b === "fabric" ? ["1.21.4", "1.21.3", "1.20.6"] : b === "neoforge" ? ["1.21.4", "1.21.3", "1.21.1", "1.20.4"] : ["26.3", "26.2", "1.21.11", "1.21.10", "1.21.4"]);
+      return send(res, 200, b === "velocity" ? ["3.5.1", "3.4.0", "4.3.1"] : b === "fabric" ? ["1.21.4", "1.21.3", "1.20.6"] : b === "neoforge" ? ["1.21.4", "1.21.3", "1.21.1", "1.20.4"] : b === "forge" ? ["26.3", "1.21.1", "1.20.1", "1.16.5", "1.12.2"] : ["26.3", "26.2", "1.21.11", "1.21.10", "1.21.4"]);
     }
     return send(res, 200, [
       { id: "paper", name: "Paper", kind: "server", extensions: "plugins", defaultPort: 25565 },
@@ -345,6 +346,7 @@ async function api(req, res, url) {
       { id: "folia", name: "Folia", kind: "server", extensions: "plugins", defaultPort: 25565 },
       { id: "fabric", name: "Fabric", kind: "server", extensions: "mods", defaultPort: 25565 },
       { id: "neoforge", name: "NeoForge", kind: "server", extensions: "mods", defaultPort: 25565 },
+      { id: "forge", name: "Forge", kind: "server", extensions: "mods", defaultPort: 25565 },
       { id: "vanilla", name: "Vanilla", kind: "server", extensions: "none", defaultPort: 25565 },
       { id: "velocity", name: "Velocity", kind: "proxy", extensions: "plugins", defaultPort: 25565 },
     ]);
@@ -1238,4 +1240,82 @@ function automatikDemo(method, parts, body) {
     return reply(200, bot ?? empty);
   }
   return null;
+}
+
+// --- inhalte
+// Weitere Quellen (Hangar, Spigot, CurseForge) und Bausteine (Geyser, BlueMap). Liefert true, wenn die Anfrage erledigt ist.
+
+const demoSourceHits = {
+  hangar: [
+    { id: "31", slug: "ViaVersion", title: "ViaVersion", description: "Lässt neuere Clients auf ältere Server.", author: "ViaVersion", downloads: 2_400_000, link: "https://hangar.papermc.io/ViaVersion/ViaVersion", installable: true },
+    { id: "12", slug: "ViaBackwards", title: "ViaBackwards", description: "Lässt ältere Clients auf neuere Server.", author: "ViaVersion", downloads: 1_100_000, link: "https://hangar.papermc.io/ViaVersion/ViaBackwards", installable: true },
+  ],
+  spigot: [
+    { id: "100", title: "Gutes Plugin", description: "Kann was.", downloads: 50_000, link: "https://www.spigotmc.org/resources/100/", installable: true },
+    { id: "9089", title: "EssentialsX", description: "Die Essentials für Spigot und Paper.", downloads: 5_900_000, link: "https://www.spigotmc.org/resources/9089/", installable: false, note: "Das Plugin liegt nicht auf Spigot, sondern auf einer anderen Seite. Lade es dort herunter." },
+  ],
+  curseforge: [
+    { id: "11", title: "Freier Mod", description: "Darf über Lodestone geladen werden.", author: "Autorin", downloads: 1_000_000, link: "https://www.curseforge.com/minecraft/mc-mods/frei", installable: true },
+    { id: "22", title: "Gesperrter Mod", description: "Nur über curseforge.com.", downloads: 5000, installable: false, note: "Der Autor erlaubt keine Downloads über andere Programme. Lade die Datei auf curseforge.com herunter und dann hier hoch." },
+  ],
+};
+const demoBlocks = new Map();
+let demoNetworkGeyser = false;
+
+function inhalteApi(res, url, method, body, parts) {
+  const [a, b, c, d, e] = parts;
+  if (a === "projects" && c === "blocks") {
+    if (method === "PUT") demoNetworkGeyser = !!body.enabled;
+    send(res, 200, [{ id: "geyser", name: "Geyser + Floodgate", managed: "network", available: true, enabled: demoNetworkGeyser, address: demoNetworkGeyser ? "mc.example.org:19132" : undefined,
+      description: "Bedrock-Spieler (Handy, Konsole, Windows) kommen über den Proxy ins Netzwerk. Geyser und Floodgate laufen auf dem Proxy, Floodgate auf allen Servern dahinter, mit gemeinsamem Schlüssel." }]);
+    return true;
+  }
+  if (a !== "servers") return false;
+  const found = findServer(b);
+  if (!found) return false;
+  const { project, server } = found;
+  if (c === "blocks") {
+    const state = demoBlocks.get(server.id) ?? { geyser: false, bluemap: false };
+    if (method === "PUT") state[d] = !!body.enabled;
+    demoBlocks.set(server.id, state);
+    const network = project.kind === "network";
+    send(res, 200, [
+      { id: "geyser", name: "Geyser + Floodgate", description: "Bedrock-Spieler (Handy, Konsole, Windows) können mitspielen, ohne ein Java-Konto zu haben.", available: !network && ["paper", "purpur", "velocity"].includes(server.software),
+        enabled: network ? demoNetworkGeyser : state.geyser, managed: network ? "network" : undefined, reason: network ? "Im Netzwerk schaltest du Geyser im Projekt unter „Netzwerk“ ein." : undefined, address: state.geyser ? "mc.example.org:19132" : undefined },
+      { id: "bluemap", name: "BlueMap", description: "Eine 3D-Karte der Welt im Browser. Lodestone veröffentlicht den Port der Karte und erlaubt BlueMap, die nötigen Minecraft-Dateien von Mojang zu laden.", available: server.software !== "velocity", enabled: state.bluemap, url: state.bluemap ? "http://mc.example.org:28100/" : undefined },
+    ]);
+    return true;
+  }
+  if (c !== "sources") return false;
+  const mods = ["fabric", "neoforge", "forge"].includes(server.software);
+  if (!d) {
+    send(res, 200, [
+      { id: "modrinth", name: "Modrinth", available: server.software !== "vanilla" },
+      { id: "hangar", name: "Hangar", available: !mods, reason: mods ? "Hangar hat nur Plugins für Paper, Purpur, Folia und Velocity." : undefined },
+      { id: "spigot", name: "Spigot", available: ["paper", "purpur"].includes(server.software), reason: ["paper", "purpur"].includes(server.software) ? undefined : "Spigot-Plugins laufen nur auf Paper und Purpur." },
+      { id: "curseforge", name: "CurseForge", available: mods, reason: mods ? undefined : "Über CurseForge lädt Lodestone nur Mods für Fabric, Forge und NeoForge." },
+    ]);
+    return true;
+  }
+  const hits = demoSourceHits[d] ?? [];
+  if (e === "search") {
+    const query = (url.searchParams.get("q") ?? "").toLowerCase();
+    send(res, 200, { hits: hits.filter((hit) => !query || hit.title.toLowerCase().includes(query)) });
+    return true;
+  }
+  if (e === "project") {
+    const hit = hits.find((entry) => entry.id === parts[5]) ?? hits[0];
+    send(res, 200, { project: hit, versions: [
+      { id: "v2", name: "Release", versionNumber: "2.1", type: "release", published: new Date().toISOString(), gameVersions: ["1.21"], downloadable: hit.installable, reason: hit.note },
+      { id: "v1", name: "Release", versionNumber: "2.0", type: "release", published: new Date(now() - 30 * 24 * HOUR).toISOString(), gameVersions: ["1.21"], downloadable: false, reason: "Diese Version liegt nicht auf Hangar, sondern auf einer anderen Seite. Lade sie dort herunter." },
+    ] });
+    return true;
+  }
+  if (e === "install") {
+    const hit = hits.find((entry) => entry.id === body.project);
+    if (!hit?.installable) send(res, 409, { error: hit?.note ?? "das Projekt gibt es nicht (mehr)" });
+    else send(res, 200, { installed: [`${hit.title.replace(/[^A-Za-z0-9]+/g, "_")}-2.1.jar`] });
+    return true;
+  }
+  return false;
 }

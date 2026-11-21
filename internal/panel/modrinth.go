@@ -239,10 +239,10 @@ func (m *Modrinth) Version(ctx context.Context, id string) (MVersion, error) {
 	return version, m.get(ctx, "/version/"+url.PathEscape(id), nil, &version)
 }
 
-// SearchModpacks sucht Modpacks, die sich auf einem Fabric-Server betreiben lassen (nur dort kann Lodestone sie
-// installieren).
+// SearchModpacks sucht Modpacks, die sich auf einem Fabric-, NeoForge- oder Forge-Server betreiben lassen (nur dort
+// kann Lodestone sie installieren).
 func (m *Modrinth) SearchModpacks(ctx context.Context, query string, offset int) (MSearch, error) {
-	facets := [][]string{{"project_type:modpack"}, {"categories:fabric"}, {"server_side:required", "server_side:optional"}}
+	facets := [][]string{{"project_type:modpack"}, modpackFacets(), {"server_side:required", "server_side:optional"}}
 	encoded, _ := json.Marshal(facets)
 	values := url.Values{"query": {query}, "facets": {string(encoded)}, "limit": {"20"}, "offset": {fmt.Sprint(offset)}}
 	if query == "" {
@@ -289,6 +289,8 @@ func loadersFor(id string) []string {
 		return []string{"fabric"}
 	case "neoforge":
 		return []string{"neoforge", "forge"}
+	case "forge":
+		return []string{"forge"}
 	case "velocity":
 		return []string{"velocity"}
 	}
@@ -298,7 +300,7 @@ func loadersFor(id string) []string {
 // addonDir sagt, wohin Erweiterungen einer Software gehören.
 func addonDir(id string) string {
 	switch id {
-	case "fabric", "neoforge":
+	case "fabric", "neoforge", "forge":
 		return "mods"
 	case "vanilla":
 		return ""

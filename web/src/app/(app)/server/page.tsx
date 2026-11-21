@@ -9,6 +9,7 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { PowerButtons, StateBadge } from "@/components/status";
 import { SecondarySidebar } from "@/components/layout/shell";
 import { AddonsTab } from "@/components/server/addons";
+import { BlocksTab } from "@/components/server/blocks";
 import { BackupsTab } from "@/components/server/backups";
 import { PropertiesTab } from "@/components/server/properties";
 import { WorldsTab } from "@/components/server/worlds";
@@ -63,7 +64,7 @@ function ServerView() {
   const allowed = (...needed: Permission[]) => can(myPermissions, ...needed);
   const view = server.view;
   const state = view?.state;
-  const extensions = server.software === "fabric" || server.software === "neoforge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
+  const extensions = server.software === "fabric" || server.software === "neoforge" || server.software === "forge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
   const hasWorlds = server.role !== "proxy" && server.software !== "velocity";
 
   const entries: Entry[] = [
@@ -175,7 +176,7 @@ function ServerView() {
           </div>
         )}
         {active === "addons" && extensions && (
-          <AddonsTab serverId={server.id} canWrite={allowed("addons")} canFiles={allowed("files.write")} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />
+          <AddonsTab serverId={server.id} canWrite={allowed("addons")} canFiles={allowed("files.write")} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} blocks={<BlocksTab server={server} canManage={allowed("settings")} offline={state === "offline"} />} />
         )}
         {active === "players" && <PlayersTab server={server} canOperate={allowed("players")} />}
         {active === "backups" && <BackupsTab serverId={server.id} canWrite={allowed("backups.create")} canManage={allowed("settings")} offline={state === "offline"} />}

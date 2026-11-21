@@ -67,7 +67,7 @@ func (p *Panel) serverDTOs(ctx context.Context, rows []ServerRow) []ServerDTO {
 		n := nodes[row.NodeID]
 		dto := ServerDTO{ServerRow: row, NodeName: n.Name, PublicHost: n.PublicHost, Online: !failed[row.NodeID]}
 		if view, ok := views[row.NodeID][row.ID]; ok {
-			view := view
+			view := redactView(view)
 			dto.View = &view
 			dto.Address, dto.VoiceAddress = publicAddresses(n.PublicHost, row, view)
 		}
