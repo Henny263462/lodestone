@@ -40,6 +40,8 @@ type Spec struct {
 	NoPublish bool `json:"noPublish,omitempty"`
 	// BackupKeep ist die Zahl der Backups, die aufbewahrt werden (die ältesten werden gelöscht).
 	BackupKeep int `json:"backupKeep"`
+	// DiskLimitMB ist das weiche Speicherlimit des Serverordners (0 = keins), siehe storage.go.
+	DiskLimitMB int `json:"diskLimitMB,omitempty"`
 
 	// Autoconfig sind Änderungen an Dateien des Servers, die das Panel vorgibt (z. B. Proxy-Einstellungen).
 	Autoconfig *Autoconfig `json:"autoconfig,omitempty"`

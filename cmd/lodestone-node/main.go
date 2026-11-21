@@ -60,6 +60,7 @@ func run(configPath string, logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go manager.KeepReconciling(ctx)
+	go manager.KeepMeasuring(ctx)
 
 	api := node.NewAPI(config, manager, runtime, resolver, logger, version)
 	server := &http.Server{

@@ -41,7 +41,7 @@ func OpenStore(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("Schema anlegen: %w", err)
 	}
-	if _, err := db.Exec(schemaMore); err != nil {
+	if _, err := db.Exec(schemaMore + schemaServerOps); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("Schema anlegen: %w", err)
 	}

@@ -42,6 +42,10 @@ Oberfläche `components/server/modpack.tsx`.
 4. Oberfläche und Demo wie in A/B.
 5. Dauert die Aktion: Fortschritt als Status-Endpunkt (`state: idle|running|done|failed`, `done`, `total`) und in der Oberfläche per `refreshInterval` abfragen.
 
+Dauert die Aktion lange und betrifft mehrere Schritte oder Nodes (Kopie, Umzug): Vorbild `internal/panel/serverops.go`
+(`startOp`/`runOp`, Tabelle `server_ops` mit Lebenszeichen und Abbruch) und `components/server/transfer.tsx` (`OpsList`).
+Daten zwischen Nodes immer als Strom durch das Panel reichen (`NodeClient.send`, `longClient`), nie ganz in den Speicher laden.
+
 ## D. Neue Hauptseite
 
 Siehe `03` §6. Vorbild: `app/(app)/audit/page.tsx` (Liste mit Filter) oder `nodes/page.tsx` (Karten).

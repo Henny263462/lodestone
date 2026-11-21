@@ -57,6 +57,16 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   (90 Tage, nur für Administratoren)
 - **Anlegen:** Vorlagen (Survival, Lobby, Creative, Mods), **ZIP-Import** einer bestehenden Welt oder eines Servers
   und Strg+K als Schnellsuche
+- **Server kopieren** (*Server → Einstellungen*): Kopie auf demselben Node mit neuem Namen und neuen Ports, wahlweise
+  ohne Welten. Im Netzwerk kommt die Kopie als Backend in die Autoconfig, aber erst in den Try-Ablauf, wenn du sie
+  einschaltest; ein Server-Projekt bekommt für die Kopie ein eigenes Projekt
+- **Auf einen anderen Node umziehen** (Einzelserver und ganze Netzwerke ohne Gruppen): Server stoppen, das Panel
+  streamt das Archiv vom alten zum neuen Node (ohne Zwischenspeicher), dort entsteht der Server mit neuen Ports, erst
+  nach Erfolg wird der alte gelöscht. Fortschritt, Abbrechen und Fehler stehen im Server; bei Fehler oder Abbruch
+  bleibt alles unverändert. Öffentliche Adressen (playit-Tunnel) gehören zur alten Maschine und werden mit Hinweis entfernt
+- **Speicherplatz:** Der Node misst alle 5 Minuten jeden Serverordner und den freien Platz der Maschine (Anzeige unter
+  *Statistiken* und auf der Nodes-Seite). Pro Server ein **weiches Speicherlimit** (nur Admins): bei 90 % das Ereignis
+  „Speicher fast voll“ (auch als Webhook), bei 100 % kein Start, kein Upload und kein Entpacken mehr
 
 ## Schnellstart (1-Klick Installer für Linux)
 

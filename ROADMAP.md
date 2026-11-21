@@ -62,6 +62,8 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 - [ ] **Proxy-Extras (M).** Geyser/Floodgate (Bedrock-Spieler) mit einem Klick, ViaVersion, Wartungsmodus für das ganze Netzwerk (MOTD, Whitelist), MOTD-Editor mit Vorschau. 
   - *Teilweise erledigt:* MOTD-Editor mit Vorschau. Offen: Geyser/Floodgate, ViaVersion, Wartungsmodus.
 - [ ] **Kontingente für Mehrbenutzer-Betrieb (M).** Höchstzahl an Servern, RAM und Festplatte pro Benutzer oder Projekt – nötig, wenn andere auf deiner Maschine hosten.
+  - *Teilweise erledigt:* weiches Speicherlimit pro Server mit Warnung bei 90 % (Festplattenverbrauch pro Server wird gemessen). Offen: Kontingente pro Benutzer/Projekt.
+- [ ] **Server kopieren und umziehen (M).** *Teilweise erledigt:* Kopie im Projekt (wahlweise ohne Welten), Umzug von Einzelservern und Netzwerken ohne Gruppen mit Fortschritt und Abbruch. Offen: Netzwerke mit Gruppen, Backups mitnehmen, Fortschritt beim Kopieren.
 
 ## P3 – Langfristig
 

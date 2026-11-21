@@ -269,6 +269,7 @@ async function api(req, res, url) {
   const method = req.method;
   const body = ["POST", "PUT", "PATCH"].includes(method) ? await readBody(req) : {};
   const [a, b, c, d] = parts;
+  if (serveropsApi(res, parts, method, body)) return;
 
   if (a === "auth") {
     if (b === "status") return send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin" });
@@ -604,3 +605,115 @@ sockets.on("connection", (ws, serverId) => {
 });
 
 server.listen(port, "127.0.0.1", () => console.log(`Lodestone-Demo läuft auf http://localhost:${port}`));
+
+// --- serverops: Speicherplatz, Kopie und Umzug (Schein-Abläufe mit Fortschritt)
+
+const GB = 1024 ** 3;
+const serverops = { ops: [], limits: { [survivalId]: 20 * 1024 }, measured: now() - 3 * MIN };
+// Ein zweiter, erreichbarer Node, damit sich der Umzug in der Demo ausprobieren lässt
+nodes.push({
+  id: "n3", name: "hetzner-2", url: "https://node2.example.com:8480", publicHost: "mc3.example.org", online: true, version: "0.1.0", serverCount: 0,
+  system: { dockerVersion: "29.6.2", os: "Debian 13", architecture: "x86_64", cpus: 16, memoryBytes: 64 * GB },
+  memoryAvailable: 58 * GB, memoryCommitted: 0,
+});
+
+function demoSize(serverId) {
+  return Math.round(serverId === survivalId ? 18.6 * GB : (0.2 + hash(serverId) * 3) * GB);
+}
+
+function demoStorage(serverId) {
+  const limitMB = serverops.limits[serverId] ?? 0;
+  const size = demoSize(serverId);
+  return { bytes: size, files: Math.round(size / 180_000), backups: Math.round(size * 2.4), measuredAt: serverops.measured, limitMB, blocked: limitMB > 0 && size >= limitMB * 1024 ** 2, measuring: false, free: 61 * GB, total: 240 * GB };
+}
+
+function demoOp(project, serverId, kind, label, total, finish) {
+  const op = { id: id(), projectId: project.id, serverId, kind, state: "running", label, step: kind === "clone" ? "Dateien werden kopiert" : "Server werden gestoppt", done: 0, total, message: "", warnings: [], cancelRequested: false, createdAt: now(), updatedAt: now() };
+  serverops.ops.unshift(op);
+  const started = now();
+  const timer = setInterval(() => {
+    op.updatedAt = now();
+    if (op.cancelRequested) {
+      clearInterval(timer);
+      Object.assign(op, { state: "canceled", step: "", message: "Abgebrochen. Alle Server sind unverändert auf dem alten Node." });
+      return;
+    }
+    const fraction = Math.min(1, (now() - started) / (kind === "clone" ? 3000 : 9000));
+    op.done = Math.round(total * fraction);
+    if (kind === "migrate" && fraction > 0.1) op.step = `„${project.servers[0]?.name ?? "Server"}“ wird übertragen (1 von ${project.servers.length})`;
+    if (fraction >= 1) {
+      clearInterval(timer);
+      Object.assign(op, { state: "done", step: "" }, finish());
+    }
+  }, 500);
+  return op;
+}
+
+function serveropsApi(res, parts, method, body) {
+  const [a, b, c, d] = parts;
+  if (a === "servers" && (c === "storage" || c === "clone")) {
+    const found = findServer(b);
+    if (!found) return send(res, 404, { error: "nicht gefunden" }), true;
+    const { project, server } = found;
+    if (c === "storage") {
+      if (method === "PUT") serverops.limits[b] = Number(body.limitMB) || 0;
+      if (d === "measure") serverops.measured = now();
+      return send(res, d === "measure" ? 202 : 200, demoStorage(b)), true;
+    }
+    if (server.role === "proxy") return send(res, 409, { error: "Ein Netzwerk hat genau einen Proxy, er lässt sich deshalb nicht kopieren." }), true;
+    const name = String(body.name ?? "").trim() || `${server.name} Kopie`;
+    const op = demoOp(project, server.id, "clone", `„${server.name}“ → „${name}“`, demoSize(server.id), () => {
+      let target = project;
+      if (project.kind === "server") {
+        target = { ...project, id: id(), name, description: `Kopie von „${server.name}“`, createdAt: now(), servers: [], groups: [], settings: { statusPublic: false, statusSlug: "", motd: "" } };
+        projects.push(target);
+      }
+      const copy = makeServer(target.id, name, server.software, server.view.version, server.view.memoryMB, "offline", { role: server.role, inTry: false, tryPosition: target.servers.length });
+      target.servers.push(copy);
+      return {
+        resultServerId: copy.id,
+        message: project.kind === "network" ? `„${name}“ ist angelegt. Sie ist noch nicht im Try-Ablauf des Proxys: Schalte sie im Tab „Netzwerk“ ein, wenn sie fertig eingerichtet ist.` : `„${name}“ ist im neuen Projekt „${name}“ angelegt, weil ein Server-Projekt genau einen Server hat.`,
+      };
+    });
+    return send(res, 202, op), true;
+  }
+  if (a === "projects" && (c === "migrate" || c === "server-ops")) {
+    const project = projects.find((entry) => entry.id === b);
+    if (!project) return send(res, 404, { error: "nicht gefunden" }), true;
+    if (c === "server-ops") return send(res, 200, serverops.ops.filter((op) => op.projectId === project.id).slice(0, 10)), true;
+    const target = nodes.find((entry) => entry.id === body.nodeId);
+    if (!target || !target.online) return send(res, 502, { error: "Der Ziel-Node ist nicht erreichbar. Prüfe, ob er läuft." }), true;
+    if (project.groups.length > 0) return send(res, 409, { error: "Netzwerke mit Gruppen können noch nicht umziehen, weil der Autoscaler laufend Instanzen anlegt und löscht. Lösche die Gruppen vorher und lege sie danach neu an." }), true;
+    if (serverops.ops.some((op) => op.projectId === project.id && op.state === "running")) return send(res, 409, { error: "Im Projekt läuft schon eine Kopie oder ein Umzug. Warte, bis er fertig ist." }), true;
+    const total = project.servers.reduce((sum, server) => sum + demoSize(server.id), 0);
+    const source = project.servers[0]?.nodeName ?? "home";
+    const op = demoOp(project, project.servers[0]?.id, "migrate", `„${project.name}“: „${source}“ → „${target.name}“`, total, () => {
+      const warnings = project.servers.filter((server) => server.publicAddress).map((server) => `„${server.name}“ hatte die öffentliche Adresse „${server.publicAddress}“. Sie gehörte zur alten Maschine und wurde entfernt. Lege auf „${target.name}“ einen neuen playit-Tunnel an.`);
+      for (const server of project.servers) {
+        Object.assign(server, { nodeId: target.id, nodeName: target.name, publicHost: target.publicHost, publicAddress: undefined });
+        if (server.address) server.address = `${target.publicHost}:25565`;
+      }
+      return { message: `Umzug auf „${target.name}“ abgeschlossen.`, warnings };
+    });
+    return send(res, 202, op), true;
+  }
+  if (a === "server-ops") {
+    const op = serverops.ops.find((entry) => entry.id === b);
+    if (!op) return send(res, 404, { error: "nicht gefunden" }), true;
+    if (c === "cancel") {
+      if (op.state !== "running") return send(res, 409, { error: "Der Vorgang ist schon beendet." }), true;
+      op.cancelRequested = true;
+      return send(res, 202, op), true;
+    }
+    return send(res, 200, op), true;
+  }
+  if (a === "nodes" && c === "storage") {
+    const node = nodes.find((entry) => entry.id === b);
+    if (!node) return send(res, 404, { error: "nicht gefunden" }), true;
+    if (!node.online) return send(res, 200, { online: false, error: node.error, free: 0, total: 0, used: 0 }), true;
+    const servers = projects.flatMap((project) => project.servers.filter((server) => server.nodeId === node.id).map((server) => ({ ...demoStorage(server.id), id: server.id, name: server.name, projectId: project.id, projectName: project.name })));
+    const used = servers.reduce((sum, server) => sum + server.bytes + server.backups, 0);
+    return send(res, 200, { online: true, free: node.id === "n1" ? 61 * GB : 410 * GB, total: node.id === "n1" ? 240 * GB : 480 * GB, used, servers }), true;
+  }
+  return false;
+}

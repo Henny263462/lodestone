@@ -6,6 +6,7 @@ import { Badge, Button, Card, Dot, EmptyState, Meter, PageHeader } from "@/compo
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
+import { NodeStorageCard } from "@/components/node-storage";
 import { api, useApi } from "@/lib/api";
 import { bytes } from "@/lib/format";
 import type { NodeInfo, PlayitStatus } from "@/lib/types";
@@ -76,6 +77,7 @@ export default function NodesPage() {
                 node.error && <p className="mt-4 rounded-md border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">{node.error}</p>
               )}
               {node.online && node.system && <MemoryPlanner node={node} />}
+              {node.online && <NodeStorageCard node={node} />}
               {user.isAdmin && node.online && <PlayitCard node={node} />}
               {user.isAdmin && (
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
