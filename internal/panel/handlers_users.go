@@ -17,6 +17,7 @@ func (p *Panel) authStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result := map[string]any{"setupRequired": count == 0, "version": p.cfg.Version, "timezone": p.location().String()}
+	p.ssoStatus(result)
 	if cookie, err := r.Cookie(cookieName); err == nil {
 		if user, err := p.store.SessionUser(hashToken(cookie.Value)); err == nil {
 			result["user"] = user
@@ -73,6 +74,10 @@ func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if p.sso.oidcOnly() {
+		writeError(w, p.errPasswordLoginOff())
+		return
+	}
 	key := p.clientIP(r) + "|" + strings.ToLower(body.Username)
 	ipKey := p.clientIP(r)
 	if p.throttle.blocked(key) || p.throttle.blocked(ipKey+"|*") {
@@ -93,14 +98,14 @@ func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.throttle.reset(key)
-	if _, enabled, _, _ := p.store.TotpState(user.ID); enabled {
-		// Zweiter Schritt: Das Ticket gilt fünf Minuten und nur für diesen Benutzer
+	if methods := p.secondFactors(user.ID); len(methods) > 0 {
+		// Zweiter Schritt (Code aus der App oder Passkey): Das Ticket gilt fünf Minuten und nur für diesen Benutzer
 		ticket, err := p.makeTicket(user.ID)
 		if err != nil {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"needsTotp": true, "ticket": ticket})
+		writeJSON(w, http.StatusOK, map[string]any{"needsTotp": true, "ticket": ticket, "secondFactor": methods})
 		return
 	}
 	if err := p.startSession(w, r, user); err != nil {

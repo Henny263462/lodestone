@@ -55,6 +55,10 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Konto-Sicherheit:** Zwei-Faktor-Anmeldung (TOTP mit QR-Code und Wiederherstellungscodes), **API-Schlüssel** für
   Skripte (`Authorization: Bearer lds_…`), Sitzungsliste mit Abmelden und ein **Protokoll** aller Änderungen
   (90 Tage, nur für Administratoren)
+- **Anmeldung über OIDC und Passkeys:** Knopf „Mit Authentik anmelden“ für jeden OIDC-Anbieter (Authentik, Keycloak,
+  Authelia, Google …), Konten werden verknüpft oder auf Wunsch automatisch angelegt, Administratoren optional über eine
+  Gruppe; **Passkeys** (Fingerabdruck, Gesichtserkennung, Sicherheitsschlüssel) zum Anmelden ohne Passwort oder als
+  zweiter Faktor statt des Codes aus der App
 - **Anlegen:** Vorlagen (Survival, Lobby, Creative, Mods), **ZIP-Import** einer bestehenden Welt oder eines Servers
   und Strg+K als Schnellsuche
 
@@ -143,6 +147,47 @@ Für schlanke Maschinen: `sh scripts/package.sh` baut Linux-Binaries nach `dist/
 | `LODESTONE_SECURE_COOKIES`, `LODESTONE_TRUST_PROXY` | hinter HTTPS-Proxy auf `true` |
 | `LODESTONE_TZ` | Zeitzone für Zeitpläne, z. B. `Europe/Berlin` (Standard: Zeitzone des Panels, sonst UTC) |
 | `LODESTONE_WEBHOOK_ALLOW_INTERNAL` | `true` erlaubt Webhooks an Adressen im internen Netz (Standard: gesperrt) |
+| `LODESTONE_PUBLIC_URL` | Adresse, unter der du das Panel im Browser öffnest, z. B. `https://panel.example.org`. Nötig für Passkeys und den OIDC-Rücksprung |
+| `LODESTONE_OIDC_ISSUER` / `_CLIENT_ID` / `_CLIENT_SECRET` | schaltet die Anmeldung über einen OIDC-Anbieter ein (Issuer-Adresse wie beim Anbieter angegeben) |
+| `LODESTONE_OIDC_NAME` | Name auf dem Knopf („Mit Authentik anmelden“), Standard `SSO` |
+| `LODESTONE_OIDC_REDIRECT_URL` | Rücksprungadresse, Standard `<LODESTONE_PUBLIC_URL>/api/auth/oidc/callback` |
+| `LODESTONE_OIDC_SCOPES` | Scopes, Standard `openid profile email` (für Gruppen bei Authentik/Authelia: `openid profile email groups`) |
+| `LODESTONE_OIDC_AUTO_CREATE` | `true` legt unbekannte Konten beim ersten Anmelden an; sonst kommen nur verknüpfte Konten herein |
+| `LODESTONE_OIDC_ADMIN_GROUP` / `_GROUPS_CLAIM` | Mitglieder dieser Gruppe werden Administratoren (Claim Standard `groups`) |
+| `LODESTONE_OIDC_ONLY` | `true` schaltet die Anmeldung mit Passwort ab (Notfallzugang siehe unten) |
+| `LODESTONE_WEBAUTHN_RP_ID` / `_ORIGINS` | RP-ID der Passkeys (Standard: Hostname aus `LODESTONE_PUBLIC_URL`) und weitere erlaubte Herkünfte (kommagetrennt) |
+
+### Anmeldung über OIDC und Passkeys
+
+**OIDC** (Authorization Code Flow mit PKCE, `state` und `nonce`; das ID-Token wird mit den Schlüsseln des Anbieters geprüft):
+
+1. Lege beim Anbieter eine Anwendung (vertraulicher Client) an und trage als Rücksprungadresse
+   `https://panel.example.org/api/auth/oidc/callback` ein.
+2. Setze `LODESTONE_PUBLIC_URL`, `LODESTONE_OIDC_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET` und `_NAME` und starte das Panel neu.
+   Die Anmeldeseite zeigt dann „Mit <Name> anmelden“. Das Panel fragt die Discovery des Anbieters erst beim ersten
+   Anmelden ab; ist er gerade nicht erreichbar, startet das Panel trotzdem.
+3. Bestehende Benutzer verknüpfen ihr Konto unter **Konto → Anmeldung über …**. Verknüpft wird über Aussteller und
+   `sub`, nie über die E-Mail-Adresse. Ohne `LODESTONE_OIDC_AUTO_CREATE=true` kommen nur verknüpfte Konten herein;
+   mit der Option bekommen neue Konten einen Benutzer ohne Passwort (Name aus `preferred_username` bzw. der E-Mail).
+4. Mit `LODESTONE_OIDC_ADMIN_GROUP` werden Gruppenmitglieder Administratoren. Entzogen werden die Rechte nur Konten,
+   die über OIDC angelegt wurden, und nie dem letzten Administrator.
+
+Nach der Anmeldung gilt dieselbe Sitzung wie bei der Passwort-Anmeldung (Cookie, Schutz-Header). Die Zwei-Faktor-Abfrage
+übernimmt bei OIDC der Anbieter. GitHub oder Discord sprechen kein OIDC; binde sie über einen Anbieter wie Authentik oder
+Keycloak an.
+
+**Nur OIDC:** `LODESTONE_OIDC_ONLY=true` schaltet die Anmeldung mit Passwort ab (Passkeys bleiben erlaubt; die Einrichtung
+des ersten Administrators geht weiter). Ist OIDC nicht vollständig eingerichtet, wird die Option ignoriert.
+**Notfallzugang**, falls der Anbieter ausfällt: Entferne `LODESTONE_OIDC_ONLY` (oder setze sie auf `false`), starte das
+Panel neu und melde dich mit Benutzername und Passwort an. Benutzer ohne Passwort bekommen eines von einem Administrator
+(Benutzer → Passwort zurücksetzen).
+
+**Passkeys** brauchen `LODESTONE_PUBLIC_URL` und HTTPS (oder `http://localhost`). RP-ID ist der Hostname dieser Adresse,
+erlaubte Herkunft ist `Schema://Host[:Port]` daraus. Ein Passkey gilt nur für genau diese RP-ID: Wechselst du die Adresse,
+müssen alle ihre Passkeys neu anlegen. Passkeys legst du unter **Konto → Passkeys** an. Die Anmeldung nur mit Passkey verlangt die Prüfung am Gerät
+(PIN, Fingerabdruck) und ersetzt Passwort und zweiten Faktor. Wer einen Passkey hat, braucht nach
+dem Passwort einen zweiten Schritt (Passkey oder Code aus der App). Hat jemand sein Gerät verloren, entfernt ein
+Administrator seine Passkeys mit `DELETE /api/users/<id>/passkeys`.
 
 Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_PORT_RANGE` (z. B. `28000-28099`),
 `_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`
@@ -157,6 +202,9 @@ Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_P
   Mitglied ist, „gibt es nicht“ (404)
 - Optional **Zwei-Faktor** (TOTP, TOTP-Geheimnisse mit AES-GCM verschlüsselt abgelegt), API-Schlüssel nur als Hash
   gespeichert und ohne Zugriff auf Konto-Einstellungen; Änderungen werden im **Protokoll** festgehalten
+- OIDC mit PKCE, `state` (an ein kurzlebiges Cookie des Browsers gebunden, gilt einmal) und `nonce`; Passkeys mit
+  Benutzerprüfung beim Anmelden ohne Passwort. Client-Secret und Schlüsseldaten verlassen das Panel nie, Fehlversuche
+  werden gedrosselt und protokolliert, API-Schlüssel können an Anmeldewegen nichts ändern
 - Das Token des Nodes verlässt das Panel nie; die Node-API gehört nur ins interne Netz oder hinter TLS/VPN
 - Container laufen ohne Root-Rechte des Hosts, mit `no-new-privileges`, abgeschalteten Capabilities, Prozess-,
   Speicher- und CPU-Limit; Dateizugriffe bleiben im Serverordner (`os.Root`, auch über Symlinks hinweg)

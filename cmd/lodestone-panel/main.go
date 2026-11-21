@@ -65,6 +65,7 @@ func run(logger *slog.Logger) error {
 		AllowInternalWebhooks: flag("LODESTONE_WEBHOOK_ALLOW_INTERNAL"),
 		Version:               version,
 		DataDir:               dataDir,
+		SSO:                   ssoConfig(),
 	}
 	if zone := env("LODESTONE_TZ", ""); zone != "" {
 		location, err := time.LoadLocation(zone)

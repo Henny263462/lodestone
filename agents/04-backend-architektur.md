@@ -26,6 +26,7 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 | --- | --- |
 | `panel.go` | `Config`, `Panel`, **alle Routen** (`routes()`), Middleware, `writeJSON`/`writeError`/`fail`/`decode`, Rechte (`rank*`, `requireProject/Server/Admin`) |
 | `auth.go`, `security.go`, `handlers_users.go` | Anmeldung, Sitzungen, Zwei-Faktor, API-Schlüssel, Benutzer |
+| `anmeldung.go`, `handlers_anmeldung.go`, `store_anmeldung.go` | Anmeldung über OIDC und Passkeys (Einstellung, Abläufe im Speicher, Handler, Tabellen `oidc_links`/`passkeys`, Routen in `registerAnmeldungRoutes`) |
 | `handlers_projects.go`, `handlers_servers.go`, `handlers_nodes.go`, `handlers_addons.go`, `handlers_extra.go`, `handlers_more.go` | HTTP-Handler nach Thema |
 | `store.go` (Kern + Schema), `store_ext.go`, `store_more.go` | Datenbank: Tabellen, Abfragen. **Nur hier steht SQL.** |
 | `nodeclient.go` | HTTP-Client zum Node (`Do`, `Raw`, `Proxy`, `DialWS`) |
@@ -56,7 +57,7 @@ func (p *Panel) putAutoRestart(w http.ResponseWriter, r *http.Request) {
 Route in `panel.go`: `mux.HandleFunc("PUT /api/servers/{id}/auto-restart", p.authenticate(p.putAutoRestart))`.
 
 Regeln:
-- **Jede** Route außer `healthz`, `auth/status|setup|login|totp` und `public/status/*` läuft durch `p.authenticate(...)`. Routen, die Konto
+- **Jede** Route außer `healthz`, `auth/status|setup|login|totp`, `auth/oidc/*`, `auth/passkey/*` und `public/status/*` läuft durch `p.authenticate(...)`. Routen, die Konto
   oder Zugangsdaten betreffen, zusätzlich durch `p.sessionOnly(...)` (API-Schlüssel dürfen dort nicht hin).
 - Mindeststufe wählen: Lesen `rankViewer`, Steuern/Dateien `rankOperator`, Einstellungen `rankAdmin`, Löschen `rankOwner`,
   Systemweites `requireAdmin(r)`. Im Zweifel die höhere Stufe.
@@ -71,7 +72,8 @@ Regeln:
 
 ## 4. Datenbank (SQLite, `modernc.org/sqlite`)
 
-- Schema steht als `schema`/`schemaMore` (Strings mit `CREATE TABLE IF NOT EXISTS`). **Neue Tabelle** → in `schemaMore`.
+- Schema steht als `schema`/`schemaMore` (Strings mit `CREATE TABLE IF NOT EXISTS`). **Neue Tabelle** → in `schemaMore`,
+  oder bei einem eigenen Thema in eine eigene Konstante in dessen Store-Datei (Beispiel `schemaAnmeldung`), die `OpenStore` ausführt.
 - **Neue Spalte** an einer bestehenden Tabelle → Eintrag in `moreColumns` (`{table, name, definition}`), sie wird beim Start per `ensureColumn`
   nachgezogen. Die Definition braucht einen Standardwert (`INTEGER NOT NULL DEFAULT 0`).
 - Nie Spalten löschen, umbenennen oder Typen ändern; nie Daten verwerfen. Ältere Datenbanken müssen weiter starten.
