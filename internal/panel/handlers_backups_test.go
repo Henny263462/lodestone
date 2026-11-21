@@ -433,7 +433,9 @@ func TestBackupUploadLockDeleteAndRestoreRemote(t *testing.T) {
 	admin.expect(200, "PUT", "/api/servers/"+server.ID+"/backup-settings", map[string]any{"exclude": []string{"dynmap/**"}, "remoteKeep": 1})
 
 	admin.expect(202, "POST", base, map[string]any{"label": "eins", "remote": true})
-	list := waitBackups(t, admin, server.ID, func(list []backupDTO) bool { return len(list) == 1 && list[0].Upload == backupDone })
+	list := waitBackups(t, admin, server.ID, func(list []backupDTO) bool {
+		return len(list) == 1 && list[0].Upload == backupDone && list[0].Status == backupDone
+	})
 	first := list[0]
 	if !first.Local || !first.Remote || first.Status != backupDone || first.Size != 5<<20 || first.Locked {
 		t.Fatalf("Eintrag: %+v", first)
@@ -456,12 +458,17 @@ func TestBackupUploadLockDeleteAndRestoreRemote(t *testing.T) {
 	admin.expect(204, "POST", base+"/"+first.Name+"/lock", map[string]bool{"locked": true})
 	admin.expect(409, "DELETE", base+"/"+first.Name, nil)
 	admin.expect(202, "POST", base, map[string]any{"label": "zwei", "remote": true})
-	list = waitBackups(t, admin, server.ID, func(list []backupDTO) bool { return len(list) == 2 && list[0].Upload == backupDone })
+	list = waitBackups(t, admin, server.ID, func(list []backupDTO) bool {
+		return len(list) == 2 && list[0].Upload == backupDone && list[0].Status == backupDone
+	})
 	if !list[1].Locked || !list[1].Remote || len(bucket.keys()) != 2 {
 		t.Fatalf("festgehaltenes Backup muss extern bleiben: %+v %v", list, bucket.keys())
 	}
 	admin.expect(202, "POST", base, map[string]any{"label": "drei", "remote": true})
-	list = waitBackups(t, admin, server.ID, func(list []backupDTO) bool { return len(list) == 3 && list[0].Upload == backupDone })
+	// Die Aufbewahrung räumt erst nach dem Hochladen auf, also auf beides warten
+	list = waitBackups(t, admin, server.ID, func(list []backupDTO) bool {
+		return len(list) == 3 && list[0].Upload == backupDone && list[0].Status == backupDone && !list[1].Remote
+	})
 	if list[1].Remote || !list[1].Local || !list[2].Remote {
 		t.Fatalf("extern bleibt nur das neueste (plus das festgehaltene): %+v", list)
 	}

@@ -397,6 +397,13 @@ func (p *Panel) mergeBackups(row ServerRow, local []node.Backup, records []Backu
 	list := []backupDTO{}
 	seen := map[string]bool{}
 	apply := func(dto *backupDTO, record BackupRecord, job *backupJob, running bool) {
+		if record.RemoteState == backupRunning && !running {
+			// Die Liste wurde gelesen, bevor der Auftrag fertig war: erst den aktuellen Stand holen,
+			// sonst würde ein gerade abgeschlossenes Hochladen als unterbrochen gelten
+			if fresh, err := p.store.BackupRecord(row.ID, record.Name); err == nil {
+				record = fresh
+			}
+		}
 		dto.Locked = dto.Locked || record.Locked
 		dto.Upload = record.RemoteState
 		if record.RemoteState == backupRunning && !running {
