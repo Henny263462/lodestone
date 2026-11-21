@@ -32,7 +32,7 @@ export default function AuditPage() {
       setMore(page.length === PAGE);
       setError(null);
     } catch (failure) {
-      setError(failure instanceof Error ? failure : new Error("Fehler"));
+      setError(failure instanceof Error ? failure : new Error("Das Protokoll konnte nicht geladen werden. Versuche es erneut."));
     } finally {
       setBusy(false);
     }

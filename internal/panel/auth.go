@@ -193,9 +193,13 @@ func (p *Panel) authenticate(next func(http.ResponseWriter, *http.Request)) http
 			next(w, request)
 			return
 		}
-		// Alles, was etwas ändert, kommt ins Protokoll (Pfad, nie der Inhalt der Anfrage)
+		// Alles, was etwas ändert, kommt ins Protokoll (Pfad, nie der Inhalt der Anfrage) und als Meldung an offene Browser
+		change, changes := p.changeOf(r)
 		rec := &recorder{ResponseWriter: w}
 		next(rec, request)
+		if changes && rec.status < http.StatusBadRequest {
+			p.publish(change)
+		}
 		action := r.Pattern
 		if action == "" {
 			action = r.Method + " " + r.URL.Path

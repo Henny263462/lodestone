@@ -4,7 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { LodestoneLogo } from "@/components/ui/mc";
-import { Dot } from "@/components/ui/primitives";
+import { Badge, Button, Card, Dot } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import type { PublicStatus } from "@/lib/types";
 
@@ -57,28 +57,28 @@ function StatusView() {
   }
 
   return (
-    <main className={embed ? "p-3" : "grid min-h-screen place-items-center px-4 py-10"}>
+    <main className={embed ? "p-3" : "grid min-h-screen grid-cols-[minmax(0,1fr)] place-items-center px-4 py-10"}>
       <div className="w-full max-w-md">
         {missing && !status ? (
-          <div className="rounded-xl border border-white/[0.07] bg-surface p-8 text-center">
+          <Card className="p-8 text-center">
             <p className="text-sm text-muted">404</p>
             <h1 className="mt-1 text-xl font-semibold">Diese Statusseite gibt es nicht</h1>
             <p className="mt-2 text-sm text-muted">Sie ist nicht veröffentlicht oder der Link stimmt nicht.</p>
-          </div>
+          </Card>
         ) : !status ? (
           <p className="text-center text-sm text-muted">Wird geladen</p>
         ) : (
-          <div className="rounded-xl border border-white/[0.07] bg-surface">
+          <Card>
             <div className="flex items-center gap-3 border-b border-white/[0.06] p-5">
               <LodestoneLogo size={32} />
               <div className="min-w-0 flex-1">
                 <h1 className="truncate text-lg font-semibold tracking-tight">{status.name}</h1>
                 {status.description && <p className="truncate text-xs text-muted">{status.description}</p>}
               </div>
-              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${status.online ? "border-good/30 bg-good/10 text-good" : "border-bad/30 bg-bad/10 text-bad"}`}>
+              <Badge tone={status.online ? "good" : "bad"} className="shrink-0">
                 <Dot tone={status.online ? "good" : "bad"} />
                 {status.online ? "Online" : "Offline"}
-              </span>
+              </Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-px bg-white/[0.05]">
@@ -98,10 +98,10 @@ function StatusView() {
             {status.address && (
               <div className="flex items-center gap-2 border-t border-white/[0.06] p-4">
                 <code className="min-w-0 flex-1 truncate rounded-md bg-black/30 px-3 py-2 font-mono text-sm">{status.address}</code>
-                <button onClick={copy} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.1] px-3 py-2 text-xs text-muted transition hover:bg-white/[0.06] hover:text-ink">
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                <Button size="sm" onClick={copy}>
+                  {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />}
                   {copied ? "Kopiert" : "Kopieren"}
-                </button>
+                </Button>
               </div>
             )}
 
@@ -116,7 +116,7 @@ function StatusView() {
                 ))}
               </ul>
             )}
-          </div>
+          </Card>
         )}
         {!embed && status && <p className="mt-4 text-center text-[11px] text-muted/70">Angetrieben von Lodestone</p>}
       </div>

@@ -17,6 +17,12 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 - **Panel-Oberfläche** (`web/`, Next.js als statischer Export, ins Panel-Binary eingebettet; Konsole mit ANSI-Farben,
   Datei-Editor mit CodeMirror 6, Plugins/Mods, Backups, Spieler). *Fertig (v0.1).* Das Panel liefert Text-Dateien gzip-
   komprimiert aus (`internal/panel/webui`, einmal gepackt und im Speicher gehalten); CodeMirror lädt erst beim Öffnen einer Datei.
+- **Live-Kanal Panel → Browser** (`internal/panel/updates.go`, `web/src/lib/live.ts`): `GET /api/live` ist ein Strom von
+  Server-Sent Events. Er trägt nur Thema und IDs (`server`, `players`, `backups`, `events`, `ops`, `project`, `node`), nie Daten;
+  die Oberfläche lädt daraufhin die betroffenen SWR-Abfragen über die normalen Routen neu. Quellen: erfolgreiche verändernde
+  Anfragen unter `/api/servers/{id}` und `/api/projects/{id}`, Zustandswechsel beim Abfragen der Nodes (`nodeViews`), `emit`,
+  Backups, Kopie/Umzug und Spieler. Jede Meldung wird je Empfänger gegen Mitgliedschaft und Lese-Recht geprüft; die
+  Verbindung endet, wenn die Anmeldung nicht mehr gilt. Abfrage-Intervalle bleiben als langer Rückfall (`usePoll`).
 - **Verbindung Panel ↔ Node:** zwei Wege.
   - *Direkt:* Das Panel ruft die HTTP-Schnittstelle des Nodes auf (Bearer-Token); die Node-API gehört ins interne Netz
     oder hinter TLS/VPN.

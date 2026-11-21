@@ -240,6 +240,30 @@ func (s *Store) ListEvents(projectID string, limit int) ([]Event, error) {
 	return list, rows.Err()
 }
 
+// ListRecentEvents liefert die neuesten Ereignisse aller Projekte, in denen der Benutzer Mitglied ist (all: aller Projekte).
+func (s *Store) ListRecentEvents(userID string, all bool, limit int) ([]Event, error) {
+	query := "SELECT id, ts, project_id, server_id, kind, level, message FROM events ORDER BY id DESC LIMIT ?"
+	args := []any{limit}
+	if !all {
+		query = "SELECT e.id, e.ts, e.project_id, e.server_id, e.kind, e.level, e.message FROM events e JOIN members m ON m.project_id = e.project_id WHERE m.user_id = ? ORDER BY e.id DESC LIMIT ?"
+		args = []any{userID, limit}
+	}
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := []Event{}
+	for rows.Next() {
+		var event Event
+		if err := rows.Scan(&event.ID, &event.Time, &event.ProjectID, &event.ServerID, &event.Kind, &event.Level, &event.Message); err != nil {
+			return nil, err
+		}
+		list = append(list, event)
+	}
+	return list, rows.Err()
+}
+
 func (s *Store) PurgeEvents(before int64) error {
 	_, err := s.db.Exec("DELETE FROM events WHERE ts < ?", before)
 	return err

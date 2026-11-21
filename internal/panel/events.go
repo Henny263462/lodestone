@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -42,6 +43,7 @@ func (p *Panel) emit(projectID, serverID, kind, level, message string) {
 		p.log.Warn("Ereignis nicht gespeichert", "error", err)
 		return
 	}
+	p.publish(Update{Topic: "events", ProjectID: projectID, ServerID: serverID})
 	go p.notify(event)
 }
 
@@ -352,6 +354,27 @@ func (p *Panel) listEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events, err := p.store.ListEvents(project.ID, 100)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, events)
+}
+
+// listRecentEvents ist GET /api/events/recent: die neuesten Ereignisse aus allen eigenen Projekten (für die Übersicht).
+// Wer kein Mitglied ist, sieht nichts; Administratoren sehen alle Projekte wie in der Projektliste.
+func (p *Panel) listRecentEvents(w http.ResponseWriter, r *http.Request) {
+	user := userFrom(r.Context())
+	limit := 8
+	if text := r.URL.Query().Get("limit"); text != "" {
+		value, err := strconv.Atoi(text)
+		if err != nil || value < 1 || value > 50 {
+			writeError(w, fail(http.StatusBadRequest, "limit muss zwischen 1 und 50 liegen"))
+			return
+		}
+		limit = value
+	}
+	events, err := p.store.ListRecentEvents(user.ID, user.IsAdmin, limit)
 	if err != nil {
 		writeError(w, err)
 		return

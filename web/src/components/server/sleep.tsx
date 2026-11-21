@@ -6,13 +6,15 @@ import { Badge, Button, Card, CardHeader, Switch } from "@/components/ui/primiti
 import { useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
+import { usePoll } from "@/lib/live";
 import { ago, dateTime } from "@/lib/format";
 import type { Server, SleepStatus } from "@/lib/types";
 
 /** Schlafmodus: Start beim Beitritt, Stopp im Leerlauf. Nur für Einzelserver und den Proxy eines Netzwerks. */
 export function SleepCard({ server }: { server: Server }) {
   const toast = useToast();
-  const { data, error, mutate } = useApi<SleepStatus>(`/servers/${server.id}/sleep`, { refreshInterval: 10000 });
+  // Einschlafen und Aufwachen kommen über den Live-Kanal (Zustand des Servers)
+  const { data, error, mutate } = useApi<SleepStatus>(`/servers/${server.id}/sleep`, { refreshInterval: usePoll(60000, 10000) });
   const [minutes, setMinutes] = useState("10");
   const [busy, setBusy] = useState(false);
 
@@ -23,7 +25,7 @@ export function SleepCard({ server }: { server: Server }) {
   const header = (action?: ReactNode) => (
     <CardHeader
       title="Schlafmodus"
-      description="Ist der Server aus, wartet Lodestone auf seinem Port auf Spieler: Die Serverliste zeigt „Schläft – zum Starten beitreten“, ein Beitritt startet ihn. Ist eine Weile niemand online, stoppt Lodestone ihn sauber. Der Schalter wirkt sofort."
+      description="Startet den Server, wenn jemand beitritt, und stoppt ihn, wenn niemand mehr da ist. Der Schalter wirkt sofort."
       action={action}
     />
   );
@@ -32,7 +34,7 @@ export function SleepCard({ server }: { server: Server }) {
     return (
       <Card>
         {header()}
-        <ErrorState error={error} retry={() => mutate()} />
+        <ErrorState inline error={error} retry={() => mutate()} />
       </Card>
     );
   if (!data)
@@ -72,6 +74,7 @@ export function SleepCard({ server }: { server: Server }) {
           </div>
         )}
         {data.problem && <div className="rounded-lg border border-warn/25 bg-warn/10 px-4 py-3 text-xs text-warn">{data.problem}</div>}
+        <p className="text-xs text-muted">Ist der Server aus, wartet Lodestone auf seinem Port: Die Serverliste zeigt „Schläft – zum Starten beitreten“, ein Beitritt weckt ihn.</p>
         {server.role === "proxy" && data.allowed && (
           <p className="text-xs text-muted">Schläft der Proxy ein, stoppt Lodestone auch die Backend-Server des Netzwerks; wacht er auf, startet es sie mit.</p>
         )}

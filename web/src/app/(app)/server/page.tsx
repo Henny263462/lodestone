@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Archive, BarChart3, ChevronLeft, FolderOpen, Globe, Puzzle, Settings, SlidersHorizontal, Terminal, Users, type LucideIcon } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { Badge, Meter, cx, loadTone } from "@/components/ui/primitives";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { PowerButtons, StateBadge } from "@/components/status";
@@ -22,6 +22,8 @@ import { SettingsTab } from "@/components/server/settings";
 import { StatsTab } from "@/components/server/stats";
 import { useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
+import { usePoll } from "@/lib/live";
+import { useUrlState } from "@/lib/url-state";
 import { can, type Permission, type Project, type ServerAccess } from "@/lib/types";
 
 export default function ServerPage() {
@@ -40,23 +42,23 @@ interface Entry {
   icon: LucideIcon;
 }
 
+interface Group {
+  label: string;
+  entries: Entry[];
+}
+
 function ServerView() {
   const router = useRouter();
-  const params = useSearchParams();
-  const id = params.get("id");
-  const { data, error, mutate } = useApi<ServerAccess>(id ? `/servers/${id}` : null, { refreshInterval: 3000 });
+  const id = useSearchParams().get("id");
+  // Zustandswechsel kommen über den Live-Kanal; solange der Server läuft, halten kürzere Abfragen CPU und RAM frisch
+  const poll = usePoll(60000, 3000);
+  const { data, error, mutate } = useApi<ServerAccess>(id ? `/servers/${id}` : null, {
+    refreshInterval: (latest) => (latest?.server.view?.state === "running" ? Math.min(poll, 10000) : poll),
+  });
   const { data: project } = useApi<Project>(data ? `/projects/${data.server.projectId}` : null);
-  const [tab, setTabState] = useState<Tab>((params.get("tab") as Tab) || "console");
+  const [tab, setTab] = useUrlState<Tab>("tab", "console", ["section"]);
 
-  function setTab(next: Tab) {
-    setTabState(next);
-    // Der Bereich steht in der Adresse, damit sich ein Link oder Neuladen merkt, wo man war
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", next);
-    window.history.replaceState(null, "", url);
-  }
-
-  if (!id) return <ErrorState error={new Error("Kein Server angegeben")} />;
+  if (!id) return <ErrorState error={new Error("Kein Server angegeben. Öffne ihn über sein Projekt.")} />;
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!data) return <Loading />;
 
@@ -65,24 +67,39 @@ function ServerView() {
   const view = server.view;
   const state = view?.state;
   const extensions = server.software === "fabric" || server.software === "neoforge" || server.software === "forge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
+  // Welten und server.properties gibt es nur bei Minecraft-Servern, nicht beim Velocity-Proxy
   const hasWorlds = server.role !== "proxy" && server.software !== "velocity";
+  const only = (condition: boolean, entry: Entry) => (condition ? [entry] : []);
 
-  const entries: Entry[] = [
-    ...(allowed("console.read") ? [{ id: "console" as const, label: "Konsole", icon: Terminal }] : []),
-    { id: "stats", label: "Statistiken", icon: BarChart3 },
-    ...(allowed("files.read") ? [{ id: "files" as const, label: "Dateien", icon: FolderOpen }] : []),
-    ...(extensions ? [{ id: "addons" as const, label: extensions, icon: Puzzle }] : []),
-    { id: "players", label: "Spieler", icon: Users },
-    ...(allowed("backups.read") ? [{ id: "backups" as const, label: "Backups", icon: Archive }] : []),
-    // Welten und server.properties gibt es nur bei Minecraft-Servern, nicht beim Velocity-Proxy
-    ...(allowed("files.read") && hasWorlds
-      ? [
-          { id: "worlds" as const, label: "Welten", icon: Globe },
-          { id: "properties" as const, label: "Spieleinstellungen", icon: SlidersHorizontal },
-        ]
-      : []),
-    ...(allowed("settings") || allowed("servers") ? [{ id: "settings" as const, label: "Einstellungen", icon: Settings }] : []),
+  // Bereiche in drei Gruppen: was gerade passiert, was auf dem Server liegt, wie er eingestellt ist
+  const allGroups: Group[] = [
+    {
+      label: "Betrieb",
+      entries: [
+        ...only(allowed("console.read"), { id: "console", label: "Konsole", icon: Terminal }),
+        { id: "stats", label: "Statistiken", icon: BarChart3 },
+        { id: "players", label: "Spieler", icon: Users },
+      ],
+    },
+    {
+      label: "Inhalte",
+      entries: [
+        ...only(allowed("files.read"), { id: "files", label: "Dateien", icon: FolderOpen }),
+        ...only(!!extensions, { id: "addons", label: extensions ?? "", icon: Puzzle }),
+        ...only(allowed("files.read") && hasWorlds, { id: "worlds", label: "Welten", icon: Globe }),
+        ...only(allowed("backups.read"), { id: "backups", label: "Backups", icon: Archive }),
+      ],
+    },
+    {
+      label: "Konfiguration",
+      entries: [
+        ...only(allowed("files.read") && hasWorlds, { id: "properties", label: "Spieleinstellungen", icon: SlidersHorizontal }),
+        ...only(allowed("settings") || allowed("servers"), { id: "settings", label: "Einstellungen", icon: Settings }),
+      ],
+    },
   ];
+  const groups = allGroups.filter((group) => group.entries.length > 0);
+  const entries = groups.flatMap((group) => group.entries);
   const active = entries.some((entry) => entry.id === tab) ? tab : entries[0].id;
   const stats = view?.stats;
   const memoryPercent = stats && stats.memoryLimit > 0 ? (stats.memoryBytes / stats.memoryLimit) * 100 : 0;
@@ -96,7 +113,7 @@ function ServerView() {
             {project?.name ?? "Projekt"}
           </Link>
 
-          <div>
+          <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold tracking-tight">{server.name}</p>
             <p className="mt-0.5 truncate text-xs text-muted">
               {server.software} {view?.version}
@@ -108,19 +125,41 @@ function ServerView() {
             </div>
           </div>
 
-          <nav className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-            {entries.map((entry) => (
-              <button
-                key={entry.id}
-                onClick={() => setTab(entry.id)}
-                className={cx(
-                  "flex shrink-0 items-center gap-3 whitespace-nowrap rounded-lg border px-3 py-2 text-left text-[13px] transition duration-150 active:scale-[0.97]",
-                  active === entry.id ? "border-white/[0.07] bg-white/[0.07] text-ink" : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
-                )}
-              >
-                <entry.icon className={cx("h-4 w-4 shrink-0", active === entry.id ? "text-ink" : "text-muted")} />
-                {entry.label}
-              </button>
+          {/* Kleine Bildschirme: eine Auswahl statt einer Leiste, die seitlich aus dem Bild läuft */}
+          <select className="field lg:hidden" aria-label="Bereich des Servers" value={active} onChange={(event) => setTab(event.target.value as Tab)}>
+            {groups.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.entries.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+
+          <nav aria-label="Bereiche des Servers" className="hidden lg:block">
+            {groups.map((group, index) => (
+              <div key={group.label} className={cx(index > 0 && "mt-4")}>
+                <p className="px-3 pb-1 text-[10.5px] font-medium uppercase tracking-wider text-muted/70">{group.label}</p>
+                <div className="space-y-0.5">
+                  {group.entries.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      aria-current={active === entry.id ? "page" : undefined}
+                      onClick={() => setTab(entry.id)}
+                      className={cx(
+                        "flex w-full items-center gap-3 whitespace-nowrap rounded-lg border px-3 py-2 text-left text-[13px] transition duration-150 active:scale-[0.97]",
+                        active === entry.id ? "border-white/[0.07] bg-white/[0.07] text-ink" : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
+                      )}
+                    >
+                      <entry.icon className={cx("h-4 w-4 shrink-0", active === entry.id ? "text-ink" : "text-muted")} />
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
 
@@ -135,7 +174,7 @@ function ServerView() {
               </div>
               <div>
                 <div className="mb-1.5 flex justify-between text-[11px] text-muted">
-                  <span>Speicher</span>
+                  <span>Arbeitsspeicher</span>
                   <span className="tabular-nums text-ink/80">{Math.round(stats.memoryBytes / 1024 ** 2)} MB</span>
                 </div>
                 <Meter value={memoryPercent} max={100} tone={loadTone(memoryPercent)} />
@@ -148,7 +187,7 @@ function ServerView() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-semibold tracking-tight">{entries.find((entry) => entry.id === active)?.label}</h1>
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="mt-1 break-words text-[13px] text-muted">
             {server.name} · {view ? megabytes(view.memoryMB) : "–"} · Node {server.nodeName}
             {server.address && (
               <>
@@ -170,13 +209,20 @@ function ServerView() {
         {active === "console" && <ConsoleTab serverId={server.id} canCommand={allowed("console.command")} state={state} />}
         {active === "stats" && <StatsTab server={server} />}
         {active === "files" && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <FilesTab serverId={server.id} canWrite={allowed("files.write")} />
             {allowed("sftp", "files.read") && <SftpCard serverId={server.id} />}
           </div>
         )}
         {active === "addons" && extensions && (
-          <AddonsTab serverId={server.id} canWrite={allowed("addons")} canFiles={allowed("files.write")} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} blocks={<BlocksTab server={server} canManage={allowed("settings", "addons")} offline={state === "offline"} />} />
+          <AddonsTab
+            serverId={server.id}
+            canWrite={allowed("addons")}
+            canFiles={allowed("files.write")}
+            noun={extensions as "Plugins" | "Mods"}
+            running={state === "running" || state === "starting"}
+            blocks={<BlocksTab server={server} canManage={allowed("settings", "addons")} offline={state === "offline"} />}
+          />
         )}
         {active === "players" && <PlayersTab server={server} canOperate={allowed("players")} />}
         {active === "backups" && <BackupsTab serverId={server.id} permissions={myPermissions} offline={state === "offline"} />}

@@ -2,9 +2,11 @@
 
 import { CalendarClock, Pencil, Play, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, Checkbox, EmptyState, Switch, cx } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Switch, cx } from "@/components/ui/primitives";
+import { ErrorState, Loading } from "@/components/ui/async";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
+import { usePoll } from "@/lib/live";
 import { ago, dateTime } from "@/lib/format";
 import { can, type AuthStatus, type Project, type Schedule, type ScheduleStep, type StepAction } from "@/lib/types";
 
@@ -65,30 +67,37 @@ export function SchedulesTab({ project }: { project: Project }) {
   // Schritte mit Befehlen oder Backups prüft das Backend zusätzlich gegen die Rechte (Meldung kommt als Toast)
   const canManage = can(project.myPermissions, "schedules");
   const canRun = can(project.myPermissions, "power");
-  const { data, mutate } = useApi<Schedule[]>(`/projects/${project.id}/schedules`, { refreshInterval: 15000 });
+  const { data, error, mutate } = useApi<Schedule[]>(`/projects/${project.id}/schedules`, { refreshInterval: usePoll(120000, 15000) });
   const [editing, setEditing] = useState<Schedule | "new" | null>(null);
   const [removing, setRemoving] = useState<Schedule | null>(null);
   const { data: status } = useApi<AuthStatus & { timezone?: string }>("/auth/status");
 
   return (
     <div className="space-y-5">
-      <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
-        <div className="max-w-2xl">
-          <p className="text-sm font-semibold">Zeitpläne</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted">
-            Backups, Neustarts und Befehle zu festen Zeiten. Ein Zeitplan kann mehrere Schritte nacheinander ausführen (z. B. erst sichern, dann neu starten); schlägt einer fehl,
-            stoppt der Rest und du bekommst eine Meldung. Zeiten gelten in der Zeitzone <b className="text-ink/80">{status?.timezone ?? "des Servers"}</b>.
-          </p>
-        </div>
-        {canManage && (
-          <Button variant="primary" onClick={() => setEditing("new")} disabled={project.servers.length === 0}>
-            <Plus className="h-4 w-4" />
-            Zeitplan anlegen
-          </Button>
-        )}
+      <Card>
+        <CardHeader
+          title="Zeitpläne"
+          description="Backups, Neustarts und Befehle zu festen Zeiten."
+          action={
+            canManage && (
+              <Button size="sm" variant="primary" onClick={() => setEditing("new")} disabled={project.servers.length === 0}>
+                <Plus className="h-3.5 w-3.5" />
+                Zeitplan anlegen
+              </Button>
+            )
+          }
+        />
+        <p className="px-5 py-3 text-xs leading-relaxed text-muted">
+          Ein Zeitplan kann mehrere Schritte nacheinander ausführen, etwa erst sichern, dann neu starten. Schlägt einer fehl, stoppt der Rest und du bekommst eine Meldung. Zeiten gelten in der Zeitzone{" "}
+          <b className="text-ink/80">{status?.timezone ?? "des Servers"}</b>.
+        </p>
       </Card>
 
-      {!data ? null : data.length === 0 ? (
+      {error ? (
+        <ErrorState error={error} retry={() => mutate()} />
+      ) : !data ? (
+        <Loading />
+      ) : data.length === 0 ? (
         <Card>
           <EmptyState icon={<CalendarClock className="h-6 w-6" />} title="Noch kein Zeitplan" text={project.servers.length ? "Lege z. B. ein nächtliches Backup oder einen täglichen Neustart an." : "Lege zuerst einen Server an."} />
         </Card>

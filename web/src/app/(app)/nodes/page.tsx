@@ -1,7 +1,8 @@
 "use client";
 
 import { Cable, Cpu, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Badge, Button, Card, Dot, EmptyState, Meter, PageHeader } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
@@ -10,13 +11,26 @@ import { NodeStorageCard } from "@/components/node-storage";
 import { AddNodeDialog, NodeLinkCard } from "@/components/node-link";
 import { api, useApi } from "@/lib/api";
 import { bytes } from "@/lib/format";
+import { usePoll } from "@/lib/live";
 import type { NodeInfo, NodeLink, PlayitStatus } from "@/lib/types";
 
 export default function NodesPage() {
   const user = useUser();
-  const { data, error, mutate } = useApi<NodeInfo[]>("/nodes", { refreshInterval: 10000 });
-  const links = useApi<NodeLink[]>(user.isAdmin ? "/nodes/link" : null, { refreshInterval: 10000 });
+  // Ausfälle und Rückkehr meldet der Live-Kanal; die Intervalle sind der Rückfall
+  const poll = usePoll(60000, 10000);
+  const { data, error, mutate } = useApi<NodeInfo[]>("/nodes", { refreshInterval: poll });
+  const links = useApi<NodeLink[]>(user.isAdmin ? "/nodes/link" : null, { refreshInterval: poll });
+  const params = useSearchParams();
   const [adding, setAdding] = useState(false);
+
+  // Strg+K → „Node hinzufügen“ landet hier mit ?add=1
+  useEffect(() => {
+    if (params.get("add") !== "1") return;
+    if (user.isAdmin) setAdding(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("add");
+    window.history.replaceState(null, "", url);
+  }, [params, user.isAdmin]);
   const [editing, setEditing] = useState<NodeInfo | "new" | null>(null);
   const [removing, setRemoving] = useState<NodeInfo | null>(null);
   const toast = useToast();
@@ -167,7 +181,7 @@ function MemoryPlanner({ node }: { node: NodeInfo }) {
 /** playit.gg: macht Server ohne Portfreigabe im Router erreichbar. Der Node startet den Agenten mit dem Schlüssel. */
 function PlayitCard({ node }: { node: NodeInfo }) {
   const toast = useToast();
-  const { data, mutate } = useApi<PlayitStatus>(`/nodes/${node.id}/playit`, { refreshInterval: 8000 });
+  const { data, mutate } = useApi<PlayitStatus>(`/nodes/${node.id}/playit`, { refreshInterval: usePoll(30000, 8000) });
   const [open, setOpen] = useState(false);
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);

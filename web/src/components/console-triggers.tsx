@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardHeader, EmptyState, RowMenu, Switch } from "@/
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
+import { usePoll } from "@/lib/live";
 import { ago, dateTime } from "@/lib/format";
 import type { ConsoleTrigger, Project, Schedule, TriggerLevel } from "@/lib/types";
 
@@ -15,7 +16,8 @@ const levelTone: Record<TriggerLevel, "info" | "warn" | "bad"> = { info: "info",
 /** Eigene Muster in der Konsole als Auslöser für Ereignisse, Webhooks und Zeitpläne (nur Projekt-Admins). */
 export function ConsoleTriggersCard({ project }: { project: Project }) {
   const toast = useToast();
-  const { data, error, mutate } = useApi<ConsoleTrigger[]>(`/projects/${project.id}/console-triggers`, { refreshInterval: 15000 });
+  // „Zuletzt getroffen“ ändert sich mit jedem Treffer; der Treffer selbst kommt als Ereignis über den Live-Kanal
+  const { data, error, mutate } = useApi<ConsoleTrigger[]>(`/projects/${project.id}/console-triggers`, { refreshInterval: usePoll(120000, 15000) });
   const { data: schedules } = useApi<Schedule[]>(`/projects/${project.id}/schedules`);
   const [editing, setEditing] = useState<ConsoleTrigger | "new" | null>(null);
   const [removing, setRemoving] = useState<ConsoleTrigger | null>(null);
@@ -26,21 +28,24 @@ export function ConsoleTriggersCard({ project }: { project: Project }) {
     <Card>
       <CardHeader
         title="Konsolen-Auslöser"
-        description="Erkennt eigene Muster in der Konsole und meldet sie als Ereignis „Konsolen-Auslöser“ (auch an Webhooks), auf Wunsch startet dazu ein Zeitplan. Wer beitritt oder geht, erkennt Lodestone von selbst."
+        description="Eigene Muster in der Konsole werden zum Ereignis „Konsolen-Auslöser“ und können einen Zeitplan starten."
         action={
-          <Button size="sm" onClick={() => setEditing("new")}>
-            <Plus className="h-3.5 w-3.5" />
-            Auslöser
-          </Button>
+          data &&
+          data.length > 0 && (
+            <Button size="sm" onClick={() => setEditing("new")}>
+              <Plus className="h-3.5 w-3.5" />
+              Auslöser
+            </Button>
+          )
         }
       />
       {error ? (
-        <ErrorState error={error} retry={() => mutate()} />
+        <ErrorState inline error={error} retry={() => mutate()} />
       ) : !data ? (
         <Loading />
       ) : data.length === 0 ? (
-        <div className="pb-6">
-          <EmptyState icon={<ScanSearch className="h-6 w-6" />} title="Noch kein Konsolen-Auslöser" text="Lege ein Muster an, z. B. „Can't keep up!“, um bei Lag sofort Bescheid zu bekommen." />
+        <div className="pb-8">
+          <EmptyState icon={<ScanSearch className="h-6 w-6" />} title="Noch kein Konsolen-Auslöser" text="Lege ein Muster an, z. B. „Can't keep up!“, um bei Lag sofort Bescheid zu bekommen. Beitritte und Abgänge erkennt Lodestone von selbst." />
           <div className="flex justify-center">
             <Button variant="primary" onClick={() => setEditing("new")}>
               <Plus className="h-4 w-4" />

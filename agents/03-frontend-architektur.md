@@ -30,6 +30,8 @@ web/src/
     *.tsx                           Fachkomponenten auf Projektebene (add-server, groups, schedules, events, motd, status-settings, status)
   lib/
     api.ts                          request/api/useApi/upload/downloadUrl/fetchText/putText, wsBase
+    live.ts                         Live-Kanal (useLiveUpdates in der Shell), affects (welche Schlüssel eine Meldung betrifft), usePoll
+    url-state.ts                    useUrlState: Tab/Abschnitt in der Adresse
     types.ts                        Typen der Schnittstelle + roleRank
     format.ts                       bytes, megabytes, dateTime, ago, uptime, compact, stateTone …
     audit.ts, crash.ts, editor.ts   reine Hilfen (Beschriftungen, Fehlererkennung, Dateitypen des Editors)
@@ -62,6 +64,12 @@ mutate();
 - 401 leitet automatisch zur Anmeldung. 204 liefert `undefined`.
 - Dateien: `upload()` (mit Fortschritt), `downloadUrl(pfad)` für Download-Links, `fetchText/putText` für Textdateien.
 - Konsole: Websocket über `wsBase()`; nur dort.
+- Live-Kanal: Die Shell hält genau eine `EventSource` auf `/api/live` offen (`useLiveUpdates`). Kommt eine Meldung, lädt `affects`
+  die passenden SWR-Schlüssel neu (Pfad ohne `/api`). Neue Abfragen unter `/servers/{id}/…` oder `/projects/{id}/…` sind damit
+  automatisch abgedeckt; eine neue Art Meldung braucht einen Fall in `affects` **und** im Backend (`updates.go`).
+  Intervalle als Rückfall mit `usePoll(lang, kurz)`, nie mehr feste 3–15 s.
+- Tab/Abschnitt in der Adresse: `const [tab, setTab] = useUrlState<Tab>("tab", "console", ["section"])` (der dritte Wert sind
+  Parameter, die beim Wechsel wegfallen). Ungültige Werte auf den ersten erlaubten Eintrag zurückfallen lassen.
 - `prefetch(pfad)` startet eine Abfrage vorab (z. B. die Projektliste parallel zur Anmeldeprüfung); `useApi` übernimmt sie dann.
 - Große Bibliotheken (CodeMirror) nur über `next/dynamic` laden, damit sie nicht im Paket jeder Seite landen. Reine Hilfen dazu
   gehören nach `lib/` (Vorbild: `lib/editor.ts` und `components/server/files.tsx`).
@@ -97,7 +105,11 @@ mutate();
 ## 7. Rezept: neuer Bereich im Server oder neuer Tab im Projekt
 
 Vorbild `components/server/backups.tsx` (einfach) oder `players.tsx` (mit Diagrammen). Komponente `XyzTab({ server | project, canWrite })`,
-Eintrag im `entries`-Array von `server/page.tsx` (Recht beachten: `allowed("…")` bzw. `can(myPermissions, "…")`) bzw. im Tab-Array von `project/page.tsx`, Anzeige per `{active === "xyz" && <XyzTab … />}`.
+Eintrag in der passenden Gruppe von `allGroups` in `server/page.tsx` (Recht beachten: `allowed("…")`) bzw. im Tab-Array von `project/page.tsx`,
+Anzeige per `{active === "xyz" && <XyzTab … />}`, Ziel in `serverTargets`/`projectTargets` von `palette.tsx`.
+
+Neuer **Abschnitt** in Einstellungen (Server: `components/server/settings.tsx`, Projekt: `components/project-settings.tsx`, Konto:
+`account/page.tsx`): Eintrag im `sections`-Array (ID, Label, lucide-Icon, Recht), Anzeige per `{active === "xyz" && <XyzCard … />}`.
 
 ## 8. Nicht tun
 

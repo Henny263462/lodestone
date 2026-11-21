@@ -72,7 +72,7 @@ export function BackupsTab({ serverId, permissions, offline }: { serverId: strin
       <Card>
         <CardHeader
           title="Backups"
-          description="Archive des Serverordners, lokal auf dem Node und auf Wunsch zusätzlich im Backup-Ziel des Projekts. Läuft der Server, wird er für die Sicherung kurz am Speichern gehindert, damit sie stimmig ist."
+          description="Archive des Serverordners, lokal auf dem Node und auf Wunsch im Backup-Ziel des Projekts."
           action={
             canCreate && (
               <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
@@ -243,7 +243,7 @@ function BackupSettingsCard({ serverId, canManage }: { serverId: string; canMana
 
   return (
     <Card>
-      <CardHeader title="Backup-Einstellungen" description="Was nicht ins Archiv soll und wie viele Backups im Backup-Ziel bleiben. Wie viele lokal bleiben, stellst du unter Einstellungen ein." />
+      <CardHeader title="Backup-Einstellungen" description="Was nicht ins Archiv soll und wie viele Backups extern bleiben. Lokal: Einstellungen → Allgemein." />
       <div className="grid gap-4 px-5 py-4 md:grid-cols-[1fr_220px]">
         <div>
           <label className="label">Ausschlüsse (ein Pfadmuster pro Zeile)</label>

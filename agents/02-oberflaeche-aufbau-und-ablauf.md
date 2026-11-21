@@ -5,13 +5,20 @@ Wie sich Lodestone **bedient**. Das Aussehen steht in `01`, der Code in `03`.
 ## 1. Informationsarchitektur
 
 ```
-Übersicht (/)                      Projekte als Karten (angeheftete zuerst, eigene Reihenfolge, Filter nach Schlagwort), Kennzahlen, Nodes
-Projekt (/project/?id=)            Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
-  └─ Server (/server/?id=&tab=)    Zweite Seitenleiste: Konsole · Statistiken · Dateien · Plugins/Mods · Spieler · Backups · Welten · Spieleinstellungen · Einstellungen
-Nodes (/nodes/)                    Maschinen, Speicher, playit
+Übersicht (/)                      Kennzahlen; Projekte als Karten (angeheftete zuerst, eigene Reihenfolge, Filter nach Schlagwort);
+                                   rechts Nodes (Zustand, RAM) und letzte Ereignisse aller eigenen Projekte
+Projekt (/project/?id=&tab=)       Tabs: Server · Netzwerk · Gruppen (nur Netzwerke) · Zeitpläne · Ereignisse · Mitglieder · Einstellungen
+  Netzwerk (&section=)             Server und Beitritt · MOTD · Voicechat · Bedrock (Geyser)
+  Ereignisse (&section=)           Verlauf · Benachrichtigungen (Webhooks) · Konsolen-Auslöser
+  Einstellungen (&section=)        Allgemein · Statusseite · Backup-Ziel · Discord-Bot · Umziehen · Gefahrenzone (nur Eigentümer)
+  └─ Server (/server/?id=&tab=)    Zweite Seitenleiste in Gruppen: Betrieb (Konsole · Statistiken · Spieler) ·
+                                   Inhalte (Dateien · Plugins/Mods · Welten · Backups) · Konfiguration (Spieleinstellungen · Einstellungen)
+     Einstellungen (&section=)     Allgemein · Anschlüsse (Ports, öffentliche Adresse) · Schlafmodus · Absturzerkennung · Version ·
+                                   Kopieren und umziehen · Speicher · Gefahrenzone
+Nodes (/nodes/)                    Maschinen, Speicher, playit (`?add=1` öffnet „Node hinzufügen“)
 Benutzer (/users/)                 nur Administratoren
 Protokoll (/audit/)                nur Administratoren
-Konto (/account/)                  Passwort, Zwei-Faktor, Passkeys, Anmeldung über OIDC, API-Schlüssel, SFTP-Zugang, Sitzungen
+Konto (/account/?section=)         Passwort · Zwei-Faktor · Passkeys · Anmeldung über OIDC · API-Schlüssel · SFTP-Zugang · Sitzungen
 Status (/status/?p=)               öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
 ```
@@ -21,7 +28,11 @@ Anmeldung (/login/)                ohne Shell
 - Neue Hauptseiten sind selten. Bevor du eine anlegst: Passt es als Tab im Projekt, als Bereich im Server oder als Karte im Konto?
   Eine neue Hauptseite braucht einen Eintrag in `shell.tsx` (Seitenleiste) **und** in `palette.tsx` (Strg+K).
 - Navigation innerhalb eines Servers/Projekts geschieht über Tabs bzw. die zweite Seitenleiste; der aktive Tab steht in der Adresse
-  (`?tab=…`), damit Neuladen und Links an derselben Stelle landen (siehe `server/page.tsx`).
+  (`?tab=…`), der Abschnitt darin in `?section=…`, damit Neuladen, Links und Strg+K an derselben Stelle landen (`useUrlState`).
+- Wird ein Tab länger als zwei, drei Karten, bekommt er Abschnitte (`SectionLayout`), statt dass alles untereinander steht.
+  Ein neuer Abschnitt ist ein Eintrag im `sections`-Array der Komponente (Recht beachten) und ein Ziel in `palette.tsx`.
+- Strg+K (`palette.tsx`) kennt Seiten, Projekte, Server, Aktionen („Neues Projekt“ → `/?new=1`, „Node hinzufügen“ → `/nodes/?add=1`)
+  und, sobald man tippt, Unterziele: die Bereiche jedes Servers, die Tabs jedes Projekts und die Abschnitte des Kontos.
 
 ## 2. Seitenaufbau (Schablone)
 
@@ -50,8 +61,11 @@ return …                                                                   // 
 - **Leer** erklärt in einem Satz, was das hier ist, und bietet nach Möglichkeit den Knopf zum Anlegen an (nur wenn der Benutzer darf;
   sonst: „Ein Administrator muss …“).
 - **Fehler** zeigt die Meldung des Backends (die ist schon deutsch und erklärt). Nie selbst „Fehler 500“ ausgeben.
-- Live-Daten (Zustand, Konsole, Spielerzahl) aktualisieren sich selbst: `useApi(…, { refreshInterval: 3000–15000 })`, Websocket nur für
-  die Konsole. Nie die ganze Seite neu laden.
+- Live-Daten aktualisieren sich selbst über den **Live-Kanal** (`GET /api/live`, Server-Sent Events, `lib/live.ts`): Das Panel meldet,
+  dass sich etwas geändert hat (Zustand, Spieler, Backups, Ereignisse, Kopie/Umzug), und die Oberfläche lädt genau die betroffenen
+  `useApi`-Schlüssel neu. Abfrage-Intervalle bleiben nur als Rückfall: `refreshInterval: usePoll(lang, kurz)` (z. B. `usePoll(60000, 5000)`),
+  das lange gilt, solange der Kanal steht. Kurze Intervalle nur für Fortschritt, solange etwas läuft (Backup, Modpack, Umzug), und für
+  CPU/RAM eines laufenden Servers. Websocket nur für die Konsole. Nie die ganze Seite neu laden.
 
 ## 4. Aktionen und Rückmeldung
 
@@ -64,6 +78,9 @@ return …                                                                   // 
 | Sofort wirksamer Schalter | `Switch` + `toast.run`, bei Fehler springt er zurück (Daten neu laden) |
 
 - Erfolgsmeldungen sind kurz und im Perfekt/Zustand: „Gespeichert“, „Node entfernt“, „Backup gestartet“.
+- Braucht man den Rückgabewert, ihn im `toast.run` festhalten (`toast.run(async () => setX(await api.post(…)), "…")`), statt
+  `try/catch` mit eigenem `toast.error`.
+- Kartenbeschreibungen (`CardHeader description`) sind **ein** kurzer Satz. Mehr Erklärung gehört als `text-xs text-muted` in den Karteninhalt.
 - Nach jeder Änderung die betroffenen Daten neu laden (`mutate()`), nicht lokal raten.
 - Nie `alert`, `confirm`, `prompt`. Nie eine Aktion ohne sichtbare Rückmeldung.
 

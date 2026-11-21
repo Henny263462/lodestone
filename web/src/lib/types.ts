@@ -359,6 +359,7 @@ export interface Schedule {
 export interface ProjectEvent {
   id: number;
   time: number;
+  projectId: string;
   serverId?: string;
   kind: string;
   level: "info" | "warn" | "error";

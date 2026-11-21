@@ -29,9 +29,15 @@ function toLogin() {
   window.location.replace(`/login/?next=${next}`);
 }
 
+/** Meldung, wenn die Antwort keine Meldung des Panels enthält (z. B. ein Proxy davor antwortet). */
+function statusText(status: number): string {
+  if (status === 0 || status === 502 || status === 503 || status === 504) return "Das Panel ist gerade nicht erreichbar. Prüfe die Verbindung und versuche es erneut.";
+  return `Die Anfrage ist fehlgeschlagen (Status ${status}). Versuche es erneut.`;
+}
+
 async function failure(response: Response): Promise<ApiError> {
   const data = (await response.json().catch(() => null)) as { error?: string } | null;
-  return new ApiError(data?.error ?? `Fehler ${response.status}`, response.status);
+  return new ApiError(data?.error ?? statusText(response.status), response.status);
 }
 
 export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -95,7 +101,7 @@ export function upload(path: string, files: File[], onProgress?: (fraction: numb
     xhr.onerror = () => reject(new ApiError("Der Upload ist fehlgeschlagen", 0));
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) return resolve();
-      let message = `Fehler ${xhr.status}`;
+      let message = statusText(xhr.status);
       try {
         message = (JSON.parse(xhr.responseText) as { error?: string }).error ?? message;
       } catch {}

@@ -151,6 +151,7 @@ func (p *Panel) startOp(op ServerOp, work func(*opRunner) (opResult, error)) (Se
 	if err != nil {
 		return ServerOp{}, err
 	}
+	p.publish(Update{Topic: "ops", ProjectID: created.ProjectID, ServerID: created.ServerID})
 	go p.runOp(created, work)
 	return created, nil
 }
@@ -174,6 +175,7 @@ func (p *Panel) runOp(op ServerOp, work func(*opRunner) (opResult, error)) {
 				if err == nil && wanted && !runner.canceled.Swap(true) {
 					cancel()
 				}
+				p.publish(Update{Topic: "ops", ProjectID: op.ProjectID, ServerID: op.ServerID})
 			}
 		}
 	}()
@@ -198,6 +200,7 @@ func (p *Panel) runOp(op ServerOp, work func(*opRunner) (opResult, error)) {
 	if err := p.store.FinishOp(op.ID, state, message, result.Warnings, result.ServerID, runner.done.Load(), runner.total.Load()); err != nil {
 		p.log.Warn("Vorgang nicht abgeschlossen gespeichert", "op", op.ID, "error", err)
 	}
+	p.publish(Update{Topic: "ops", ProjectID: op.ProjectID, ServerID: op.ServerID})
 	if state != OpDone {
 		level := "error"
 		if state == OpCanceled {

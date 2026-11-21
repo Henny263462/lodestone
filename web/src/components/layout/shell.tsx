@@ -10,6 +10,7 @@ import { LodestoneLogo, PixelAvatar, Wordmark } from "@/components/ui/mc";
 import { Loading } from "@/components/ui/async";
 import { CommandPalette } from "./palette";
 import { api, prefetch, useApi } from "@/lib/api";
+import { usePoll, useLiveUpdates } from "@/lib/live";
 import { orderProjects } from "@/lib/order";
 import type { AuthStatus, Project, ProjectPref, User } from "@/lib/types";
 
@@ -94,7 +95,9 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
   const [palette, setPalette] = useState(false);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [secondary, setSecondary] = useState(0);
-  const { data: projects } = useApi<Project[]>("/projects", { refreshInterval: 15000 });
+  // Ein Kanal für die ganze Oberfläche: Änderungen im Panel laden die betroffenen Abfragen neu
+  useLiveUpdates();
+  const { data: projects } = useApi<Project[]>("/projects", { refreshInterval: usePoll(120000, 15000) });
   // Eigene Ordnung: angeheftete Projekte oben, dann die selbst gewählte Reihenfolge
   const { data: prefs } = useApi<ProjectPref[]>("/me/project-prefs");
 

@@ -125,7 +125,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
             setStats(event.stats);
             break;
           case "error":
-            setError(event.error ?? "Fehler");
+            setError(event.error ?? "Der Befehl konnte nicht ausgeführt werden.");
             setTimeout(() => setError(null), 5000);
             break;
         }

@@ -16,8 +16,11 @@ function limitText(limitMB: number): string {
   return limitMB ? String(Math.round((limitMB / 1024) * 10) / 10).replace(".", ",") : "";
 }
 
-/** Speicherplatz des Servers: Größe des Ordners, Backups, freier Platz der Maschine und das weiche Limit. */
-export function StorageCard({ server }: { server: Server }) {
+/**
+ * Speicherplatz des Servers: Größe des Ordners, Backups, freier Platz der Maschine und das weiche Limit. Unter
+ * Statistiken nur zum Ansehen; mit `manage` (Einstellungen → Speicher) auch das Limit.
+ */
+export function StorageCard({ server, manage = false }: { server: Server; manage?: boolean }) {
   const toast = useToast();
   // Dieselbe Abfrage wie die Serverseite: SWR liefert die Rechte aus dem Zwischenspeicher
   const { data: me } = useApi<ServerAccess>(`/servers/${server.id}`);
@@ -27,7 +30,7 @@ export function StorageCard({ server }: { server: Server }) {
   const [limit, setLimit] = useState("");
   const [busy, setBusy] = useState(false);
   const canMeasure = can(me?.myPermissions, "files.read");
-  const canLimit = can(me?.myPermissions, "settings");
+  const canLimit = manage && can(me?.myPermissions, "settings");
 
   useEffect(() => {
     if (data) setLimit(limitText(data.limitMB));
@@ -36,7 +39,7 @@ export function StorageCard({ server }: { server: Server }) {
   const header = (
     <CardHeader
       title="Speicherplatz"
-      description="Größe des Serverordners (Welten, Plugins, Configs). Der Node misst ihn alle 5 Minuten im Hintergrund."
+      description="Größe des Serverordners mit Welten, Plugins und Configs. Der Node misst alle 5 Minuten."
       action={
         canMeasure && (
           <Button
@@ -59,7 +62,7 @@ export function StorageCard({ server }: { server: Server }) {
     return (
       <Card>
         {header}
-        <ErrorState error={error} retry={() => mutate()} />
+        <ErrorState inline error={error} retry={() => mutate()} />
       </Card>
     );
   if (!data)

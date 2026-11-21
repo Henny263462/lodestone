@@ -86,7 +86,7 @@ export function MotdCard({ project, canManage, refresh }: { project: Project; ca
     <Card>
       <CardHeader
         title="MOTD (Serverliste)"
-        description="Die zwei Zeilen unter dem Namen in der Minecraft-Serverliste. Format: MiniMessage, z. B. <gold>Willkommen <gray>im Netzwerk. Leer lassen für den Standardtext."
+        description="Die zwei Zeilen unter dem Namen in der Serverliste, im Format MiniMessage. Leer heißt: Standardtext."
         action={
           canManage && (
             <Button
@@ -96,15 +96,15 @@ export function MotdCard({ project, canManage, refresh }: { project: Project; ca
               disabled={text === saved || lines > 2}
               onClick={async () => {
                 setBusy(true);
-                try {
-                  const result = await api.put<SyncResult>(`/projects/${project.id}/motd`, { motd: text });
-                  toast.success(result.failed.length ? "Gespeichert, aber nicht überall angewendet" : "MOTD gespeichert – der Proxy lädt sie neu");
-                  refresh();
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Fehler");
-                } finally {
-                  setBusy(false);
-                }
+                let failed: string[] = [];
+                const ok = await toast.run(async () => {
+                  failed = (await api.put<SyncResult>(`/projects/${project.id}/motd`, { motd: text })).failed;
+                });
+                setBusy(false);
+                if (!ok) return;
+                if (failed.length) toast.error(`MOTD gespeichert, aber nicht überall angewendet: ${failed.join(", ")}`);
+                else toast.success("MOTD gespeichert, der Proxy lädt sie neu");
+                refresh();
               }}
             >
               <Save className="h-3.5 w-3.5" />

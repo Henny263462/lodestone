@@ -113,7 +113,7 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
             </span>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {path && (
             <Button size="sm" variant="ghost" onClick={() => setPath(parentPath(path))}>
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -180,9 +180,7 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
       )}
 
       {error ? (
-        <div className="p-4">
-          <ErrorState error={error} retry={() => mutate()} />
-        </div>
+        <ErrorState inline error={error} retry={() => mutate()} />
       ) : isLoading && !data ? (
         <Loading label="Dateien werden geladen" />
       ) : entries.length === 0 ? (

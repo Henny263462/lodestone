@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge, Button, Card, CardHeader, EmptyState, RowMenu, Tabs } from "@/components/ui/primitives";
 import { Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
+import { usePoll } from "@/lib/live";
 import type { PlayerLists, Server } from "@/lib/types";
 
 export type PlayerAction = "kick" | "ban" | "pardon" | "op" | "deop" | "whitelist-add" | "whitelist-remove" | "whitelist-on" | "whitelist-off" | "message" | "ban-ip" | "pardon-ip";
@@ -79,7 +80,8 @@ type List = "whitelist" | "ops" | "banned" | "ips";
 /** Whitelist, Operatoren und Sperren des Servers (aus den Dateien des Servers) mit Hinzufügen und Entfernen. */
 export function PlayerAdmin({ server }: { server: Server }) {
   const running = server.view?.state === "running";
-  const { data, mutate } = useApi<PlayerLists>(`/servers/${server.id}/player-lists`, { refreshInterval: running ? 15000 : 0 });
+  const poll = usePoll(120000, 15000);
+  const { data, mutate } = useApi<PlayerLists>(`/servers/${server.id}/player-lists`, { refreshInterval: running ? poll : 0 });
   const [list, setList] = useState<List>("whitelist");
   const [name, setName] = useState("");
   const act = usePlayerActions(server, () => setTimeout(() => mutate(), 1200));

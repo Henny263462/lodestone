@@ -1,9 +1,9 @@
 "use client";
 
 import QRCode from "qrcode";
-import { Copy, KeyRound, LogOut, Plus, ShieldCheck, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Badge, Button, Card, CardHeader, PageHeader } from "@/components/ui/primitives";
+import { Copy, Fingerprint, HardDriveUpload, KeyRound, Link2, LockKeyhole, LogOut, MonitorSmartphone, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, SectionLayout, type Section } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
@@ -12,28 +12,53 @@ import { PixelAvatar } from "@/components/ui/mc";
 import { SftpAccountCard } from "@/components/sftp-account";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
+import { useUrlState } from "@/lib/url-state";
 import type { ApiKeyInfo, Me, OidcAccount, SessionInfo } from "@/lib/types";
 
+type SectionId = "password" | "totp" | "passkeys" | "oidc" | "keys" | "sftp" | "sessions";
+
+const sections: Section<SectionId>[] = [
+  { id: "password", label: "Passwort", icon: LockKeyhole },
+  { id: "totp", label: "Zwei-Faktor", icon: ShieldCheck },
+  { id: "passkeys", label: "Passkeys", icon: Fingerprint },
+  { id: "oidc", label: "Anmeldung über OIDC", icon: Link2 },
+  { id: "keys", label: "API-Schlüssel", icon: KeyRound },
+  { id: "sftp", label: "SFTP-Zugang", icon: HardDriveUpload },
+  { id: "sessions", label: "Sitzungen", icon: MonitorSmartphone },
+];
+
 export default function AccountPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <AccountView />
+    </Suspense>
+  );
+}
+
+function AccountView() {
   const user = useUser();
+  const [section, setSection] = useUrlState<SectionId>("section", "password");
+  const active = sections.some((entry) => entry.id === section) ? section : "password";
   return (
     <>
       <PageHeader title="Konto" description="Anmeldung, Sicherheit und Zugriff für Skripte." />
-      <div className="max-w-2xl space-y-5">
+      <div className="max-w-5xl space-y-5">
         <Card className="flex items-center gap-4 p-5">
           <PixelAvatar name={user.username} size={48} />
-          <div>
-            <p className="text-sm font-semibold">{user.username}</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{user.username}</p>
             {user.isAdmin ? <Badge tone="accent">Administrator</Badge> : <p className="text-xs text-muted">Benutzer</p>}
           </div>
         </Card>
-        <PasswordCard />
-        <TwoFactorCard />
-        <PasskeysCard />
-        <OidcCard />
-        <KeysCard />
-        <SftpAccountCard />
-        <SessionsCard />
+        <SectionLayout label="Abschnitte des Kontos" sections={sections} value={active} onChange={setSection}>
+          {active === "password" && <PasswordCard />}
+          {active === "totp" && <TwoFactorCard />}
+          {active === "passkeys" && <PasskeysCard />}
+          {active === "oidc" && <OidcCard />}
+          {active === "keys" && <KeysCard />}
+          {active === "sftp" && <SftpAccountCard />}
+          {active === "sessions" && <SessionsCard />}
+        </SectionLayout>
       </div>
     </>
   );
@@ -55,7 +80,7 @@ function PasswordCard() {
     return (
       <Card>
         <CardHeader title="Passwort" />
-        <ErrorState error={error} retry={() => mutate()} />
+        <ErrorState inline error={error} retry={() => mutate()} />
       </Card>
     );
   if (!account)
@@ -135,7 +160,7 @@ function PasswordCard() {
 
 function TwoFactorCard() {
   const toast = useToast();
-  const { data: me, mutate } = useApi<Me>("/me");
+  const { data: me, error, mutate } = useApi<Me>("/me");
   const [setup, setSetup] = useState<{ secret: string; uri: string } | null>(null);
   const [qr, setQr] = useState("");
   const [code, setCode] = useState("");
@@ -149,14 +174,26 @@ function TwoFactorCard() {
     else setQr("");
   }, [setup]);
 
-  if (!me) return null;
+  const header = (action?: React.ReactNode) => (
+    <CardHeader title="Zwei-Faktor-Anmeldung" description="Bei der Anmeldung braucht es zusätzlich einen Code aus einer App wie Aegis oder 1Password." action={action} />
+  );
+  if (error)
+    return (
+      <Card>
+        {header()}
+        <ErrorState inline error={error} retry={() => mutate()} />
+      </Card>
+    );
+  if (!me)
+    return (
+      <Card>
+        {header()}
+        <Loading />
+      </Card>
+    );
   return (
     <Card>
-      <CardHeader
-        title="Zwei-Faktor-Anmeldung"
-        description="Neben dem Passwort wird bei der Anmeldung ein Code aus einer App (Google Authenticator, Aegis, 1Password …) verlangt."
-        action={me.totpEnabled ? <Badge tone="good">Eingeschaltet</Badge> : <Badge>Aus</Badge>}
-      />
+      {header(me.totpEnabled ? <Badge tone="good">Eingeschaltet</Badge> : <Badge>Aus</Badge>)}
       <div className="space-y-4 px-5 py-4 text-sm">
         {me.totpEnabled ? (
           <>
@@ -177,38 +214,29 @@ function TwoFactorCard() {
                 <input className="field w-40 font-mono tracking-widest" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} placeholder="000000" />
               </div>
               <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setSetup(null)}>
+                  Abbrechen
+                </Button>
                 <Button
                   variant="primary"
                   disabled={code.trim().length < 6}
                   onClick={async () => {
-                    try {
-                      const answer = await api.post<{ recoveryCodes: string[] }>("/me/totp/enable", { code });
-                      setCodes(answer.recoveryCodes);
+                    const ok = await toast.run(async () => setCodes((await api.post<{ recoveryCodes: string[] }>("/me/totp/enable", { code })).recoveryCodes), "Zwei-Faktor-Anmeldung ist an");
+                    if (ok) {
                       setSetup(null);
                       setCode("");
                       mutate();
-                    } catch (error) {
-                      toast.error(error instanceof Error ? error.message : "Fehler");
                     }
                   }}
                 >
                   Einschalten
-                </Button>
-                <Button variant="ghost" onClick={() => setSetup(null)}>
-                  Abbrechen
                 </Button>
               </div>
             </div>
           </div>
         ) : (
           <Button
-            onClick={async () => {
-              try {
-                setSetup(await api.post("/me/totp/setup"));
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : "Fehler");
-              }
-            }}
+            onClick={() => toast.run(async () => setSetup(await api.post<{ secret: string; uri: string }>("/me/totp/setup")))}
           >
             <ShieldCheck className="h-4 w-4" />
             Einrichten
@@ -255,7 +283,7 @@ function TwoFactorCard() {
               variant="danger"
               disabled={!password || !otp}
               onClick={async () => {
-                if (await toast.run(() => api.post("/me/totp/disable", { password, code: otp }), "Ausgeschaltet")) {
+                if (await toast.run(() => api.post("/me/totp/disable", { password, code: otp }), "Zwei-Faktor-Anmeldung ist aus")) {
                   setDisabling(false);
                   setPassword("");
                   setOtp("");
@@ -285,8 +313,9 @@ function TwoFactorCard() {
 
 function KeysCard() {
   const toast = useToast();
-  const { data, mutate } = useApi<ApiKeyInfo[]>("/me/keys");
+  const { data, error, mutate } = useApi<ApiKeyInfo[]>("/me/keys");
   const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [days, setDays] = useState("0");
   const [created, setCreated] = useState<string | null>(null);
@@ -296,18 +325,31 @@ function KeysCard() {
     <Card>
       <CardHeader
         title="API-Schlüssel"
-        description="Für Skripte und Automatisierung. Ein Schlüssel hat dieselben Rechte wie du (außer an deinen Zugangsdaten). Nutzung: Authorization: Bearer lds_…"
+        description="Für Skripte: Ein Schlüssel hat deine Rechte, kommt aber nicht an deine Zugangsdaten."
         action={
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            Neuer Schlüssel
-          </Button>
+          data &&
+          data.length > 0 && (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Neuer Schlüssel
+            </Button>
+          )
         }
       />
-      {!data ? (
+      {error ? (
+        <ErrorState inline error={error} retry={() => mutate()} />
+      ) : !data ? (
         <Loading />
       ) : data.length === 0 ? (
-        <p className="px-5 py-6 text-center text-xs text-muted">Noch keine Schlüssel.</p>
+        <div className="pb-8">
+          <EmptyState icon={<KeyRound className="h-6 w-6" />} title="Noch kein API-Schlüssel" text="Lege einen an, wenn ein Skript das Panel bedienen soll. Er gehört in den Header Authorization: Bearer lds_…" />
+          <div className="flex justify-center">
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              Schlüssel anlegen
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="divide-y divide-white/[0.05]">
           {data.map((key) => (
@@ -320,7 +362,7 @@ function KeysCard() {
                   {key.expiresAt > 0 && ` · läuft ${dateTime(key.expiresAt)} ab`}
                 </p>
               </div>
-              <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(key)} aria-label="Widerrufen">
+              <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(key)} aria-label={`${key.name} widerrufen`} title="Widerrufen">
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -339,16 +381,16 @@ function KeysCard() {
             </Button>
             <Button
               variant="primary"
+              loading={busy}
               disabled={!name.trim()}
               onClick={async () => {
-                try {
-                  const answer = await api.post<{ key: string }>("/me/keys", { name, expiresDays: Number(days) || 0 });
-                  setCreated(answer.key);
+                setBusy(true);
+                const ok = await toast.run(async () => setCreated((await api.post<{ key: string }>("/me/keys", { name, expiresDays: Number(days) || 0 })).key));
+                setBusy(false);
+                if (ok) {
                   setCreating(false);
                   setName("");
                   mutate();
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Fehler");
                 }
               }}
             >
@@ -396,7 +438,7 @@ function KeysCard() {
         danger
         onConfirm={async () => {
           if (!removing) return;
-          await toast.run(() => api.delete(`/me/keys/${removing.id}`), "Widerrufen");
+          await toast.run(() => api.delete(`/me/keys/${removing.id}`), "Schlüssel widerrufen");
           mutate();
         }}
       />
@@ -415,12 +457,16 @@ function browserName(agent: string): string {
 
 function SessionsCard() {
   const toast = useToast();
-  const { data, mutate } = useApi<SessionInfo[]>("/me/sessions");
+  const { data, error, mutate } = useApi<SessionInfo[]>("/me/sessions");
   return (
     <Card>
       <CardHeader title="Angemeldete Geräte" description="Beende Sitzungen, die du nicht kennst." />
-      {!data ? (
+      {error ? (
+        <ErrorState inline error={error} retry={() => mutate()} />
+      ) : !data ? (
         <Loading />
+      ) : data.length === 0 ? (
+        <EmptyState icon={<MonitorSmartphone className="h-6 w-6" />} title="Keine Sitzungen" text="Du nutzt das Panel gerade über einen API-Schlüssel." />
       ) : (
         <div className="divide-y divide-white/[0.05]">
           {data.map((session) => (

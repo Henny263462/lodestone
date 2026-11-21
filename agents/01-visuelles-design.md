@@ -79,13 +79,14 @@ Zahlen in Tabellen und Anzeigen: `tabular-nums`. Lange Texte kürzen mit `trunca
 | `PageHeader` (`title`, `description`, `action`) | Oben auf jeder Seite | Der Hauptknopf der Seite kommt in `action`. |
 | `StatCard` (`tone`: green, blue, violet, amber, red, neutral) | Kennzahlen im Raster `grid gap-4 sm:grid-cols-2 xl:grid-cols-4` | Ton nach Bedeutung, nicht nach Geschmack. |
 | `Badge`, `Dot` | Zustände, Rollen, kleine Etiketten | Tonnamen: neutral, good, warn, bad, info, accent. |
-| `Tabs` | Umschalten zwischen 2–6 Ansichten derselben Sache | Mit `count` für Anzahlen. Auf Seiten mit vielen Bereichen (Server) stattdessen die zweite Seitenleiste. |
+| `Tabs` | Umschalten zwischen 2–7 Ansichten derselben Sache | Mit `count` für Anzahlen. Scrollt auf schmalen Bildschirmen selbst seitlich. Auf Seiten mit vielen Bereichen (Server) stattdessen die zweite Seitenleiste. |
+| `SectionLayout` (`sections`, `value`, `onChange`, `label`) | Unternavigation, wenn ein Tab mehr als zwei, drei Karten hätte (Einstellungen von Server und Projekt, Netzwerk, Ereignisse, Konto) | Ab `lg` Liste links (200 px, mit lucide-Icon), darunter eine `select`-Auswahl. Es ist immer **ein** Abschnitt zu sehen. Abschnitt in der Adresse (`?section=…`, `useUrlState`). Ein einziger Abschnitt zeigt keine Navigation. |
 | `Switch` | Ein/Aus mit sofortiger Wirkung | Mit Beschriftung daneben, in `rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5`. |
 | `Checkbox`, `SearchInput` | Auswahl, Suche | Suche immer mit `SearchInput`. |
 | `RowMenu` | „⋯“-Menü für Zeilenaktionen | Gefährliches mit `danger: true`, durch `"separator"` abgetrennt. |
 | `Meter`, `loadTone` | Auslastung als Balken | Farbe aus `loadTone(prozent)` (ab 75 % gelb, ab 90 % rot). |
 | `EmptyState` | Leere Liste/Karte | Icon + kurzer Titel + ein Satz, was zu tun ist. |
-| `Loading`, `ErrorState` (`ui/async.tsx`) | Laden, Fehler | `ErrorState` bekommt `retry`. |
+| `Loading`, `ErrorState` (`ui/async.tsx`) | Laden, Fehler | `ErrorState` bekommt `retry`. Allein ist er eine Karte; **innerhalb** einer Karte (unter dem `CardHeader`) `ErrorState inline`, nie Karte in Karte. |
 | `Dialog`, `ConfirmDialog`, `useToast` (`ui/feedback.tsx`) | Eingaben im Dialog, Rückfragen, Rückmeldungen | `wide` nur für große Inhalte. |
 | `SeriesChart`, `ChartLegend` (`ui/chart.tsx`) | Zeitreihen | Farben aus `seriesColors`, nicht eigene. |
 | `LodestoneLogo`, `Wordmark`, `PixelAvatar` (`ui/mc.tsx`) | Marke, Benutzer-/Projekt-Avatare | `PixelAvatar name=…` ist deterministisch. |
@@ -116,6 +117,11 @@ Fehlt dir ein Baustein: erst prüfen, ob sich der Bedarf mit den vorhandenen lö
 
 - **Shell** (`components/layout/shell.tsx`): linke Hauptleiste (240 px, einklappbar auf 68 px), optional zweite Leiste (232 px) über
   `SecondarySidebar`, Inhalt in einer abgerundeten Fläche `#151515`. Die Seitenleisten scrollen **nie** mit, nur der Inhalt.
+  Die zweite Leiste des Servers gliedert ihre Bereiche in Gruppen mit kleiner Überschrift (wie die Hauptleiste:
+  `text-[10.5px] uppercase tracking-wider text-muted/70`); unter `lg` wird daraus eine `select`-Auswahl mit `optgroup`.
+- **Einstellungsseiten**: `SectionLayout` mit einem Abschnitt pro Thema; im Abschnitt Karten wie gewohnt. Der Speichern-Knopf
+  einer Formular-Karte steht unten rechts in einer Fußzeile `flex justify-end border-t border-white/[0.06] px-5 py-3`.
+  Die Gefahrenzone (Löschen) ist der letzte Abschnitt.
 - **Raster**: `grid gap-4 lg:grid-cols-2` für Karten nebeneinander, `grid gap-4 sm:grid-cols-2 xl:grid-cols-4` für Kennzahlen.
   Mobil immer eine Spalte, nichts darf seitlich überlaufen.
 - **Listenzeile**: `flex items-center gap-3 px-5 py-2.5`, Trenner `divide-y divide-white/[0.05]`, Name `min-w-0 flex-1 truncate`,
@@ -128,7 +134,9 @@ Fehlt dir ein Baustein: erst prüfen, ob sich der Bedarf mit den vorhandenen lö
 
 - Kontrast: Text auf Flächen nur `ink` oder `muted`, nie dunkleres Grau. Zustand nie **nur** durch Farbe: immer Text oder Icon dazu.
 - Alle Icon-Knöpfe `aria-label` (deutsch), Dialoge schließen mit Esc, Menüs ebenso.
-- Unter `lg` klappt die Hauptleiste in ein Menü; prüfe jede neue Seite gedanklich bei 360 px Breite (Tabellen: `overflow-x-auto`).
+- Unter `lg` klappt die Hauptleiste in ein Menü; prüfe jede neue Seite bei 360 px Breite. Es gibt keine Tabellen: Listen sind Zeilen
+  (`flex flex-wrap`, Name `min-w-0 flex-1 truncate`), feste Breiten nur mit `sm:`-Präfix oder `max-w-full`. Lange Adressen und
+  Schlüssel brechen mit `break-all`/`break-words` oder werden mit `truncate` gekürzt.
 
 ## 9. Typische Fehler schwacher Modelle (und die Lösung)
 

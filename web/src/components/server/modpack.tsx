@@ -3,13 +3,15 @@
 import { ExternalLink, Package } from "lucide-react";
 import { Badge, Meter } from "@/components/ui/primitives";
 import { useApi } from "@/lib/api";
+import { usePoll } from "@/lib/live";
 import type { ModpackStatus, Server } from "@/lib/types";
 
 /** Zeigt, aus welchem Modrinth-Modpack der Server stammt, und den Fortschritt der Installation. */
 export function ModpackBanner({ server }: { server: Server }) {
   const pack = server.modpack;
+  const poll = usePoll(120000, 15000);
   const { data } = useApi<ModpackStatus>(pack ? `/servers/${server.id}/modpack` : null, {
-    refreshInterval: (latest) => (latest?.state === "running" || latest?.state === "idle" ? 2000 : 15000),
+    refreshInterval: (latest) => (latest?.state === "running" || latest?.state === "idle" ? 2000 : poll),
   });
   if (!pack) return null;
 

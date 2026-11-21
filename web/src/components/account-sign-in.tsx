@@ -1,31 +1,16 @@
 "use client";
 
-import { Fingerprint, Link2, Pencil, Plus, RefreshCw, Trash2, Unlink } from "lucide-react";
+import { Fingerprint, Link2, Pencil, Plus, Trash2, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePasskeySupport } from "@/components/sign-in";
-import { Loading } from "@/components/ui/async";
+import { ErrorState, Loading } from "@/components/ui/async";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { Badge, Button, Card, CardHeader, EmptyState, RowMenu } from "@/components/ui/primitives";
-import { api, useApi, type ApiError } from "@/lib/api";
+import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
 import { signInErrorText } from "@/lib/sign-in";
 import type { AuthStatus, OidcAccount, Passkey, PasskeyCeremony, PasskeyCreationOptions } from "@/lib/types";
 import { createPasskey, passkeyErrorText } from "@/lib/webauthn";
-
-/** Fehlerkasten innerhalb einer Karte (ErrorState ist selbst eine Karte). */
-function CardError({ error, retry }: { error: ApiError; retry: () => void }) {
-  return (
-    <div className="px-5 py-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-bad/25 bg-bad/10 px-4 py-3 text-xs text-bad">
-        <span className="min-w-0 flex-1">{error.message}</span>
-        <Button size="sm" onClick={retry}>
-          <RefreshCw className="h-3.5 w-3.5" />
-          Erneut versuchen
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------- Bestätigung vor einem neuen Anmeldeweg
 
@@ -95,7 +80,7 @@ export function PasskeysCard() {
     <Card>
       <CardHeader
         title="Passkeys"
-        description="Melde dich ohne Passwort mit Fingerabdruck, Gesichtserkennung oder Sicherheitsschlüssel an. Hast du einen Passkey, verlangt die Anmeldung mit Passwort ihn (oder den Code aus der App) als zweiten Schritt."
+        description="Anmeldung ohne Passwort per Fingerabdruck, Gesicht oder Sicherheitsschlüssel. Nach dem Passwort dient er als zweiter Schritt."
         action={
           <Button size="sm" disabled={!!blocked} title={blocked} onClick={() => setAdding(true)}>
             <Plus className="h-3.5 w-3.5" />
@@ -111,7 +96,7 @@ export function PasskeysCard() {
         </div>
       )}
       {error ? (
-        <CardError error={error} retry={() => mutate()} />
+        <ErrorState inline error={error} retry={() => mutate()} />
       ) : !data ? (
         <Loading />
       ) : data.length === 0 ? (
@@ -248,7 +233,7 @@ export function OidcCard() {
         action={data?.link ? <Badge tone="good">Verknüpft</Badge> : data ? <Badge>Nicht verknüpft</Badge> : undefined}
       />
       {error ? (
-        <CardError error={error} retry={() => mutate()} />
+        <ErrorState inline error={error} retry={() => mutate()} />
       ) : !data ? (
         <Loading />
       ) : (

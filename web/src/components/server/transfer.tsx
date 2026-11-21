@@ -7,6 +7,7 @@ import { Badge, Button, Card, CardHeader, Checkbox, Meter } from "@/components/u
 import { Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
+import { usePoll } from "@/lib/live";
 import { ago, bytes } from "@/lib/format";
 import { can, type NodeInfo, type NodeStorage, type Permission, type Project, type Server, type ServerOp, type ServerOpState } from "@/lib/types";
 
@@ -31,7 +32,7 @@ export function TransferCard({ server, permissions }: { server: Server; permissi
     <Card>
       <CardHeader
         title="Kopieren und umziehen"
-        description="Lege eine Kopie auf demselben Node an oder ziehe auf einen anderen Node um. Beides läuft im Hintergrund, der Fortschritt steht unten."
+        description="Kopie auf demselben Node oder Umzug auf einen anderen. Beides läuft im Hintergrund."
       />
       <div className="space-y-3 px-5 py-4">
         <div className="flex flex-wrap gap-2">
@@ -232,12 +233,14 @@ function MoveDialog({ open, onClose, project }: { open: boolean; onClose: () => 
 /** Die letzten Kopien und Umzüge des Projekts mit Fortschritt. */
 function OpsList({ project }: { project: Project }) {
   const toast = useToast();
+  // Fortschritt laufender Vorgänge kommt über den Live-Kanal; das kurze Intervall bleibt, solange einer läuft
+  const poll = usePoll(120000, 15000);
   const { data, error, mutate } = useApi<ServerOp[]>(`/projects/${project.id}/server-ops`, {
-    refreshInterval: (latest) => (latest?.some((op) => op.state === "running") ? 1500 : 15000),
+    refreshInterval: (latest) => (latest?.some((op) => op.state === "running") ? 1500 : poll),
   });
   const canCancel = can(project.myPermissions, "servers");
 
-  if (error) return <ErrorState error={error} retry={() => mutate()} />;
+  if (error) return <ErrorState inline error={error} retry={() => mutate()} />;
   if (!data) return <Loading />;
   if (data.length === 0) return <p className="px-5 py-4 text-xs text-muted">Noch keine Kopie und kein Umzug in diesem Projekt.</p>;
 

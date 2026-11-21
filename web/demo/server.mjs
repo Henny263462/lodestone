@@ -384,7 +384,7 @@ async function api(req, res, url) {
       setTimeout(() => { server.view.state = "offline"; }, 4000);
       return send(res, 201, server);
     }
-    if (c === "events") return send(res, 200, events);
+    if (c === "events") return send(res, 200, events.map((event) => ({ projectId: b, ...event })));
     if (c === "webhooks") {
       if (method === "POST") { const hook = { id: id(), name: body.name, url: body.url, kind: body.kind, events: body.events ?? [], enabled: true, lastStatus: "" }; webhooks.push(hook); return send(res, 201, hook); }
       return send(res, 200, webhooks);
@@ -554,9 +554,61 @@ function staticFile(res, pathname) {
   res.end(fs.existsSync(missing) ? fs.readFileSync(missing) : "nicht gefunden");
 }
 
+// ---------------------------------------------------------------- Live-Kanal (Spiegel von internal/panel/updates.go)
+// GET /api/live schickt Änderungsmeldungen als Server-Sent Events. Wie im Panel: nur Thema und IDs, nie Daten.
+
+const liveClients = new Set();
+
+function publish(update) {
+  const line = `data: ${JSON.stringify(update)}\n\n`;
+  for (const client of liveClients) client.write(line);
+}
+
+function openLive(req, res) {
+  res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "X-Accel-Buffering": "no" });
+  res.write("retry: 5000\n\n");
+  liveClients.add(res);
+  const beat = setInterval(() => res.write(": da\n\n"), 25_000);
+  req.on("close", () => {
+    clearInterval(beat);
+    liveClients.delete(res);
+  });
+}
+
+// Verändernde Anfragen an /servers/{id}/… und /projects/{id}/… melden sich wie im Panel nach dem Erfolg
+function announceChange(req, res, url) {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return;
+  const [kind, target, area] = url.pathname.replace(/^\/api\//, "").split("/");
+  if (!target || (kind !== "servers" && kind !== "projects")) return;
+  const projectId = kind === "servers" ? findServer(target)?.project.id : target;
+  res.on("finish", () => {
+    if (res.statusCode >= 400 || !projectId) return;
+    publish(kind === "servers" ? { topic: "server", projectId, serverId: target, area } : { topic: "project", projectId, area });
+  });
+}
+
+// Zustandswechsel, die „auf dem Node“ passieren (Start fertig, Stopp fertig), erkennt das Panel beim Abfragen der Nodes
+const lastStates = new Map();
+setInterval(() => {
+  for (const project of projects) {
+    for (const entry of project.servers) {
+      const state = entry.view.state;
+      if (lastStates.has(entry.id) && lastStates.get(entry.id) !== state) publish({ topic: "server", projectId: project.id, serverId: entry.id });
+      lastStates.set(entry.id, state);
+    }
+  }
+}, 1000);
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  if (url.pathname === "/api/live") return openLive(req, res);
+  if (url.pathname === "/api/events/recent") {
+    const limit = Number(url.searchParams.get("limit") ?? 8);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) return send(res, 400, { error: "limit muss zwischen 1 und 50 liegen" });
+    return send(res, 200, events.slice(0, limit).map((event) => ({ projectId: projects[0].id, ...event })));
+  }
   if (url.pathname.startsWith("/api/")) {
+    announceChange(req, res, url);
     api(req, res, url).catch((error) => send(res, 500, { error: String(error) }));
     return;
   }

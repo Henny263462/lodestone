@@ -8,6 +8,7 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { ChartCard, RangeTabs } from "./stats";
 import { PlayerAdmin, PlayerMenu } from "./player-admin";
 import { useApi } from "@/lib/api";
+import { usePoll } from "@/lib/live";
 import { ago } from "@/lib/format";
 import type { Metrics, PlayerInfo, Range, SeenPlayer, Server } from "@/lib/types";
 
@@ -30,7 +31,8 @@ function Head({ name, size = 28 }: { name: string; size?: number }) {
 export function PlayersTab({ server, canOperate = false }: { server: Server; canOperate?: boolean }) {
   const running = server.view?.state === "running";
   const [range, setRange] = useState<Range>("24h");
-  const live = useApi<PlayerInfo>(running ? `/servers/${server.id}/players` : null, { refreshInterval: 10000 });
+  // Beitritte und Abgänge meldet der Live-Kanal sofort; das Intervall ist der Rückfall
+  const live = useApi<PlayerInfo>(running ? `/servers/${server.id}/players` : null, { refreshInterval: usePoll(60000, 10000) });
   const metrics = useApi<Metrics>(`/servers/${server.id}/metrics?range=${range}`, { refreshInterval: 30000 });
   const history = useApi<{ players: SeenPlayer[]; online: number; max: number }>(`/servers/${server.id}/player-history`, { refreshInterval: 30000 });
 

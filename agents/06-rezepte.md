@@ -45,7 +45,8 @@ Oberfläche `components/server/modpack.tsx`.
    `/api/servers/{id}/{rest...}` und gehen deshalb vor.
 3. `fakeNode` in `panel_test.go` um die Route erweitern; Panel-Test.
 4. Oberfläche und Demo wie in A/B.
-5. Dauert die Aktion: Fortschritt als Status-Endpunkt (`state: idle|running|done|failed`, `done`, `total`) und in der Oberfläche per `refreshInterval` abfragen.
+5. Dauert die Aktion: Fortschritt als Status-Endpunkt (`state: idle|running|done|failed`, `done`, `total`) und in der Oberfläche per `refreshInterval` abfragen,
+   solange sie läuft. Beginn und Ende mit `p.publish(Update{…})` melden, damit andere offene Ansichten ohne Dauerabfrage nachziehen.
 
 ### C1. Zustand, den der Node dauerhaft vom Panel braucht (Beispiel SFTP-Zugänge)
 
@@ -117,6 +118,9 @@ und nur über `writes` der Autoconfig verteilen. Oberfläche: `components/server
 
 Vorbild: `app/(app)/account/page.tsx` (`KeysCard`). Eigene Komponente in derselben Datei oder daneben, `Card` + `CardHeader`, eigene `useApi`-Abfrage,
 Aktionen mit `toast.run`. Backend-Routen für Konto-Dinge hinter `sessionOnly`.
+Die Karte kommt in einen **Abschnitt** des `SectionLayout` (Konto: `sections` in `account/page.tsx`; Server: `components/server/settings.tsx`;
+Projekt: `components/project-settings.tsx`): passt sie zu einem vorhandenen Abschnitt, dorthin; sonst ein neuer Abschnitt mit Icon und
+Recht, plus Ziel in `palette.tsx`. Fehler innerhalb der Karte mit `ErrorState inline`.
 Vorbild mit allen vier Zuständen in einer Karte, `RowMenu`, Umbenennen im `Dialog` und Entfernen im `ConfirmDialog`:
 `PasskeysCard` in `components/account-sign-in.tsx`. Browser-Schnittstellen ohne Bibliothek (hier `navigator.credentials`)
 kapselst du in `lib/` (Vorbild `lib/webauthn.ts`).
@@ -137,6 +141,16 @@ Vorbild: Backup-Ziel – `internal/panel/s3.go` (Client, Signatur), `handlers_ba
    Hintergrundaufgabe mit Status-Endpunkt (`state`, `done`, `total`), das Panel fragt mit `pollEvery` ab.
 4. Einen „Verbindung testen“-Knopf anbieten, der dieselben Wege benutzt wie der echte Ablauf.
 5. Signaturen und Formate mit den offiziellen Testvektoren testen; den Dienst im Test als `httptest`-Attrappe spielen.
+
+## J. Live-Aktualisierung für eine neue Ansicht
+
+Vorbild: Backups (`internal/panel/handlers_backups.go` → `p.publish(Update{Topic: "backups", …})`, `web/src/lib/live.ts` → `affects`).
+
+1. Ändert sich die Ansicht nur durch Anfragen an `/api/servers/{id}/…` oder `/api/projects/{id}/…`: nichts zu tun, `authenticate`
+   meldet das schon, und `affects` lädt alle Abfragen unter diesem Server/Projekt neu.
+2. Ändert sie sich im Hintergrund (Schleife, Node, Ablauf): an der Stelle `p.publish(Update{Topic: "…", ServerID: …})`. Neues Thema →
+   Fall in `affects` (Frontend) und, wenn das Lesen ein Recht braucht, in `updatePermission` (Backend). Test in `updates_test.go`.
+3. In der Komponente `refreshInterval: usePoll(lang, kurz)` statt eines festen Intervalls; Demo (`publish` in `web/demo/server.mjs`).
 
 ## Mini-Checkliste vor dem Absenden jeder Antwort
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Loader2, Search } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ComponentType, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -233,31 +233,98 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
     return () => observer.disconnect();
   }, [value, items.length]);
 
+  // Auf schmalen Bildschirmen scrollt die Leiste seitlich, statt die Seite zu verbreitern
   return (
-    <div ref={list} role="tablist" className="relative inline-flex rounded-lg border border-white/[0.07] bg-white/[0.025] p-0.5">
-      {marker && (
-        <span
-          aria-hidden
-          className={cx("absolute inset-y-0.5 rounded-md bg-white/[0.09] shadow-sm", marker.animate && "transition-[left,width] duration-200 ease-snappy")}
-          style={{ left: marker.left, width: marker.width }}
-        />
-      )}
-      {items.map((item) => (
-        <button
-          key={item.id}
-          role="tab"
-          aria-selected={value === item.id}
-          onClick={() => onChange(item.id)}
-          className={cx(
-            "relative rounded-md px-3 py-1.5 text-xs font-medium transition duration-150 active:scale-95",
-            value === item.id ? "text-ink" : "text-muted hover:text-ink",
-            !marker && value === item.id && "bg-white/[0.09] shadow-sm",
-          )}
-        >
-          {item.label}
-          {item.count !== undefined && <span className="ml-1.5 text-muted">{item.count}</span>}
-        </button>
-      ))}
+    <div className="no-scrollbar max-w-full overflow-x-auto">
+      <div ref={list} role="tablist" className="relative inline-flex rounded-lg border border-white/[0.07] bg-white/[0.025] p-0.5">
+        {marker && (
+          <span
+            aria-hidden
+            className={cx("absolute inset-y-0.5 rounded-md bg-white/[0.09] shadow-sm", marker.animate && "transition-[left,width] duration-200 ease-snappy")}
+            style={{ left: marker.left, width: marker.width }}
+          />
+        )}
+        {items.map((item) => (
+          <button
+            key={item.id}
+            role="tab"
+            aria-selected={value === item.id}
+            onClick={() => onChange(item.id)}
+            className={cx(
+              "relative whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition duration-150 active:scale-95",
+              value === item.id ? "text-ink" : "text-muted hover:text-ink",
+              !marker && value === item.id && "bg-white/[0.09] shadow-sm",
+            )}
+          >
+            {item.label}
+            {item.count !== undefined && <span className="ml-1.5 text-muted">{item.count}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export interface Section<T extends string> {
+  id: T;
+  label: string;
+  icon?: ComponentType<{ className?: string }>;
+}
+
+/**
+ * Unternavigation für Seiten mit vielen Karten (Einstellungen, Konto): ab `lg` eine Liste links, darunter eine Auswahl.
+ * Es ist immer nur ein Abschnitt zu sehen. Den gewählten Abschnitt hält die Seite in der Adresse (`useUrlState`).
+ */
+export function SectionLayout<T extends string>({
+  sections,
+  value,
+  onChange,
+  label,
+  children,
+}: {
+  sections: Section<T>[];
+  value: T;
+  onChange: (value: T) => void;
+  label: string;
+  children: ReactNode;
+}) {
+  // Ein einzelner Abschnitt braucht keine Navigation
+  if (sections.length < 2) return <div className="min-w-0 space-y-5">{children}</div>;
+  return (
+    <div className="grid gap-4 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8">
+      <nav aria-label={label} className="lg:sticky lg:top-0 lg:self-start">
+        <select className="field lg:hidden" aria-label={label} value={value} onChange={(event) => onChange(event.target.value as T)}>
+          {sections.map((section) => (
+            <option key={section.id} value={section.id}>
+              {section.label}
+            </option>
+          ))}
+        </select>
+        <div className="hidden space-y-0.5 lg:block">
+          {sections.map((section) => {
+            const selected = section.id === value;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                aria-current={selected ? "page" : undefined}
+                onClick={() => onChange(section.id)}
+                className={cx(
+                  "flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-[13px] transition duration-100 active:scale-[0.97]",
+                  selected ? "border-white/[0.07] bg-white/[0.07] text-ink" : "border-transparent text-muted hover:bg-white/[0.04] hover:text-ink",
+                )}
+              >
+                {section.icon && <section.icon className={cx("h-4 w-4 shrink-0", selected ? "text-ink" : "text-muted")} />}
+                <span className="truncate">{section.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+      {/* Neuer Schlüssel pro Abschnitt: Der Inhalt blendet beim Wechsel kurz ein */}
+      <div key={value} className="min-w-0 animate-fade-in space-y-5">
+        {children}
+      </div>
     </div>
   );
 }

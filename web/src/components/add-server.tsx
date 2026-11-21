@@ -110,7 +110,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
           await api.post(`/servers/${server.id}/files/extract`, { path: zip.name, dest: "" });
           await api.delete(`/servers/${server.id}/files?path=${encodeURIComponent(zip.name)}`).catch(() => null);
         } catch (error) {
-          toast.error(`Der Server ist angelegt, der Import ist aber fehlgeschlagen: ${error instanceof Error ? error.message : "Fehler"}`);
+          toast.error(`Der Server ist angelegt, der Import ist aber fehlgeschlagen: ${error instanceof Error ? error.message : "unbekannte Ursache"}. Lade das Archiv unter Dateien erneut hoch.`);
         }
       }
       toast.success(mode === "modpack" ? "Server wird angelegt, das Modpack wird danach installiert" : mode === "import" ? "Server wird angelegt, das Archiv ist entpackt" : "Server wird installiert");
@@ -120,7 +120,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
       onClose();
       onCreated(server);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Fehler");
+      toast.error(error instanceof Error ? error.message : "Der Server konnte nicht angelegt werden. Versuche es erneut.");
     } finally {
       setBusy(false);
     }

@@ -40,7 +40,7 @@ export function PowerButtons({ server, onDone, size = "sm", enabled = true }: { 
   const canRestart = usable && state === "running";
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <Button size={size} variant="secondary" disabled={!canStart} loading={busy === "start"} onClick={() => power("start", "Server startet")}>
         <Play className="h-3.5 w-3.5 text-good" />
         Start

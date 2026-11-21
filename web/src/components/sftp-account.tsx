@@ -27,13 +27,11 @@ export function SftpAccountCard() {
     <Card>
       <CardHeader
         title="SFTP-Zugang"
-        description="Für FileZilla, WinSCP & Co. Gilt für alle Server, an denen du mindestens Operator bist. Benutzername, Host und Port stehen beim Server unter Dateien."
+        description="Für FileZilla, WinSCP & Co. auf allen Servern, für die du das Recht „SFTP-Zugang“ hast. Host und Port stehen beim Server unter Dateien."
         action={data ? data.passwordSet && data.passwordLogin ? <Badge tone="good">Passwort aktiv</Badge> : data.keys.length > 0 ? <Badge tone="good">Nur Schlüssel</Badge> : <Badge>Nicht eingerichtet</Badge> : undefined}
       />
       {error ? (
-        <div className="p-4">
-          <ErrorState error={error} retry={() => mutate()} />
-        </div>
+        <ErrorState inline error={error} retry={() => mutate()} />
       ) : !data ? (
         <Loading />
       ) : (

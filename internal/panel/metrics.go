@@ -3,6 +3,7 @@ package panel
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -120,11 +121,16 @@ func (p *Panel) sampleOnce(ctx context.Context) {
 
 func (p *Panel) setLive(id string, info liveInfo) {
 	p.liveMu.Lock()
-	defer p.liveMu.Unlock()
 	if p.live == nil {
 		p.live = map[string]liveInfo{}
 	}
+	before, known := p.live[id]
 	p.live[id] = info
+	p.liveMu.Unlock()
+	// Neue Spielerzahl oder andere Namen: offene Spieler-Ansichten neu laden
+	if known && (before.Players != info.Players || before.Running != info.Running || !slices.Equal(before.Names, info.Names)) {
+		p.publish(Update{Topic: "players", ServerID: id})
+	}
 }
 
 func (p *Panel) liveOf(id string) liveInfo {

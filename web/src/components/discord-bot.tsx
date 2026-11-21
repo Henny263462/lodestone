@@ -39,7 +39,7 @@ export function DiscordBotCard({ project }: { project: Project }) {
   const header = (
     <CardHeader
       title="Discord-Bot"
-      description="Slash-Befehle /status, /spieler, /start, /stop und /restart in deinem Discord. Discord schickt jeden Befehl an das Panel – das klappt nur, wenn das Panel öffentlich per HTTPS erreichbar ist."
+      description="Slash-Befehle /status, /spieler, /start, /stop und /restart in deinem Discord. Das Panel muss dafür öffentlich per HTTPS erreichbar sein."
       action={
         data?.configured && (
           <Switch
@@ -57,7 +57,7 @@ export function DiscordBotCard({ project }: { project: Project }) {
     return (
       <Card>
         {header}
-        <ErrorState error={error} retry={() => mutate()} />
+        <ErrorState inline error={error} retry={() => mutate()} />
       </Card>
     );
   if (!data)

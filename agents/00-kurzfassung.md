@@ -14,7 +14,8 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
    `accent`, `good`, `warn`, `bad`, `info` oder die festen Weiß-Töne `white/[0.0x]`. **Keine** Hex-Werte, **keine** neuen
    Tailwind-Farben (wie `indigo-500`) außerhalb von `StatCard` und Diagrammen.
 5. Karten sind `Card` (+ `CardHeader`), Knöpfe `Button`, Eingaben die Klasse `field`, Beschriftungen die Klasse `label`, Zustände
-   `Badge`/`Dot`, Tabs `Tabs`, leere Listen `EmptyState`, Laden `Loading`, Fehler `ErrorState`, Dialoge `Dialog`/`ConfirmDialog`.
+   `Badge`/`Dot`, Tabs `Tabs`, Unternavigation `SectionLayout`, leere Listen `EmptyState`, Laden `Loading`, Fehler `ErrorState`
+   (in einer Karte `inline`), Dialoge `Dialog`/`ConfirmDialog`.
    **Baue keine eigene Variante davon.**
 6. Eckig-weich: Karten `rounded-xl`, Knöpfe/Eingaben `rounded-lg`, Abzeichen `rounded-full`. Rahmen immer `border-white/[0.07]`
    (Karten) bzw. `border-white/[0.08]` (Eingaben). **Keine Schatten außer** `shadow-panel` und dem `shadow-glow` des primären Knopfs.

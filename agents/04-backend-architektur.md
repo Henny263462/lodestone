@@ -38,6 +38,7 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 | `groups.go`, `scheduler.go`, `events.go`, `metrics.go`, `maintain.go` | Hintergrundschleifen und ihre Logik |
 | `modrinth.go` | Modrinth-Client (mit Cache) |
 | `automatik.go`, `handlers_automatik.go`, `store_automatik.go`, `discord.go`, `prometheus.go` | Automatik: Konsolen-Ereignisse und -Auslöser, Schlafmodus, Absturzanalyse, Discord-Bot, `/metrics` (Node-Seite: `internal/node/automatik.go`, `sleep.go`, `crash_analysis.go`) |
+| `updates.go` | Live-Kanal zum Browser (`GET /api/live`, Server-Sent Events): `publish(Update{…})`, Zustandswechsel aus `nodeViews` (`observeViews`), Rechteprüfung je Empfänger (`updateVisible`) |
 | `*_test.go` | Tests, siehe Abschnitt 8 |
 
 Neue Datei nur, wenn ein neues **Thema** entsteht; sonst in die passende vorhandene Datei. Handler und Store eines Themas liegen in
@@ -125,7 +126,16 @@ Regeln:
 `maintain.go` startet: `sampleLoop` (Messwerte), `scaleLoop` (Gruppen), `watchLoop` (Abstürze, Auto-Restart, Node-Zustand, wenig RAM),
 `scheduleLoop` (Zeitpläne). Regeln: jede Schleife endet mit dem `ctx`, fängt Fehler und loggt sie (`p.log.Warn`) statt abzustürzen,
 hält Sperren (`sync.Mutex`) kurz und nie über Netzwerkaufrufe. Neue Hinweise an Benutzer laufen über `p.emit(projectID, serverID, kind, level, message)`
-(→ Verlauf + Webhooks).
+(→ Verlauf + Webhooks + Live-Kanal).
+
+**Live-Kanal** (`updates.go`): Der Browser erfährt über `GET /api/live` nur, *dass* sich etwas geändert hat (`Update{Topic, ProjectID,
+ServerID, NodeID, Area}`), nie Daten; er lädt danach über die normalen Routen. Automatisch gemeldet werden: jede erfolgreiche
+verändernde Anfrage unter `/api/servers/{id}/…` und `/api/projects/{id}/…` (in `authenticate`), Zustandswechsel aus `nodeViews`,
+`emit`, Fortschritt von Kopie/Umzug, Backups (`startBackup`, `finishBackup`, `uploadToTarget`) und Spieler (`setLive`, Beitritt/Abgang).
+Ändert eine Hintergrundaufgabe sonst etwas, das die Oberfläche zeigt, ruft sie `p.publish(Update{Topic: "…", ServerID: …})` auf.
+Vor dem Senden prüft `updateVisible` je Empfänger die Mitgliedschaft und, je nach Thema/Bereich, das Recht der Route dahinter
+(`updatePermission`); ein neuer Bereich mit eigenem Lese-Recht gehört dort hinein. Die Verbindung endet, sobald die Anmeldung
+nicht mehr gilt (alle 30 s geprüft); höchstens 8 Verbindungen je Benutzer.
 
 ## 7. Sicherheit (nicht verhandelbar)
 

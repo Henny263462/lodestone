@@ -24,13 +24,11 @@ export function SftpCard({ serverId }: { serverId: string }) {
     <Card>
       <CardHeader
         title="SFTP"
-        description="Mit FileZilla, WinSCP oder sftp direkt auf die Dateien dieses Servers zugreifen. Angemeldet wird mit deinem SFTP-Passwort oder SSH-Schlüssel aus dem Konto, nicht mit dem Panel-Passwort."
+        description="Mit FileZilla, WinSCP oder sftp direkt auf die Dateien zugreifen. Anmeldung mit SFTP-Passwort oder SSH-Schlüssel aus dem Konto."
         action={data?.enabled && data.readOnly ? <Badge tone="warn">Nur lesen</Badge> : undefined}
       />
       {error ? (
-        <div className="p-4">
-          <ErrorState error={error} retry={() => mutate()} />
-        </div>
+        <ErrorState inline error={error} retry={() => mutate()} />
       ) : !data ? (
         <Loading label="SFTP-Zugang wird geladen" />
       ) : !data.enabled ? (
@@ -44,7 +42,7 @@ export function SftpCard({ serverId }: { serverId: string }) {
           {!data.passwordReady && data.keyCount === 0 && (
             <div className="mx-5 mt-4 rounded-lg border border-warn/25 bg-warn/10 px-4 py-3 text-xs text-warn">
               Du hast noch kein SFTP-Passwort und keinen SSH-Schlüssel. Lege eins davon unter{" "}
-              <Link href="/account/" className="underline">
+              <Link href="/account/?section=sftp" className="underline">
                 Konto
               </Link>{" "}
               an, dann kannst du dich hier anmelden.

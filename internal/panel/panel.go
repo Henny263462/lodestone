@@ -93,6 +93,8 @@ type Panel struct {
 	content *contentSources
 	// link hält die Verbindungen der Nodes, die sich selbst zum Panel verbinden (nodelink.go).
 	link *linkHub
+	// updates verteilt Änderungsmeldungen an offene Browser (updates.go).
+	updates *updateHub
 }
 
 type viewEntry struct {
@@ -110,6 +112,7 @@ func New(cfg Config, store *Store, logger *slog.Logger, web http.Handler) *Panel
 		hookClient: newHookClient(cfg.AllowInternalWebhooks), watch: newWatcher(),
 		runningSchedules: map[string]bool{}, warnedKeys: map[string]bool{}, totpUsed: map[string]int64{}, statusCache: map[string]publicStatus{},
 		live: map[string]liveInfo{}, scaleLast: map[string]time.Time{}, idleSince: map[string]time.Time{}, restarts: map[string][]time.Time{},
+		updates: newUpdateHub(),
 	}
 	p.initNodeLink()
 	return p
@@ -138,6 +141,8 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/me/sessions/{id}", p.authenticate(p.sessionOnly(p.deleteSession)))
 	mux.HandleFunc("DELETE /api/users/{id}/totp", p.authenticate(p.sessionOnly(p.resetTotp)))
 	mux.HandleFunc("GET /api/audit", p.authenticate(p.listAudit))
+	mux.HandleFunc("GET /api/live", p.authenticate(p.liveUpdates))
+	mux.HandleFunc("GET /api/events/recent", p.authenticate(p.listRecentEvents))
 	p.registerAnmeldungRoutes(mux)
 
 	// Benutzer
@@ -382,6 +387,7 @@ func (p *Panel) nodeViews(ctx context.Context, nodeID string) (map[string]node.V
 	p.viewMu.Lock()
 	p.views[nodeID] = viewEntry{at: time.Now(), views: views, err: err}
 	p.viewMu.Unlock()
+	p.observeViews(nodeID, views, err)
 	return views, err
 }
 

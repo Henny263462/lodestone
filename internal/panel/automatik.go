@@ -161,8 +161,10 @@ func (p *Panel) handleConsoleEvent(ctx context.Context, row ServerRow, event nod
 	switch event.Kind {
 	case "join":
 		p.emit(row.ProjectID, row.ID, "player_join", "info", fmt.Sprintf("%s hat %s betreten.", event.Player, row.Name))
+		p.publish(Update{Topic: "players", ProjectID: row.ProjectID, ServerID: row.ID})
 	case "leave":
 		p.emit(row.ProjectID, row.ID, "player_leave", "info", fmt.Sprintf("%s hat %s verlassen.", event.Player, row.Name))
+		p.publish(Update{Topic: "players", ProjectID: row.ProjectID, ServerID: row.ID})
 	case "wake":
 		p.emit(row.ProjectID, row.ID, "wake", "info", fmt.Sprintf("%s wacht auf, weil %s beitreten möchte.", row.Name, event.Player))
 		if row.Role == "proxy" {

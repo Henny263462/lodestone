@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Bell, Info, Pencil, Plus, Send, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, Bell, History, Info, Pencil, Plus, ScanSearch, Send, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Switch } from "@/components/ui/primitives";
+import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, RowMenu, SectionLayout, Switch, type Section } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
+import { ErrorState, Loading } from "@/components/ui/async";
 import { ConsoleTriggersCard } from "@/components/console-triggers";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
+import { usePoll } from "@/lib/live";
+import { useUrlState } from "@/lib/url-state";
 import { can, type Project, type ProjectEvent, type Webhook } from "@/lib/types";
 
 export const eventLabels: Record<string, string> = {
@@ -33,44 +36,75 @@ export const eventLabels: Record<string, string> = {
 
 const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory", "storage"];
 
+type SectionId = "history" | "webhooks" | "triggers";
+
+/** Tab „Ereignisse“: Verlauf für alle Mitglieder, Benachrichtigungen und Konsolen-Auslöser mit dem Recht „Webhooks“. */
 export function EventsTab({ project }: { project: Project }) {
   const canManage = can(project.myPermissions, "webhooks");
-  const { data } = useApi<ProjectEvent[]>(`/projects/${project.id}/events`, { refreshInterval: 10000 });
-  const names = new Map(project.servers.map((server) => [server.id, server.name]));
-
+  const [section, setSection] = useUrlState<SectionId>("section", "history");
+  const sections: Section<SectionId>[] = [
+    { id: "history", label: "Verlauf", icon: History },
+    ...(canManage
+      ? [
+          { id: "webhooks" as const, label: "Benachrichtigungen", icon: Bell },
+          { id: "triggers" as const, label: "Konsolen-Auslöser", icon: ScanSearch },
+        ]
+      : []),
+  ];
+  const active = sections.some((entry) => entry.id === section) ? section : "history";
   return (
-    <div className="space-y-5">
-      {canManage && <WebhooksCard project={project} />}
-      {canManage && <ConsoleTriggersCard project={project} />}
-      <Card>
-        <CardHeader title="Verlauf" description="Abstürze, Neustarts, Backups und Meldungen der letzten 30 Tage." />
-        {!data ? null : data.length === 0 ? (
-          <EmptyState icon={<Bell className="h-6 w-6" />} title="Noch nichts passiert" text="Hier erscheinen Abstürze, automatische Neustarts, Backups und Ausfälle." />
-        ) : (
-          <div className="divide-y divide-white/[0.05]">
-            {data.map((event) => (
-              <div key={event.id} className="flex items-start gap-3 px-5 py-3">
-                {event.level === "error" ? <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-bad" /> : event.level === "warn" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" /> : <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm">{event.message}</p>
-                  <p className="mt-0.5 text-xs text-muted">
-                    <span title={dateTime(event.time)}>{ago(event.time)}</span> · {eventLabels[event.kind] ?? event.kind}
-                    {event.serverId && names.has(event.serverId) && (
-                      <>
-                        {" · "}
-                        <Link href={`/server/?id=${event.serverId}`} className="hover:text-ink hover:underline">
-                          {names.get(event.serverId)}
-                        </Link>
-                      </>
-                    )}
-                  </p>
-                </div>
+    <SectionLayout label="Abschnitte der Ereignisse" sections={sections} value={active} onChange={setSection}>
+      {active === "history" && <HistoryCard project={project} />}
+      {active === "webhooks" && <WebhooksCard project={project} />}
+      {active === "triggers" && <ConsoleTriggersCard project={project} />}
+    </SectionLayout>
+  );
+}
+
+/** Symbol für die Stufe eines Ereignisses (auch in der Übersicht). */
+export function EventIcon({ level }: { level: string }) {
+  if (level === "error") return <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-bad" aria-label="Fehler" />;
+  if (level === "warn") return <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-label="Warnung" />;
+  return <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-label="Hinweis" />;
+}
+
+function HistoryCard({ project }: { project: Project }) {
+  // Neue Ereignisse meldet der Live-Kanal; das Intervall ist nur der Rückfall
+  const { data, error, mutate } = useApi<ProjectEvent[]>(`/projects/${project.id}/events`, { refreshInterval: usePoll(120000, 10000) });
+  const names = new Map(project.servers.map((server) => [server.id, server.name]));
+  return (
+    <Card>
+      <CardHeader title="Verlauf" description="Abstürze, Neustarts, Backups und Meldungen der letzten 30 Tage." />
+      {error ? (
+        <ErrorState inline error={error} retry={() => mutate()} />
+      ) : !data ? (
+        <Loading />
+      ) : data.length === 0 ? (
+        <EmptyState icon={<Bell className="h-6 w-6" />} title="Noch nichts passiert" text="Hier erscheinen Abstürze, automatische Neustarts, Backups und Ausfälle." />
+      ) : (
+        <div className="divide-y divide-white/[0.05]">
+          {data.map((event) => (
+            <div key={event.id} className="flex items-start gap-3 px-5 py-3">
+              <EventIcon level={event.level} />
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm">{event.message}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  <span title={dateTime(event.time)}>{ago(event.time)}</span> · {eventLabels[event.kind] ?? event.kind}
+                  {event.serverId && names.has(event.serverId) && (
+                    <>
+                      {" · "}
+                      <Link href={`/server/?id=${event.serverId}`} className="hover:text-ink hover:underline">
+                        {names.get(event.serverId)}
+                      </Link>
+                    </>
+                  )}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
-    </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -78,33 +112,63 @@ export function EventsTab({ project }: { project: Project }) {
 
 function WebhooksCard({ project }: { project: Project }) {
   const toast = useToast();
-  const { data, mutate } = useApi<Webhook[]>(`/projects/${project.id}/webhooks`);
+  const { data, error, mutate } = useApi<Webhook[]>(`/projects/${project.id}/webhooks`);
   const [editing, setEditing] = useState<Webhook | "new" | null>(null);
   const [removing, setRemoving] = useState<Webhook | null>(null);
+
+  async function test(hook: Webhook) {
+    let status = "";
+    let ok = false;
+    const sent = await toast.run(async () => {
+      const result = await api.post<{ ok: boolean; status: string }>(`/webhooks/${hook.id}/test`);
+      ok = result.ok;
+      status = result.status;
+    });
+    if (sent) {
+      if (ok) toast.success("Testnachricht gesendet");
+      else toast.error(`Die Adresse hat die Testnachricht abgelehnt: ${status}`);
+    }
+    mutate();
+  }
 
   return (
     <Card>
       <CardHeader
         title="Benachrichtigungen"
-        description="Schickt Meldungen an Discord oder eine eigene Adresse (z. B. n8n, ntfy, Slack-Brücken). Webhooks an das interne Netz sind aus Sicherheitsgründen gesperrt."
+        description="Schickt Meldungen an Discord oder eine eigene Adresse, etwa n8n oder ntfy."
         action={
-          <Button size="sm" onClick={() => setEditing("new")}>
-            <Plus className="h-3.5 w-3.5" />
-            Webhook
-          </Button>
+          data &&
+          data.length > 0 && (
+            <Button size="sm" onClick={() => setEditing("new")}>
+              <Plus className="h-3.5 w-3.5" />
+              Webhook
+            </Button>
+          )
         }
       />
-      {!data ? null : data.length === 0 ? (
-        <p className="px-5 py-6 text-center text-xs text-muted">Noch kein Webhook. Lege einen an, damit du bei einem Absturz sofort Bescheid weißt.</p>
+      {error ? (
+        <ErrorState inline error={error} retry={() => mutate()} />
+      ) : !data ? (
+        <Loading />
+      ) : data.length === 0 ? (
+        <div className="pb-8">
+          <EmptyState icon={<Send className="h-6 w-6" />} title="Noch kein Webhook" text="Lege einen an, damit du bei einem Absturz sofort Bescheid weißt. Adressen im internen Netz sind gesperrt." />
+          <div className="flex justify-center">
+            <Button variant="primary" onClick={() => setEditing("new")}>
+              <Plus className="h-4 w-4" />
+              Webhook anlegen
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="divide-y divide-white/[0.05]">
           {data.map((hook) => (
-            <div key={hook.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3">
-              <div className="min-w-[180px] flex-1">
-                <p className="text-sm font-medium">
-                  {hook.name} <Badge tone="info">{hook.kind === "discord" ? "Discord" : "Allgemein"}</Badge>
+            <div key={hook.id} className="flex items-center gap-4 px-5 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                  <span className="truncate">{hook.name}</span> <Badge tone="info">{hook.kind === "discord" ? "Discord" : "Allgemein"}</Badge>
                 </p>
-                <p className="text-xs text-muted">
+                <p className="truncate text-xs text-muted">
                   {hook.events.length} Ereignisse
                   {hook.lastStatus && (
                     <>
@@ -117,32 +181,18 @@ function WebhooksCard({ project }: { project: Project }) {
               <Switch
                 checked={hook.enabled}
                 onChange={async (value) => {
-                  await toast.run(() => api.patch(`/webhooks/${hook.id}`, { enabled: value }));
+                  await toast.run(() => api.patch(`/webhooks/${hook.id}`, { enabled: value }), value ? "Webhook ist an" : "Webhook ist aus");
                   mutate();
                 }}
               />
-              <Button
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const result = await api.post<{ ok: boolean; status: string }>(`/webhooks/${hook.id}/test`);
-                    if (result.ok) toast.success("Testnachricht gesendet");
-                    else toast.error(result.status);
-                  } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "Fehler");
-                  }
-                  mutate();
-                }}
-              >
-                <Send className="h-3.5 w-3.5" />
-                Test
-              </Button>
-              <Button variant="ghost" size="icon-sm" onClick={() => setEditing(hook)} aria-label="Bearbeiten">
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(hook)} aria-label="Löschen">
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              <RowMenu
+                items={[
+                  { label: "Testnachricht senden", icon: <Send className="h-3.5 w-3.5" />, onClick: () => test(hook) },
+                  { label: "Bearbeiten", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => setEditing(hook) },
+                  "separator",
+                  { label: "Löschen", icon: <Trash2 className="h-3.5 w-3.5" />, onClick: () => setRemoving(hook), danger: true },
+                ]}
+              />
             </div>
           ))}
         </div>
@@ -157,7 +207,7 @@ function WebhooksCard({ project }: { project: Project }) {
         danger
         onConfirm={async () => {
           if (!removing) return;
-          await toast.run(() => api.delete(`/webhooks/${removing.id}`), "Gelöscht");
+          await toast.run(() => api.delete(`/webhooks/${removing.id}`), "Webhook gelöscht");
           mutate();
         }}
       />

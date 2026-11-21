@@ -61,7 +61,7 @@ export function BackupTargetCard({ project }: { project: Project }) {
     <Card>
       <CardHeader
         title="Backup-Ziel"
-        description="Ein S3-kompatibler Speicher (AWS, Cloudflare R2, Backblaze B2, Hetzner, MinIO …) für externe Backups. Die Zugangsdaten bleiben im Panel; der Node bekommt nur zeitlich begrenzte, vorsignierte Adressen."
+        description="S3-kompatibler Speicher für externe Backups, etwa AWS, Cloudflare R2, Backblaze B2, Hetzner oder MinIO."
         action={data.configured ? <Badge tone="good">Eingerichtet</Badge> : <Badge>Nicht eingerichtet</Badge>}
       />
       <div className="space-y-4 px-5 py-4">

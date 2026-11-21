@@ -557,11 +557,13 @@ func (p *Panel) startBackup(ctx context.Context, row ServerRow, label string, re
 		p.backups.jobs.Delete(jobKey(row.ID, record.Name))
 		return BackupRecord{}, err
 	}
+	p.publish(Update{Topic: "backups", ProjectID: row.ProjectID, ServerID: row.ID})
 	return record, nil
 }
 
 // finishBackup wartet auf das Archiv, lädt es auf Wunsch hoch und meldet den Erfolg. Fehler meldet der Aufrufer.
 func (p *Panel) finishBackup(ctx context.Context, row ServerRow, record BackupRecord) error {
+	defer p.publish(Update{Topic: "backups", ProjectID: row.ProjectID, ServerID: row.ID})
 	defer p.backups.jobs.Delete(jobKey(row.ID, record.Name))
 	client, _, err := p.client(row.NodeID)
 	if err != nil {
@@ -630,6 +632,7 @@ func (p *Panel) acquireTransfer(ctx context.Context, serverID string) (func(), e
 // uploadToTarget lädt ein fertiges lokales Backup als Multipart-Upload hoch: Das Panel beginnt den Upload, schickt dem
 // Node vorsignierte Adressen für jeden Teil, wartet auf dessen ETags und setzt das Objekt zusammen.
 func (p *Panel) uploadToTarget(ctx context.Context, row ServerRow, record BackupRecord) error {
+	defer p.publish(Update{Topic: "backups", ProjectID: row.ProjectID, ServerID: row.ID})
 	markFailed := func(err error) error {
 		record.RemoteState, record.Error = backupFailed, err.Error()
 		_ = p.store.SetBackupRemote(record)

@@ -115,7 +115,14 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   Gruppe; **Passkeys** (Fingerabdruck, Gesichtserkennung, Sicherheitsschlüssel) zum Anmelden ohne Passwort oder als
   zweiter Faktor statt des Codes aus der App
 - **Anlegen:** Vorlagen (Survival, Lobby, Creative, Mods), **ZIP-Import** einer bestehenden Welt oder eines Servers
-  und Strg+K als Schnellsuche
+  und Strg+K als Schnellsuche (auch für Bereiche wie Backups oder Welten eines Servers, Konto-Abschnitte und
+  „Node hinzufügen“)
+- **Live-Aktualisierung:** Das Panel meldet Änderungen (Zustand, Spieler, Backups, Ereignisse, Kopie/Umzug) über einen
+  Ereigniskanal (`GET /api/live`, Server-Sent Events) an offene Browser; die Seiten laden nur das Betroffene neu.
+  Jeder bekommt nur Meldungen aus seinen Projekten. Hinter einem Reverse-Proxy darf `/api/live` nicht gepuffert werden
+  (nginx: `proxy_buffering off;` oder der Header `X-Accel-Buffering: no`, den das Panel schon setzt)
+- **Übersicht:** Projekte mit Favoriten und Schlagwörtern, daneben Zustand der Nodes und die letzten Ereignisse aller
+  eigenen Projekte; Einstellungen von Server, Projekt und Konto sind in Abschnitte gegliedert, auch am Handy bedienbar
 - **Server kopieren** (*Server → Einstellungen*): Kopie auf demselben Node mit neuem Namen und neuen Ports, wahlweise
   ohne Welten. Im Netzwerk kommt die Kopie als Backend in die Autoconfig, aber erst in den Try-Ablauf, wenn du sie
   einschaltest; ein Server-Projekt bekommt für die Kopie ein eigenes Projekt
