@@ -7,10 +7,15 @@ import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, downloadUrl, useApi } from "@/lib/api";
 import { ago, bytes, dateTime } from "@/lib/format";
-import type { Backup } from "@/lib/types";
+import { can, type Backup, type Permission } from "@/lib/types";
 
-export function BackupsTab({ serverId, canWrite, offline }: { serverId: string; canWrite: boolean; offline: boolean }) {
+export function BackupsTab({ serverId, permissions, offline }: { serverId: string; permissions: Permission[]; offline: boolean }) {
   const toast = useToast();
+  const canCreate = can(permissions, "backups.create");
+  const canRestore = can(permissions, "backups.restore");
+  // Ein Backup enthält alle Dateien, darum braucht Herunterladen auch „Dateien ansehen“
+  const canDownload = can(permissions, "backups.read", "files.read");
+  const canDelete = can(permissions, "backups.delete");
   const { data, error, mutate } = useApi<Backup[]>(`/servers/${serverId}/backups`, {
     // Solange eines entsteht, regelmäßig nachsehen
     refreshInterval: (latest) => (latest?.some((backup) => backup.creating) ? 2000 : 0),
@@ -29,7 +34,7 @@ export function BackupsTab({ serverId, canWrite, offline }: { serverId: string; 
         title="Backups"
         description="Archive des gesamten Serverordners. Läuft der Server, wird er für die Sicherung kurz am Speichern gehindert, damit sie stimmig ist."
         action={
-          canWrite && (
+          canCreate && (
             <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
               <Plus className="h-3.5 w-3.5" />
               Backup erstellen
@@ -54,18 +59,18 @@ export function BackupsTab({ serverId, canWrite, offline }: { serverId: string; 
               {backup.creating && <Badge tone="warn">Läuft</Badge>}
               {!backup.creating && (
                 <div className="flex items-center gap-1">
-                  {canWrite && (
+                  {canRestore && (
                     <Button size="sm" disabled={!offline} title={offline ? undefined : "Der Server muss aus sein"} onClick={() => setRestore(backup)}>
                       <ArchiveRestore className="h-3.5 w-3.5" />
                       Wiederherstellen
                     </Button>
                   )}
-                  {canWrite && (
+                  {canDownload && (
                     <Button variant="ghost" size="icon-sm" aria-label="Herunterladen" onClick={() => window.open(downloadUrl(`/servers/${serverId}/backups/${backup.name}/download`))}>
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  {canWrite && (
+                  {canDelete && (
                     <Button variant="ghost" size="icon-sm" aria-label="Löschen" onClick={() => setRemove(backup)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>

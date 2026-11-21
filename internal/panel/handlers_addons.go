@@ -134,8 +134,8 @@ func (p *Panel) pull(ctx context.Context, client *NodeClient, serverID string, r
 
 // ---------------------------------------------------------------- Modrinth-Routen
 
-func (p *Panel) modrinthContext(r *http.Request, minimum int) (ServerRow, string, error) {
-	row, _, _, err := p.requireServer(r, minimum)
+func (p *Panel) modrinthContext(r *http.Request, needed ...Permission) (ServerRow, string, error) {
+	row, _, _, err := p.requireServerPermission(r, needed...)
 	if err != nil {
 		return row, "", err
 	}
@@ -154,7 +154,7 @@ func (p *Panel) modrinthContext(r *http.Request, minimum int) (ServerRow, string
 }
 
 func (p *Panel) modrinthSearch(w http.ResponseWriter, r *http.Request) {
-	row, gameVersion, err := p.modrinthContext(r, rankViewer)
+	row, gameVersion, err := p.modrinthContext(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -169,7 +169,7 @@ func (p *Panel) modrinthSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) modrinthProject(w http.ResponseWriter, r *http.Request) {
-	row, gameVersion, err := p.modrinthContext(r, rankViewer)
+	row, gameVersion, err := p.modrinthContext(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -201,7 +201,7 @@ func (p *Panel) modrinthProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) modrinthInstall(w http.ResponseWriter, r *http.Request) {
-	row, _, err := p.modrinthContext(r, rankOperator)
+	row, _, err := p.modrinthContext(r, PermAddons)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -262,7 +262,7 @@ func (p *Panel) latestFor(ctx context.Context, row ServerRow, gameVersion string
 }
 
 func (p *Panel) addonsCheck(w http.ResponseWriter, r *http.Request) {
-	row, gameVersion, err := p.modrinthContext(r, rankViewer)
+	row, gameVersion, err := p.modrinthContext(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -300,7 +300,7 @@ func (p *Panel) addonsCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) addonsUpdate(w http.ResponseWriter, r *http.Request) {
-	row, gameVersion, err := p.modrinthContext(r, rankOperator)
+	row, gameVersion, err := p.modrinthContext(r, PermAddons)
 	if err != nil {
 		writeError(w, err)
 		return

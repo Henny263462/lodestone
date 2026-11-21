@@ -29,7 +29,7 @@ type serverRequest struct {
 }
 
 func (p *Panel) createServer(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermServers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -190,17 +190,17 @@ func (p *Panel) createServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) getServer(w http.ResponseWriter, r *http.Request) {
-	row, _, rank, err := p.requireServer(r, rankViewer)
+	row, _, access, err := p.requireServerPermission(r)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	dto := p.serverDTOs(r.Context(), []ServerRow{row})[0]
-	writeJSON(w, http.StatusOK, map[string]any{"server": dto, "myRole": rankName(rank)})
+	writeJSON(w, http.StatusOK, map[string]any{"server": dto, "myRole": rankName(access.Rank), "myPermissions": access.List()})
 }
 
 func (p *Panel) patchServer(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -232,7 +232,7 @@ func (p *Panel) patchServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) deleteServer(w http.ResponseWriter, r *http.Request) {
-	row, project, _, err := p.requireServer(r, rankAdmin)
+	row, project, _, err := p.requireServerPermission(r, PermServers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -255,6 +255,7 @@ func (p *Panel) deleteServer(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- Proxy zum Node
 
 // requiredRank sagt, welche Stufe eine Anfrage an den Node braucht; ok ist false für alles, was nicht durchgereicht wird.
+// Die Einzelrechte dazu stehen in proxyPermissions (rechte.go); die Stufe gilt nur für Routen, die dort fehlen.
 func requiredRank(method, rest string) (rank int, ok bool) {
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
 	switch parts[0] {
@@ -288,7 +289,13 @@ func (p *Panel) proxyServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errNotFound)
 		return
 	}
-	row, _, _, err := p.requireServer(r, need)
+	var row ServerRow
+	var err error
+	if perms, known := proxyPermissions(r.Method, rest); known {
+		row, _, _, err = p.requireServerPermission(r, perms...)
+	} else {
+		row, _, _, err = p.requireServer(r, need)
+	}
 	if err != nil {
 		writeError(w, err)
 		return
@@ -304,9 +311,10 @@ func (p *Panel) proxyServer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// consoleSocket verbindet den Browser mit der Konsole auf dem Node. Befehle gelten erst ab der Rolle „operator“.
+// consoleSocket verbindet den Browser mit der Konsole auf dem Node. Lesen braucht „Konsole lesen“, Befehle gehen nur
+// mit „Befehle senden“.
 func (p *Panel) consoleSocket(w http.ResponseWriter, r *http.Request) {
-	row, _, rank, err := p.requireServer(r, rankViewer)
+	row, _, access, err := p.requireServerPermission(r, PermConsoleRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -354,7 +362,7 @@ func (p *Panel) consoleSocket(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return
 			}
-			if rank < rankOperator {
+			if !access.Has(PermConsoleCommand) {
 				continue
 			}
 			if err := upstream.Write(ctx, kind, data); err != nil {
@@ -378,7 +386,7 @@ type networkEntry struct {
 // putNetwork speichert Reihenfolge (die Reihenfolge der Liste), Forced Hosts und Voicechat und schreibt die Konfiguration
 // in den Proxy und die Server.
 func (p *Panel) putNetwork(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermNetwork)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -451,7 +459,7 @@ func (p *Panel) putNetwork(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) syncNetworkNow(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermNetwork)
 	if err != nil {
 		writeError(w, err)
 		return

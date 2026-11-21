@@ -236,7 +236,7 @@ func rangeParam(r *http.Request) string {
 }
 
 func (p *Panel) serverMetrics(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -253,7 +253,7 @@ func (p *Panel) serverMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) projectMetrics(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankViewer)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -288,7 +288,7 @@ func (p *Panel) projectMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) serverPlayerHistory(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r)
 	if err != nil {
 		writeError(w, err)
 		return

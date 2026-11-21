@@ -18,7 +18,7 @@ import { SettingsTab } from "@/components/server/settings";
 import { StatsTab } from "@/components/server/stats";
 import { useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
-import { roleRank, type Project, type Role, type Server } from "@/lib/types";
+import { can, type Permission, type Project, type ServerAccess } from "@/lib/types";
 
 export default function ServerPage() {
   return (
@@ -40,7 +40,7 @@ function ServerView() {
   const router = useRouter();
   const params = useSearchParams();
   const id = params.get("id");
-  const { data, error, mutate } = useApi<{ server: Server; myRole: Role }>(id ? `/servers/${id}` : null, { refreshInterval: 3000 });
+  const { data, error, mutate } = useApi<ServerAccess>(id ? `/servers/${id}` : null, { refreshInterval: 3000 });
   const { data: project } = useApi<Project>(data ? `/projects/${data.server.projectId}` : null);
   const [tab, setTabState] = useState<Tab>((params.get("tab") as Tab) || "console");
 
@@ -56,22 +56,22 @@ function ServerView() {
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!data) return <Loading />;
 
-  const { server, myRole } = data;
-  const rank = roleRank[myRole];
+  const { server, myPermissions } = data;
+  const allowed = (...needed: Permission[]) => can(myPermissions, ...needed);
   const view = server.view;
   const state = view?.state;
   const extensions = server.software === "fabric" || server.software === "neoforge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
 
   const entries: Entry[] = [
-    { id: "console", label: "Konsole", icon: Terminal },
+    ...(allowed("console.read") ? [{ id: "console" as const, label: "Konsole", icon: Terminal }] : []),
     { id: "stats", label: "Statistiken", icon: BarChart3 },
-    ...(rank >= roleRank.operator ? [{ id: "files" as const, label: "Dateien", icon: FolderOpen }] : []),
+    ...(allowed("files.read") ? [{ id: "files" as const, label: "Dateien", icon: FolderOpen }] : []),
     ...(extensions ? [{ id: "addons" as const, label: extensions, icon: Puzzle }] : []),
     { id: "players", label: "Spieler", icon: Users },
-    { id: "backups", label: "Backups", icon: Archive },
-    ...(rank >= roleRank.admin ? [{ id: "settings" as const, label: "Einstellungen", icon: Settings }] : []),
+    ...(allowed("backups.read") ? [{ id: "backups" as const, label: "Backups", icon: Archive }] : []),
+    ...(allowed("settings") || allowed("servers") ? [{ id: "settings" as const, label: "Einstellungen", icon: Settings }] : []),
   ];
-  const active = entries.some((entry) => entry.id === tab) ? tab : "console";
+  const active = entries.some((entry) => entry.id === tab) ? tab : entries[0].id;
   const stats = view?.stats;
   const memoryPercent = stats && stats.memoryLimit > 0 ? (stats.memoryBytes / stats.memoryLimit) * 100 : 0;
 
@@ -146,7 +146,7 @@ function ServerView() {
             )}
           </p>
         </div>
-        <PowerButtons server={server} onDone={() => mutate()} size="md" enabled={rank >= roleRank.operator} />
+        <PowerButtons server={server} onDone={() => mutate()} size="md" enabled={allowed("power")} />
       </div>
 
       <ModpackBanner server={server} />
@@ -155,13 +155,17 @@ function ServerView() {
 
       {/* Neuer Schlüssel pro Bereich: Der Inhalt blendet beim Wechsel kurz ein */}
       <div key={active} className="animate-fade-in">
-        {active === "console" && <ConsoleTab serverId={server.id} canCommand={rank >= roleRank.operator} state={state} />}
+        {active === "console" && <ConsoleTab serverId={server.id} canCommand={allowed("console.command")} state={state} />}
         {active === "stats" && <StatsTab server={server} />}
-        {active === "files" && <FilesTab serverId={server.id} canWrite={rank >= roleRank.operator} />}
-        {active === "addons" && extensions && <AddonsTab serverId={server.id} canWrite={rank >= roleRank.operator} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />}
-        {active === "players" && <PlayersTab server={server} canOperate={rank >= roleRank.operator} />}
-        {active === "backups" && <BackupsTab serverId={server.id} canWrite={rank >= roleRank.operator} offline={state === "offline"} />}
-        {active === "settings" && <SettingsTab server={server} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />}
+        {active === "files" && <FilesTab serverId={server.id} canWrite={allowed("files.write")} />}
+        {active === "addons" && extensions && (
+          <AddonsTab serverId={server.id} canWrite={allowed("addons")} canFiles={allowed("files.write")} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} />
+        )}
+        {active === "players" && <PlayersTab server={server} canOperate={allowed("players")} />}
+        {active === "backups" && <BackupsTab serverId={server.id} permissions={myPermissions} offline={state === "offline"} />}
+        {active === "settings" && (
+          <SettingsTab server={server} canEdit={allowed("settings")} canDelete={allowed("servers")} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />
+        )}
       </div>
     </>
   );

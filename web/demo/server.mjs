@@ -269,6 +269,7 @@ async function api(req, res, url) {
   const method = req.method;
   const body = ["POST", "PUT", "PATCH"].includes(method) ? await readBody(req) : {};
   const [a, b, c, d] = parts;
+  if (rechteApi(res, method, body, a, b, c, d)) return;
 
   if (a === "auth") {
     if (b === "status") return send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin" });
@@ -604,3 +605,71 @@ sockets.on("connection", (ws, serverId) => {
 });
 
 server.listen(port, "127.0.0.1", () => console.log(`Lodestone-Demo läuft auf http://localhost:${port}`));
+
+// --- rechte
+// Einzelrechte pro Mitglied (Spiegel von internal/panel/rechte.go). Die Demo ist immer Eigentümer; „ben“ hat angepasste Rechte.
+
+const permissionCatalog = [
+  ["console.read", "Konsole", "Konsole lesen", "Sieht die Ausgabe der Konsole und das Protokoll des Servers.", "viewer"],
+  ["console.command", "Konsole", "Befehle senden", "Schickt Befehle an die Konsole, zum Beispiel „op“ oder „stop“.", "operator"],
+  ["power", "Konsole", "Starten und Stoppen", "Startet, stoppt und startet Server neu, auch Instanzen einer Gruppe.", "operator"],
+  ["files.read", "Dateien", "Dateien ansehen", "Öffnet und lädt Dateien des Servers herunter.", "operator"],
+  ["files.write", "Dateien", "Dateien ändern", "Bearbeitet, lädt hoch, benennt um und löscht Dateien. Auch Plugins/Mods hochladen, abschalten und löschen läuft darüber.", "operator"],
+  ["sftp", "Dateien", "SFTP-Zugang", "Darf per SFTP auf die Dateien zugreifen.", "operator"],
+  ["backups.read", "Backups", "Backups ansehen", "Sieht die Liste der Backups. Herunterladen braucht zusätzlich „Dateien ansehen“.", "viewer"],
+  ["backups.create", "Backups", "Backups erstellen", "Erstellt neue Backups.", "operator"],
+  ["backups.restore", "Backups", "Backups wiederherstellen", "Ersetzt alle Dateien des Servers durch ein Backup.", "operator"],
+  ["backups.delete", "Backups", "Backups löschen", "Löscht Backups unwiderruflich.", "operator"],
+  ["addons", "Server", "Plugins und Mods", "Installiert, aktualisiert und wechselt Plugins/Mods über Modrinth.", "operator"],
+  ["players", "Server", "Spieler verwalten", "Sieht Whitelist, Operatoren und Banns und kickt, bannt oder whitelistet Spieler.", "operator"],
+  ["settings", "Server", "Einstellungen", "Ändert Name, Arbeitsspeicher, Startzeile, Version, Auto-Restart, öffentliche Adresse, Projektname und Statusseite.", "admin"],
+  ["servers", "Server", "Server anlegen und löschen", "Legt neue Server an und löscht Server samt Welten und Backups.", "admin"],
+  ["schedules", "Projekt", "Zeitpläne", "Legt Zeitpläne an, ändert und löscht sie. Schritte gehen nur mit den passenden Rechten (Befehle, Starten, Backups).", "admin"],
+  ["webhooks", "Projekt", "Webhooks", "Verwaltet Webhooks, etwa für Discord.", "admin"],
+  ["members", "Projekt", "Mitglieder", "Fügt Mitglieder hinzu, entfernt sie und vergibt Rollen und Rechte – nie mehr, als man selbst hat.", "admin"],
+  ["network", "Projekt", "Netzwerk", "Ändert Reihenfolge, Forced Hosts, MOTD, Voicechat, Tunnel und Gruppen (mit „Server anlegen und löschen“) des Netzwerks.", "admin"],
+].map(([id, group, label, description, role]) => ({ id, group, label, description, role }));
+
+const demoRanks = { viewer: 1, operator: 2, admin: 3, owner: 4 };
+const roleTemplate = (role) => permissionCatalog.filter((info) => demoRanks[role] >= demoRanks[info.role]).map((info) => info.id);
+const allPermissions = roleTemplate("owner");
+
+function decorateMember(member) {
+  if (!member.permissions) Object.assign(member, { permissions: roleTemplate(member.role), customPermissions: false });
+  return member;
+}
+
+const ben = projects[0].members.find((member) => member.username === "ben");
+if (ben) Object.assign(ben, { permissions: ["console.read", "backups.read", "files.read", "power"], customPermissions: true });
+
+function rechteApi(res, method, body, a, b, c, d) {
+  // Projekte und Server tragen die Rechte des Demo-Benutzers (Eigentümer: alles)
+  for (const project of projects) {
+    project.myPermissions ??= allPermissions;
+    project.members?.forEach(decorateMember);
+  }
+  if (a === "permissions" && method === "GET") {
+    return send(res, 200, { permissions: permissionCatalog, roles: Object.fromEntries(Object.keys(demoRanks).map((role) => [role, roleTemplate(role)])) }), true;
+  }
+  if (a === "servers" && b && !c && method === "GET") {
+    const found = findServer(b);
+    if (!found) return false;
+    return send(res, 200, { server: found.server, myRole: "owner", myPermissions: allPermissions }), true;
+  }
+  if (a === "projects" && b && c === "members" && d && method === "PUT") {
+    const project = projects.find((entry) => entry.id === b);
+    if (!project) return false;
+    const role = body.role in demoRanks ? body.role : "viewer";
+    const custom = Array.isArray(body.permissions) && role !== "owner" ? permissionCatalog.map((info) => info.id).filter((id) => body.permissions.includes(id)) : null;
+    const template = roleTemplate(role);
+    const same = !custom || (custom.length === template.length && custom.every((id) => template.includes(id)));
+    let member = project.members.find((entry) => entry.userId === d);
+    if (!member) {
+      member = { projectId: project.id, userId: d, username: users.find((entry) => entry.id === d)?.username ?? d, role };
+      project.members.push(member);
+    }
+    Object.assign(member, { role, permissions: same ? template : custom, customPermissions: !same });
+    return send(res, 200, project.members), true;
+  }
+  return false;
+}

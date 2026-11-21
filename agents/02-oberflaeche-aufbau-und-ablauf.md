@@ -80,15 +80,18 @@ return …                                                                   // 
 ## 6. Rechte in der Oberfläche
 
 Rollen pro Projekt: `viewer` < `operator` < `admin` < `owner`; globale Administratoren (`user.isAdmin`) sind überall Eigentümer.
-`roleRank` aus `lib/types.ts` vergleicht sie.
+Die Rollen sind **Vorlagen für Einzelrechte**; ein Mitglied kann angepasste Rechte haben (Mitglieder-Tab → „Rechte“). Die Oberfläche
+prüft deshalb **Rechte, nicht den Rang**: `can(project.myPermissions, "files.write")` (Projekt) bzw. `myPermissions` aus
+`GET /servers/{id}` (Server). `roleRank` vergleicht nur noch Rollen untereinander (wer wen ändern darf).
 
-| Darf | Mindestens |
-| --- | --- |
-| Konsole/Spieler/Statistiken ansehen | Betrachter |
-| Start/Stopp, Befehle, Dateien, Backups, Spieleraktionen | Operator |
-| Einstellungen, Zeitpläne, Webhooks, Mitglieder, Gruppen | Admin |
-| Projekt löschen | Eigentümer |
-| Benutzer, Protokoll, Nodes anlegen | globaler Administrator |
+| Darf | Recht | Vorlage ab |
+| --- | --- | --- |
+| Projekt, Server, Statistiken, Spieler online, Plugins ansehen | (Mitglied) | Betrachter |
+| Konsole lesen / Backups ansehen | `console.read` / `backups.read` | Betrachter |
+| Befehle, Start/Stopp, Dateien, SFTP, Backups erstellen/wiederherstellen/löschen, Plugins/Mods, Spieler verwalten | `console.command`, `power`, `files.*`, `sftp`, `backups.*`, `addons`, `players` | Operator |
+| Einstellungen, Server anlegen/löschen, Zeitpläne, Webhooks, Mitglieder, Netzwerk (Gruppen: Netzwerk + Server) | `settings`, `servers`, `schedules`, `webhooks`, `members`, `network` | Admin |
+| Projekt löschen | Rolle Eigentümer | Eigentümer |
+| Benutzer, Protokoll, Nodes anlegen | globaler Administrator | – |
 
 Ausblenden, wenn die Funktion nie in Frage kommt (Tab „Einstellungen“ für Operatoren); deaktivieren mit Begründung, wenn es nur gerade
 nicht geht („Der Server muss laufen“). Das Backend lehnt trotzdem ab.

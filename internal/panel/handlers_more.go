@@ -56,7 +56,7 @@ func readJSONFile(ctx context.Context, client *NodeClient, id, name string, into
 }
 
 func (p *Panel) playerLists(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankOperator)
+	row, _, _, err := p.requireServerPermission(r, PermPlayers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -144,7 +144,7 @@ func playerCommand(action, name, reason, text string) (string, error) {
 }
 
 func (p *Panel) playerAction(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankOperator)
+	row, _, _, err := p.requireServerPermission(r, PermPlayers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -184,7 +184,7 @@ func (p *Panel) playerAction(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- MOTD des Netzwerks
 
 func (p *Panel) putMOTD(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermNetwork)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -228,7 +228,7 @@ func (p *Panel) putMOTD(w http.ResponseWriter, r *http.Request) {
 var statusSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{2,39}$`)
 
 func (p *Panel) putStatus(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return

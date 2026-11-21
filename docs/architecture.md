@@ -56,6 +56,22 @@ Beim Hinzufügen eines Servers zu einem Netzwerk schreibt das Panel alles selbst
 Von Anfang an: Konten, Teams, Rollen pro Projekt (Besitzer, Admin, Operator, Betrachter) mit feinen Rechten
 (Konsole, Dateien, Backups, Plugins ...), API-Schlüssel, Audit-Log, möglichst früh Zwei-Faktor-Anmeldung.
 
+So ist es umgesetzt (`internal/panel/rechte.go`):
+
+- **Einzelrechte** (`Permission`, z. B. `console.read`, `files.write`, `backups.restore`, `members`) stehen in `permissionCatalog`,
+  jedes mit deutschem Namen, Erklärung, Gruppe und Mindestrolle.
+- **Rollen sind Vorlagen:** Eine Rolle ergibt genau die Rechte, deren Mindestrolle sie erreicht. Das entspricht den Stufen von
+  vorher; `rechte_test.go` spielt jede Route mit jeder Rolle durch und beweist, dass sich nichts geändert hat.
+- **Angepasste Rechte** liegen als JSON-Liste in `members.permissions` (leer = Vorlage). Eine neue Rolle ohne Liste setzt auf
+  die Vorlage zurück; eine Liste gleich der Vorlage wird als Vorlage gespeichert. Eigentümer haben immer alles.
+- **Eskalationsschutz:** Wer Mitglieder verwaltet (`members`), kann nur Rechte dazugeben, die er selbst hat, keine höhere Rolle
+  vergeben und keine höher gestellten Mitglieder ändern. Wegnehmen geht immer. Zeitpläne prüfen zusätzlich die Rechte ihrer
+  Schritte (Befehl, Starten/Stoppen, Backup).
+- **An die Rolle gebunden** bleiben: Projekt löschen und Eigentum vergeben (Eigentümer), Benutzer, Nodes und Protokoll
+  (globaler Administrator).
+- Die API liefert `myPermissions` bei Projekt und Server, `permissions`/`customPermissions` bei jedem Mitglied und den Katalog
+  unter `GET /api/permissions`; die Oberfläche blendet danach aus.
+
 ## Selbsthosten
 
 Panel und Datenbank per `docker compose`; die Node als einzelnes Binary oder Container mit einem Einmal-Befehl, der

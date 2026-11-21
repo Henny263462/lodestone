@@ -25,11 +25,14 @@ type ServerDTO struct {
 type ProjectDTO struct {
 	Project
 	MyRole   string        `json:"myRole"`
-	Members  []Member      `json:"members,omitempty"`
+	Members  []MemberDTO   `json:"members,omitempty"`
 	Servers  []ServerDTO   `json:"servers"`
 	Groups   []GroupDTO    `json:"groups"`
 	Settings ProjectExtras `json:"settings"`
 	Problems []string      `json:"problems,omitempty"`
+
+	// MyPermissions sind die wirksamen Rechte des Benutzers; die Oberfläche blendet danach aus.
+	MyPermissions []Permission `json:"myPermissions"`
 }
 
 func rankName(rank int) string {
@@ -131,7 +134,7 @@ func (p *Panel) projectDTO(ctx context.Context, project Project, rank int, full 
 	if err != nil {
 		return ProjectDTO{}, err
 	}
-	dto := ProjectDTO{Project: project, MyRole: rankName(rank), Servers: p.serverDTOs(ctx, rows)}
+	dto := ProjectDTO{Project: project, MyRole: rankName(rank), MyPermissions: accessFor(rank, nil).List(), Servers: p.serverDTOs(ctx, rows)}
 	if dto.Groups, err = p.groupDTOs(ctx, project.ID, dto.Servers); err != nil {
 		return ProjectDTO{}, err
 	}
@@ -139,7 +142,7 @@ func (p *Panel) projectDTO(ctx context.Context, project Project, rank int, full 
 		dto.Settings = extras
 	}
 	if full {
-		if dto.Members, err = p.store.ListMembers(project.ID); err != nil {
+		if dto.Members, err = p.memberDTOs(project.ID); err != nil {
 			return ProjectDTO{}, err
 		}
 		if project.Kind == "network" {
@@ -162,15 +165,16 @@ func (p *Panel) listProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	result := make([]ProjectDTO, 0, len(projects))
 	for _, project := range projects {
-		rank, err := p.projectRank(user, project.ID)
+		access, err := p.projectAccess(user, project.ID)
 		if err != nil {
 			continue
 		}
-		dto, err := p.projectDTO(r.Context(), project, rank, false)
+		dto, err := p.projectDTO(r.Context(), project, access.Rank, false)
 		if err != nil {
 			writeError(w, err)
 			return
 		}
+		dto.MyPermissions = access.List()
 		result = append(result, dto)
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -219,21 +223,22 @@ func (p *Panel) createProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) getProject(w http.ResponseWriter, r *http.Request) {
-	project, rank, err := p.requireProject(r, r.PathValue("id"), rankViewer)
+	project, access, err := p.requireProjectPermission(r, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	dto, err := p.projectDTO(r.Context(), project, rank, true)
+	dto, err := p.projectDTO(r.Context(), project, access.Rank, true)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
+	dto.MyPermissions = access.List()
 	writeJSON(w, http.StatusOK, dto)
 }
 
 func (p *Panel) updateProject(w http.ResponseWriter, r *http.Request) {
-	project, rank, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, access, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -260,11 +265,12 @@ func (p *Panel) updateProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	dto, err := p.projectDTO(r.Context(), project, rank, true)
+	dto, err := p.projectDTO(r.Context(), project, access.Rank, true)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
+	dto.MyPermissions = access.List()
 	writeJSON(w, http.StatusOK, dto)
 }
 
@@ -322,14 +328,17 @@ func (p *Panel) removeFromNode(ctx context.Context, row ServerRow) error {
 
 // ---------------------------------------------------------------- Mitglieder
 
+// setMember vergibt Rolle und (optional) angepasste Rechte. Ohne "permissions" gilt die Vorlage der Rolle.
 func (p *Panel) setMember(w http.ResponseWriter, r *http.Request) {
-	project, rank, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, access, err := p.requireProjectPermission(r, r.PathValue("id"), PermMembers)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
+	rank := access.Rank
 	var body struct {
-		Role string `json:"role"`
+		Role        string        `json:"role"`
+		Permissions *[]Permission `json:"permissions"`
 	}
 	if err := decode(r, &body); err != nil {
 		writeError(w, err)
@@ -349,7 +358,20 @@ func (p *Panel) setMember(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fail(http.StatusNotFound, "den Benutzer gibt es nicht"))
 		return
 	}
-	if current, err := p.store.MemberRole(project.ID, target.ID); err == nil {
+	var custom []Permission
+	if body.Permissions != nil {
+		if want >= rankOwner {
+			writeError(w, fail(http.StatusBadRequest, "Eigentümer haben immer alle Rechte, sie lassen sich nicht anpassen"))
+			return
+		}
+		if custom, err = normalizePermissions(want, *body.Permissions); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+	before := accessFor(rankNone, nil)
+	if current, currentCustom, err := p.store.MemberAccess(project.ID, target.ID); err == nil {
+		before = accessFor(roleRanks[current], currentCustom)
 		if roleRanks[current] > rank {
 			writeError(w, fail(http.StatusForbidden, "du kannst die Rolle eines höher gestellten Mitglieds nicht ändern"))
 			return
@@ -361,11 +383,15 @@ func (p *Panel) setMember(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if err := p.store.SetMember(project.ID, target.ID, body.Role); err != nil {
+	if err := checkGrant(access, before, accessFor(want, custom)); err != nil {
 		writeError(w, err)
 		return
 	}
-	members, err := p.store.ListMembers(project.ID)
+	if err := p.store.SetMemberAccess(project.ID, target.ID, body.Role, custom); err != nil {
+		writeError(w, err)
+		return
+	}
+	members, err := p.memberDTOs(project.ID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -376,16 +402,17 @@ func (p *Panel) setMember(w http.ResponseWriter, r *http.Request) {
 func (p *Panel) removeMember(w http.ResponseWriter, r *http.Request) {
 	user := userFrom(r.Context())
 	targetID := r.PathValue("user")
-	// Jeder darf selbst gehen; andere entfernen setzt Admin voraus
-	minimum := rankAdmin
-	if targetID == user.ID {
-		minimum = rankViewer
+	// Jeder darf selbst gehen; andere entfernen setzt das Recht „Mitglieder“ voraus
+	var needed []Permission
+	if targetID != user.ID {
+		needed = append(needed, PermMembers)
 	}
-	project, rank, err := p.requireProject(r, r.PathValue("id"), minimum)
+	project, access, err := p.requireProjectPermission(r, r.PathValue("id"), needed...)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
+	rank := access.Rank
 	role, err := p.store.MemberRole(project.ID, targetID)
 	if err != nil {
 		writeError(w, errNotFound)

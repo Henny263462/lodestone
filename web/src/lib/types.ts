@@ -440,3 +440,62 @@ export interface PublicStatus {
   servers: { name: string; online: boolean; players: number; maxPlayers?: number }[];
   updated: number;
 }
+
+// --- rechte
+// Einzelrechte pro Projektmitglied. Die Rollen sind Vorlagen; die echte Prüfung macht das Backend (internal/panel/rechte.go).
+
+export type Permission =
+  | "console.read"
+  | "console.command"
+  | "power"
+  | "files.read"
+  | "files.write"
+  | "sftp"
+  | "backups.read"
+  | "backups.create"
+  | "backups.restore"
+  | "backups.delete"
+  | "addons"
+  | "players"
+  | "settings"
+  | "servers"
+  | "schedules"
+  | "webhooks"
+  | "members"
+  | "network";
+
+export interface PermissionInfo {
+  id: Permission;
+  group: string;
+  label: string;
+  description: string;
+  /** Kleinste Rolle, deren Vorlage das Recht enthält. */
+  role: Role;
+}
+
+export interface PermissionCatalog {
+  permissions: PermissionInfo[];
+  roles: Record<Role, Permission[]>;
+}
+
+// Ergänzt Project und Member (Interface-Zusammenführung), damit alles zu den Rechten an einer Stelle steht.
+export interface Project {
+  myPermissions: Permission[];
+}
+
+export interface Member {
+  permissions: Permission[];
+  customPermissions: boolean;
+}
+
+/** Antwort von GET /servers/{id}. */
+export interface ServerAccess {
+  server: Server;
+  myRole: Role;
+  myPermissions: Permission[];
+}
+
+/** can sagt, ob alle genannten Rechte in der Liste stehen. */
+export function can(permissions: Permission[] | undefined, ...needed: Permission[]): boolean {
+  return needed.every((permission) => permissions?.includes(permission) ?? false);
+}

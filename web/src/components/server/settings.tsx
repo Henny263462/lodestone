@@ -27,7 +27,8 @@ function textToEnv(text: string): Record<string, string> {
   return env;
 }
 
-export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; onChanged: () => void; onDeleted: () => void }) {
+// canEdit braucht das Recht „Einstellungen“, canDelete „Server anlegen und löschen“.
+export function SettingsTab({ server, canEdit = true, canDelete = true, onChanged, onDeleted }: { server: Server; canEdit?: boolean; canDelete?: boolean; onChanged: () => void; onDeleted: () => void }) {
   const toast = useToast();
   const view = server.view;
   const offline = view?.state === "offline";
@@ -39,7 +40,6 @@ export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; 
   const [startup, setStartup] = useState(view?.startup ?? "");
   const [env, setEnv] = useState(envToText(view?.env));
   const [busy, setBusy] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!view) return;
@@ -52,6 +52,8 @@ export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; 
     // nur beim Wechsel des Servers oder nach Speichern neu laden
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, view?.memoryMB, view?.cpu, view?.backupKeep, view?.startup]);
+
+  if (!canEdit) return canDelete ? <DeleteServer server={server} onDeleted={onDeleted} /> : null;
 
   async function save() {
     setBusy(true);
@@ -137,6 +139,16 @@ export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; 
 
       <Reinstall server={server} offline={!!offline} onDone={onChanged} />
 
+      {canDelete && <DeleteServer server={server} onDeleted={onDeleted} />}
+    </div>
+  );
+}
+
+function DeleteServer({ server, onDeleted }: { server: Server; onDeleted: () => void }) {
+  const toast = useToast();
+  const [deleting, setDeleting] = useState(false);
+  return (
+    <>
       <Card className="border-bad/25">
         <CardHeader title="Server löschen" description="Löscht den Server samt Welten, Plugins und Backups unwiderruflich." />
         <div className="px-5 py-4">
@@ -157,7 +169,7 @@ export function SettingsTab({ server, onChanged, onDeleted }: { server: Server; 
           if (await toast.run(() => api.delete(`/servers/${server.id}`), "Server gelöscht")) onDeleted();
         }}
       />
-    </div>
+    </>
   );
 }
 

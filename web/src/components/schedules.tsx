@@ -6,7 +6,7 @@ import { Badge, Button, Card, EmptyState, Switch, cx } from "@/components/ui/pri
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
-import { roleRank, type AuthStatus, type Project, type Schedule, type ScheduleStep, type StepAction } from "@/lib/types";
+import { can, type AuthStatus, type Project, type Schedule, type ScheduleStep, type StepAction } from "@/lib/types";
 
 const actionLabel: Record<StepAction, string> = {
   backup: "Backup erstellen",
@@ -62,8 +62,9 @@ const emptyDraft = (serverId: string): Draft => ({ serverId, name: "", kind: "da
 
 export function SchedulesTab({ project }: { project: Project }) {
   const toast = useToast();
-  const canManage = roleRank[project.myRole] >= roleRank.admin;
-  const canRun = roleRank[project.myRole] >= roleRank.operator;
+  // Schritte mit Befehlen oder Backups prüft das Backend zusätzlich gegen die Rechte (Meldung kommt als Toast)
+  const canManage = can(project.myPermissions, "schedules");
+  const canRun = can(project.myPermissions, "power");
   const { data, mutate } = useApi<Schedule[]>(`/projects/${project.id}/schedules`, { refreshInterval: 15000 });
   const [editing, setEditing] = useState<Schedule | "new" | null>(null);
   const [removing, setRemoving] = useState<Schedule | null>(null);

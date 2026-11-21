@@ -26,7 +26,7 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
    läuft **immer** über `ConfirmDialog` mit rotem Knopf und benennt, was verloren geht.
 9. Jede Datenansicht hat vier Zustände: **lädt** (`Loading`), **Fehler** (`ErrorState` mit „Erneut versuchen“), **leer**
    (`EmptyState` mit Erklärung und, wenn möglich, dem Knopf zum Anlegen), **voll**. Alle vier bauen, nie nur den vollen.
-10. Rechte sichtbar machen: Was ein Benutzer nicht darf, wird **ausgeblendet oder deaktiviert** (Rang prüfen), aber die echte
+10. Rechte sichtbar machen: Was ein Benutzer nicht darf, wird **ausgeblendet oder deaktiviert** (`can(project.myPermissions, "…")`), aber die echte
     Prüfung macht das Backend.
 
 ## Frontend (Details: `03`)
@@ -40,7 +40,7 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
 ## Backend (Details: `04`)
 14. Eine Schicht pro Aufgabe: **Handler** (`handlers_*.go`) prüft Rechte und Eingabe, **Store** (`store*.go`) spricht mit SQLite,
     **NodeClient** (`nodeclient.go`) spricht mit dem Node. Kein SQL im Handler, kein HTTP im Store.
-15. Jeder Handler: Rang prüfen (`requireProject`/`requireServer`/`requireAdmin`) → Eingabe lesen (`decode`, strikt) → prüfen →
+15. Jeder Handler: Recht prüfen (`requireProjectPermission`/`requireServerPermission`/`requireAdmin`) → Eingabe lesen (`decode`, strikt) → prüfen →
     handeln → `writeJSON` oder `writeError`. Fehler als `fail(status, "deutsche Meldung")`.
 16. Datenbank nur **additiv** ändern (`ensureColumn`, neue Tabellen in `schemaMore`). Nie Spalten löschen oder umbenennen.
 17. Sicherheit zuerst: Pfade nur über `os.Root`/die vorhandenen Prüfungen, Namen und Adressen mit strenger Regex, nie Eingaben in

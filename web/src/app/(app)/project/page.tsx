@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, Network, Plus, Server as ServerIcon, Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, Network, Plus, Server as ServerIcon, SlidersHorizontal, Trash2, UserPlus } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Switch, Tabs } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { AddServerDialog } from "@/components/add-server";
+import { MemberPermissionsDialog } from "@/components/member-permissions";
 import { GroupsTab } from "@/components/groups";
 import { SchedulesTab } from "@/components/schedules";
 import { EventsTab } from "@/components/events";
@@ -20,7 +21,7 @@ import { useUser } from "@/components/layout/shell";
 import { PixelAvatar } from "@/components/ui/mc";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
-import { roleLabel, roleRank, type Member, type Metrics, type Project, type Range, type Role, type Server, type SyncResult } from "@/lib/types";
+import { can, roleLabel, roleRank, type Member, type Metrics, type Project, type Range, type Role, type Server, type SyncResult } from "@/lib/types";
 
 export default function ProjectPage() {
   return (
@@ -42,10 +43,9 @@ function ProjectView() {
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!project) return <Loading />;
 
-  const rank = roleRank[project.myRole];
-  const canManage = rank >= roleRank.admin;
+  const canSettings = can(project.myPermissions, "settings");
   const network = project.kind === "network";
-  const canAdd = canManage && (network || project.servers.length === 0);
+  const canAdd = can(project.myPermissions, "servers") && (network || project.servers.length === 0);
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "servers", label: "Server", count: project.servers.length },
@@ -53,7 +53,7 @@ function ProjectView() {
     { id: "schedules", label: "Zeitpläne" },
     { id: "events", label: "Ereignisse" },
     { id: "members", label: "Mitglieder", count: project.members?.length },
-    ...(canManage ? [{ id: "settings" as const, label: "Einstellungen" }] : []),
+    ...(canSettings ? [{ id: "settings" as const, label: "Einstellungen" }] : []),
   ];
 
   return (
@@ -89,12 +89,12 @@ function ProjectView() {
       {/* Neuer Schlüssel pro Tab: Der Inhalt blendet beim Wechsel kurz ein */}
       <div key={tab} className="animate-fade-in">
         {tab === "servers" && <ServersTab project={project} refresh={() => mutate()} onAdd={canAdd ? () => setAdding(true) : undefined} />}
-        {tab === "network" && network && <NetworkTab project={project} canManage={canManage} refresh={() => mutate()} />}
+        {tab === "network" && network && <NetworkTab project={project} canManage={can(project.myPermissions, "network")} refresh={() => mutate()} />}
         {tab === "groups" && network && <GroupsTab project={project} refresh={() => mutate()} />}
         {tab === "schedules" && <SchedulesTab project={project} />}
         {tab === "events" && <EventsTab project={project} />}
         {tab === "members" && <MembersTab project={project} refresh={() => mutate()} />}
-        {tab === "settings" && canManage && <SettingsTab project={project} refresh={() => mutate()} />}
+        {tab === "settings" && canSettings && <SettingsTab project={project} refresh={() => mutate()} />}
       </div>
 
       <AddServerDialog project={project} open={adding} onClose={() => setAdding(false)} onCreated={() => mutate()} />
@@ -124,7 +124,7 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
       </Card>
     );
   }
-  const canOperate = roleRank[project.myRole] >= roleRank.operator;
+  const canOperate = can(project.myPermissions, "power");
   const groupName = (id?: string) => project.groups.find((group) => group.id === id)?.name;
   return (
     <div className="space-y-3">
@@ -368,13 +368,16 @@ function NetworkTab({ project, canManage, refresh }: { project: Project; canMana
 function MembersTab({ project, refresh }: { project: Project; refresh: () => void }) {
   const toast = useToast();
   const user = useUser();
-  const canManage = roleRank[project.myRole] >= roleRank.admin;
+  const canManage = can(project.myPermissions, "members");
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Member | null>(null);
+  const [rights, setRights] = useState<Member | null>(null);
   const members = project.members ?? [];
+  const editable = (member: Member) => canManage && roleRank[member.role] <= roleRank[project.myRole];
 
   async function setRole(member: Member, role: Role) {
-    await toast.run(() => api.put(`/projects/${project.id}/members/${member.userId}`, { role }), "Rolle geändert");
+    // Eine neue Rolle setzt die Rechte auf ihre Vorlage zurück
+    await toast.run(() => api.put(`/projects/${project.id}/members/${member.userId}`, { role }), member.customPermissions ? "Rolle geändert, Rechte folgen jetzt der Vorlage" : "Rolle geändert");
     refresh();
   }
 
@@ -382,7 +385,7 @@ function MembersTab({ project, refresh }: { project: Project; refresh: () => voi
     <Card>
       <CardHeader
         title="Mitglieder"
-        description="Betrachter sehen Konsole und Spieler, Operatoren steuern Server und Dateien, Admins ändern Einstellungen, Eigentümer verwalten das Projekt."
+        description="Betrachter sehen Konsole und Spieler, Operatoren steuern Server und Dateien, Admins ändern Einstellungen, Eigentümer verwalten das Projekt. Unter „Rechte“ passt du einzelne Rechte an."
         action={
           canManage && (
             <Button size="sm" onClick={() => setAdding(true)}>
@@ -394,16 +397,23 @@ function MembersTab({ project, refresh }: { project: Project; refresh: () => voi
       />
       <div className="divide-y divide-white/[0.05]">
         {members.map((member) => (
-          <div key={member.userId} className="flex items-center gap-4 px-5 py-3">
+          <div key={member.userId} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
             <PixelAvatar name={member.username} size={32} />
             <p className="min-w-0 flex-1 truncate text-sm">
               {member.username}
               {member.userId === user.id && <span className="ml-2 text-xs text-muted">(du)</span>}
             </p>
+            {member.customPermissions && <Badge tone="accent">Angepasst</Badge>}
+            {member.role !== "owner" && (editable(member) || member.userId === user.id) && (
+              <Button size="sm" variant="ghost" onClick={() => setRights(member)} title={editable(member) ? "Rechte anpassen" : "Rechte ansehen"}>
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Rechte
+              </Button>
+            )}
             <select
               className="field w-40"
               value={member.role}
-              disabled={!canManage || roleRank[member.role] > roleRank[project.myRole]}
+              disabled={!editable(member)}
               onChange={(event) => setRole(member, event.target.value as Role)}
             >
               {(Object.keys(roleLabel) as Role[]).map((role) => (
@@ -421,6 +431,7 @@ function MembersTab({ project, refresh }: { project: Project; refresh: () => voi
         ))}
       </div>
       <AddMemberDialog project={project} open={adding} onClose={() => setAdding(false)} onDone={refresh} />
+      <MemberPermissionsDialog project={project} member={rights} editable={!!rights && editable(rights)} onClose={() => setRights(null)} onDone={refresh} />
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
