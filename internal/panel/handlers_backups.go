@@ -674,7 +674,7 @@ func (p *Panel) uploadToTarget(ctx context.Context, row ServerRow, record Backup
 	for i := range urls {
 		urls[i] = bucket.presign(http.MethodPut, key, url.Values{"partNumber": {fmt.Sprint(i + 1)}, "uploadId": {uploadID}}, presignUpload)
 	}
-	request := node.UploadRequest{Size: record.Size, PartSize: partSize, URLs: urls}
+	request := node.UploadRequest{Size: record.Size, PartSize: partSize, URLs: urls, AllowInternal: p.cfg.AllowInternalBackupTargets}
 	base := "/api/servers/" + row.ID + "/backups/"
 	busyUntil := time.Now().Add(transferBusyWait)
 	for {
@@ -996,7 +996,7 @@ func (p *Panel) restoreRemoteBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	request := node.FetchRequest{URL: p.s3(target).presign(http.MethodGet, record.RemoteKey, nil, presignDownload), Size: record.Size, Restore: true}
+	request := node.FetchRequest{URL: p.s3(target).presign(http.MethodGet, record.RemoteKey, nil, presignDownload), Size: record.Size, Restore: true, AllowInternal: p.cfg.AllowInternalBackupTargets}
 	if err := client.Do(r.Context(), http.MethodPost, "/api/servers/"+row.ID+"/backups/"+name+"/fetch", request, nil); err != nil {
 		writeError(w, err)
 		return

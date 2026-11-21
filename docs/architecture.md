@@ -149,7 +149,11 @@ Backup-Ordner des Nodes und diesen Einträgen zusammen. Läuft beim Neustart des
 unterbrochen (Teilupload wird verworfen). Ausschlüsse (`backup_settings`) gehen bei jedem Backup an den Node und stehen als
 `.lodestone-backup.json` am Anfang des Archivs, damit das Einspielen ausgeschlossene Pfade stehen lässt. Festhalten ist auf
 dem Node eine Markierungsdatei `<name>.locked` neben dem Archiv und im Panel ein Feld; beide Aufbewahrungen überspringen
-festgehaltene Backups. Ziele im internen Netz sind gesperrt, außer `LODESTONE_BACKUP_ALLOW_INTERNAL=true`.
+festgehaltene Backups. Ziele im internen Netz sind gesperrt, außer `LODESTONE_BACKUP_ALLOW_INTERNAL=true`. Das gilt auch
+für den Node: Er prüft beim Hoch- und Herunterladen die IP, mit der er wirklich verbindet (`transferClient`, gegen
+DNS-Rebinding), die Freigabe schickt das Panel als `allowInternal` mit. Beim Einspielen darf ein Backup entpackt höchstens
+den freien Platz des Nodes abzüglich Reserve belegen (`restoreBudget`); ein vom Ziel geladenes Backup, das sich nicht
+einspielen lässt, wird wieder gelöscht.
 
 Dazu kommt die **Automatik** (`automatik.go`, `automatikLoop`, alle 5 s): Das Panel schickt jedem Node per
 `POST /api/console-watch` die Muster seiner Konsolen-Auslöser und holt dabei die neuen Ereignisse ab (Cursor aus `boot` + `seq`;
@@ -187,6 +191,8 @@ das ID-Token prüft `github.com/coreos/go-oidc/v3` (Signatur über JWKS, Ausstel
 verknüpft. Passkeys nutzen `github.com/go-webauthn/webauthn`; die Zeremonien (Herausforderungen) liegen ebenfalls nur im
 Speicher (fünf Minuten, einmal gültig), gespeichert werden nur öffentlicher Schlüssel, Zähler und Merkmale. RP-ID und
 Herkunft folgen aus `LODESTONE_PUBLIC_URL`. Nach jeder Anmeldung entsteht dieselbe Sitzung wie bei der Passwort-Anmeldung.
+Einen neuen Anmeldeweg (Passkey registrieren, OIDC verknüpfen) gibt es nur nach `confirmIdentity`: aktuelles Passwort
+(gedrosselt je Benutzer) oder, ohne Passwort, eine Sitzung, die höchstens `firstPasswordWindow` alt ist.
 
 Der Node prüft vor jedem Start den freien Arbeitsspeicher (`/proc/meminfo`, Reserve `LODESTONE_NODE_MEMORY_RESERVE_MB`) und
 meldet beim Beenden eines Containers den Exit-Code mit dem Merkmal „angefordert“; so unterscheidet das Panel Absturz und Stopp.

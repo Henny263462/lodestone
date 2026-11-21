@@ -290,6 +290,9 @@ func (s *Server) doLaunch(ctx context.Context) error {
 		spec = s.snapshot()
 	}
 	containerSpec := s.containerSpec(spec)
+	if where := java2ShellDisabledIn(containerSpec); where != "" {
+		s.logf("Achtung: Der Schutz vor Java2Shell ist abgeschaltet (-XX:+UseBASE64Intrinsics in %s). Spieler können den Server angreifen, bis Java aktualisiert ist.", where)
+	}
 	if err := s.m.rt.EnsureNetwork(ctx, containerSpec.Network); err != nil {
 		return fmt.Errorf("Docker-Netzwerk %q: %w", containerSpec.Network, err)
 	}
@@ -444,7 +447,7 @@ const java2ShellMitigation = "-XX:-UseBASE64Intrinsics"
 // Dann darf ein altes Java die Option nicht kennen, ohne dass der Start scheitert.
 func javaToolOptions(java int, user string) string {
 	user = strings.TrimSpace(user)
-	if strings.Contains(user, "UseBASE64Intrinsics") {
+	if java2ShellChoice.MatchString(user) {
 		return user
 	}
 	var flag string
@@ -457,6 +460,30 @@ func javaToolOptions(java int, user string) string {
 		return user // Java 8 bis 16 ist nicht betroffen
 	}
 	return strings.TrimSpace(flag + " " + user)
+}
+
+var (
+	// java2ShellChoice ist eine eigene Wahl des Benutzers zum Base64-Beschleuniger (genau die Option, kein Teilwort).
+	java2ShellChoice = regexp.MustCompile(`(^|\s)-XX:[+-]UseBASE64Intrinsics(\s|$)`)
+	// java2ShellOptOut schaltet den Schutz ab.
+	java2ShellOptOut = regexp.MustCompile(`(^|\s)-XX:\+UseBASE64Intrinsics(\s|$)`)
+)
+
+// java2ShellDisabledIn nennt, wo der Schutz bewusst abgeschaltet ist ("" = nirgends). Die JVM liest außer
+// JAVA_TOOL_OPTIONS auch die Startzeile, JDK_JAVA_OPTIONS und zuletzt _JAVA_OPTIONS; die letzte Angabe gewinnt. Die
+// Abschaltung bleibt erlaubt (wer die Startzeile ändern darf, darf ohnehin alles im Container), aber nicht still.
+func java2ShellDisabledIn(container ContainerSpec) string {
+	for _, entry := range container.Env {
+		if key, value, _ := strings.Cut(entry, "="); java2ShellOptOut.MatchString(value) {
+			return key
+		}
+	}
+	for _, part := range container.Cmd {
+		if java2ShellOptOut.MatchString(part) {
+			return "der Startzeile"
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------- Stoppen

@@ -294,7 +294,31 @@ func (s *Server) RestoreBackup(name string) error {
 	return nil
 }
 
+// restoreBudget ist die größte Datenmenge, die ein Backup entpackt haben darf: der freie Platz auf dem Node abzüglich
+// der Reserve (-1 = unbekannt, dann ohne Grenze). Ein Backup kann vom Backup-Ziel kommen, das ein Projekt-Admin selbst
+// einstellt; eine Gzip-Bombe darf deshalb nicht die Platte füllen, die alle Server des Nodes teilen.
+func (m *Manager) restoreBudget() (int64, error) {
+	m.ops.mu.Lock()
+	limit := m.ops.restoreLimit
+	m.ops.mu.Unlock()
+	if limit > 0 {
+		return limit, nil
+	}
+	free, _ := diskSpace(m.cfg.DataDir)
+	if free <= 0 {
+		return -1, nil
+	}
+	if free <= importReserve {
+		return 0, fmt.Errorf("auf dem Node ist zu wenig Platz frei (frei %s). Lösche alte Backups oder Server", formatBytes(free))
+	}
+	return free - importReserve, nil
+}
+
 func (s *Server) extract(file string) error {
+	budget, err := s.m.restoreBudget()
+	if err != nil {
+		return err
+	}
 	source, err := os.Open(file)
 	if err != nil {
 		return err
@@ -354,9 +378,18 @@ func (s *Server) extract(file string) error {
 			if err != nil {
 				return fail(err)
 			}
-			_, copyErr := io.Copy(out, archive)
+			var reader io.Reader = archive
+			if budget >= 0 {
+				reader = io.LimitReader(archive, budget+1)
+			}
+			written, copyErr := io.Copy(out, reader)
 			if err := errors.Join(copyErr, out.Close()); err != nil {
 				return fail(err)
+			}
+			if budget >= 0 {
+				if budget -= written; budget < 0 {
+					return fail(errors.New("das Backup ist entpackt größer als der freie Platz auf dem Node. Lösche alte Backups oder Server"))
+				}
 			}
 		}
 	}

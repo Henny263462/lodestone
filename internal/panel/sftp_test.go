@@ -314,9 +314,10 @@ func TestSFTPAccessFollowsThePanel(t *testing.T) {
 }
 
 func TestSFTPLoginsGoToTheAuditLog(t *testing.T) {
-	p, web, _, _ := setupPanel(t)
+	p, web, _, otherNodeID := setupPanel(t)
 	fake, fakeServer := newFakeSFTPNode(t)
-	if _, err := p.store.CreateNode(Node{Name: "sftp", URL: fakeServer.URL, Token: "token"}); err != nil {
+	sftpNode, err := p.store.CreateNode(Node{Name: "sftp", URL: fakeServer.URL, Token: "token"})
+	if err != nil {
 		t.Fatal(err)
 	}
 	admin := newClient(t, web.URL)
@@ -324,11 +325,29 @@ func TestSFTPLoginsGoToTheAuditLog(t *testing.T) {
 	authorized := testAuthorizedKey(t)
 	var key SFTPKey
 	_ = json.Unmarshal(admin.expect(201, "POST", "/api/me/sftp/keys", map[string]string{"publicKey": authorized, "name": "Laptop"}), &key)
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Survival", "kind": "server"}), &project)
+	row, err := p.store.CreateServer(ServerRow{ProjectID: project.ID, NodeID: sftpNode.ID, Name: "Main", Slug: "main", Role: "standalone", Software: "paper"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := p.store.CreateServer(ServerRow{ProjectID: project.ID, NodeID: otherNodeID, Name: "Fremd", Slug: "fremd", Role: "standalone", Software: "paper"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	login := "admin." + row.ID[:8]
 
 	fake.mu.Lock()
 	fake.events = []node.SFTPEvent{
-		{Seq: 1, At: 4102444800000, ServerID: "abc", Username: "admin.abcdef12", IP: "203.0.113.7", Method: "publickey", KeyFingerprint: key.Fingerprint, Success: true},
-		{Seq: 2, At: 4102444800001, ServerID: "abc", Username: "admin.abcdef12", IP: "203.0.113.8", Method: "password"},
+		{Seq: 1, At: 4102444800000, ServerID: row.ID, Username: login, IP: "203.0.113.7", Method: "publickey", KeyFingerprint: key.Fingerprint, Success: true},
+		{Seq: 2, At: 4102444800001, ServerID: row.ID, Username: login, IP: "203.0.113.8", Method: "password"},
+		// Ein bösartiger Node schiebt Einträge für fremde oder erfundene Server und mit kaputten Feldern unter
+		{Seq: 3, At: 4102444800002, ServerID: foreign.ID, Username: "admin." + foreign.ID[:8], IP: "203.0.113.9", Method: "password", Success: true},
+		{Seq: 4, At: 4102444800003, ServerID: "abc", Username: "admin.abc", IP: "203.0.113.9", Method: "password", Success: true},
+		{Seq: 5, At: 4102444800004, ServerID: row.ID, Username: "admin.ffffffff", IP: "203.0.113.9", Method: "password", Success: true},
+		{Seq: 6, At: 4102444800005, ServerID: row.ID, Username: login, IP: "kein-ip", Method: "password", Success: true},
+		{Seq: 7, At: 4102444800006, ServerID: row.ID, Username: login, IP: "203.0.113.9", Method: "keyboard", Success: true},
+		{Seq: 8, At: 4102444800007, ServerID: row.ID, Username: login, IP: "203.0.113.9", Method: "publickey", KeyFingerprint: strings.Repeat("x", 300), Success: true},
 	}
 	fake.mu.Unlock()
 	p.sftpSync(context.Background(), true)
@@ -340,12 +359,12 @@ func TestSFTPLoginsGoToTheAuditLog(t *testing.T) {
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Action, "SFTP-") {
 			found[entry.Action+" "+entry.IP]++
-			if entry.Username != "admin" || entry.UserID == "" || entry.Target != "/api/servers/abc" {
+			if entry.Username != "admin" || entry.UserID == "" || entry.Target != "/api/servers/"+row.ID || entry.IP == "203.0.113.9" {
 				t.Errorf("Eintrag: %+v", entry)
 			}
 		}
 	}
-	if found["SFTP-Anmeldung (SSH-Schlüssel) 203.0.113.7"] != 1 || found["SFTP-Anmeldung abgelehnt (falsches Passwort) 203.0.113.8"] != 1 {
+	if len(found) != 2 || found["SFTP-Anmeldung (SSH-Schlüssel) 203.0.113.7"] != 1 || found["SFTP-Anmeldung abgelehnt (falsches Passwort) 203.0.113.8"] != 1 {
 		t.Fatalf("Protokoll: %v", found)
 	}
 	var account SFTPAccountDTO

@@ -305,6 +305,15 @@ func TestDiskUsageIsMeasuredAndLimitBlocksStartAndUploads(t *testing.T) {
 	if status, _ := a.do("POST", "/api/servers/"+id+"/files/extract", map[string]string{"path": "a.zip", "dest": ""}); status != http.StatusConflict {
 		t.Fatalf("Entpacken trotz vollem Limit: %d", status)
 	}
+	// Auch die anderen Wege, auf denen ein Server wächst, sind gesperrt
+	for _, request := range []struct{ method, path string }{
+		{"POST", "/files/archive"}, {"PUT", "/files/content?path=gross.txt"},
+		{"POST", "/worlds/neu/upload"}, {"POST", "/worlds/world/datapacks"},
+	} {
+		if status, body := a.do(request.method, "/api/servers/"+id+request.path, "daten"); status != http.StatusConflict || !strings.Contains(string(body), "Speicherlimit") {
+			t.Errorf("%s %s trotz vollem Limit: %d %s", request.method, request.path, status, body)
+		}
+	}
 	var storage NodeStorage
 	_, body = a.do("GET", "/api/storage", nil)
 	_ = json.Unmarshal(body, &storage)

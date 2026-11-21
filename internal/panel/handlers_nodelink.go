@@ -154,14 +154,22 @@ func (p *Panel) renewJoinToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, joinTokenDTO{Node: nodeDTO{ID: n.ID, Name: n.Name, PublicHost: n.PublicHost, Linked: true}, Token: token, ExpiresAt: expiresAt})
 }
 
-// nodeJoin tauscht ein einmaliges Join-Token gegen die ID und das dauerhafte Geheimnis des Nodes. Fehlversuche werden
-// je IP gedrosselt wie die Anmeldung.
-func (p *Panel) nodeJoin(w http.ResponseWriter, r *http.Request) {
-	key := "nodelink|" + p.clientIP(r)
+// linkRejected beantwortet einen Fehlversuch beim Koppeln oder Verbinden. Gedrosselt werden nur Fehlversuche: Ein
+// gültiges Token oder Geheimnis (256 Bit, nicht zu erraten) kommt immer durch, damit niemand ohne Konto über viele
+// falsche Versuche von derselben Adresse (etwa der des Reverse-Proxys) das Wiederverbinden echter Nodes sperren kann.
+func (p *Panel) linkRejected(w http.ResponseWriter, key string, rejected error) {
 	if p.throttle.blocked(key) {
 		writeError(w, fail(http.StatusTooManyRequests, "zu viele Fehlversuche, versuche es in ein paar Minuten erneut"))
 		return
 	}
+	p.throttle.fail(key)
+	writeError(w, rejected)
+}
+
+// nodeJoin tauscht ein einmaliges Join-Token gegen die ID und das dauerhafte Geheimnis des Nodes. Fehlversuche werden
+// je IP gedrosselt wie die Anmeldung (siehe linkRejected).
+func (p *Panel) nodeJoin(w http.ResponseWriter, r *http.Request) {
+	key := "nodelink-join|" + p.clientIP(r)
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 	var body nodelink.JoinRequest
 	if err := decode(r, &body); err != nil {
@@ -171,8 +179,7 @@ func (p *Panel) nodeJoin(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(body.Token)
 	rejected := fail(http.StatusUnauthorized, "das Join-Token ist ungültig, abgelaufen oder schon benutzt – erzeuge im Panel unter Nodes ein neues")
 	if !strings.HasPrefix(token, nodelink.JoinPrefix) || len(token) > 128 {
-		p.throttle.fail(key)
-		writeError(w, rejected)
+		p.linkRejected(w, key, rejected)
 		return
 	}
 	secret, err := randomSecret(nodelink.SecretPrefix)
@@ -182,8 +189,7 @@ func (p *Panel) nodeJoin(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := p.store.RedeemJoinToken(hashToken(token), hashToken(secret), time.Now())
 	if errors.Is(err, ErrNotFound) {
-		p.throttle.fail(key)
-		writeError(w, rejected)
+		p.linkRejected(w, key, rejected)
 		return
 	}
 	if err != nil {
@@ -201,17 +207,12 @@ func (p *Panel) nodeJoin(w http.ResponseWriter, r *http.Request) {
 // erreicht das Panel den Node; der Node selbst kann darüber nichts am Panel aufrufen.
 func (p *Panel) nodeConnect(w http.ResponseWriter, r *http.Request) {
 	ip := p.clientIP(r)
-	key := "nodelink|" + ip
-	if p.throttle.blocked(key) {
-		writeError(w, fail(http.StatusTooManyRequests, "zu viele Fehlversuche, versuche es in ein paar Minuten erneut"))
-		return
-	}
+	key := "nodelink-connect|" + ip
 	nodeID := r.Header.Get(nodelink.HeaderNode)
 	secret := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	rejected := fail(http.StatusUnauthorized, "unbekannter Node oder falsches Geheimnis – kopple den Node im Panel unter Nodes neu")
 	if !linkNodeID.MatchString(nodeID) || !strings.HasPrefix(secret, nodelink.SecretPrefix) || len(secret) > 128 {
-		p.throttle.fail(key)
-		writeError(w, rejected)
+		p.linkRejected(w, key, rejected)
 		return
 	}
 	expected, err := p.store.NodeLinkSecretHash(nodeID)
@@ -220,8 +221,7 @@ func (p *Panel) nodeConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil || subtle.ConstantTimeCompare([]byte(expected), []byte(hashToken(secret))) != 1 {
-		p.throttle.fail(key)
-		writeError(w, rejected)
+		p.linkRejected(w, key, rejected)
 		return
 	}
 	session, err := nodelink.Accept(w, r)

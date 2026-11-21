@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/argon2"
@@ -289,6 +290,97 @@ func TestSFTPRevokedAccess(t *testing.T) {
 	}
 	if _, err := s.dial(user, ssh.Password("ein-passwort")); err == nil {
 		t.Fatal("Anmeldung an einem gelöschten Server ging")
+	}
+}
+
+// Ein gestohlener Schlüssel oder ein altes Passwort darf eine offene Sitzung nicht weiterlaufen lassen, wenn der
+// Besitzer ihn entfernt oder das Passwort ändert; eine Herabstufung auf nur lesen beendet auch offene Schreib-Handles.
+func TestSFTPCredentialChangesEndSessions(t *testing.T) {
+	s := newSFTPTest(t)
+	signer, authorized := newClientKey(t)
+	user := "anna." + s.server.ID()[:8]
+	s.grant(SFTPGrant{Username: user, PasswordHash: testHash("altes-passwort"), Keys: []string{authorized}})
+	byKey, err := s.dial(user, ssh.PublicKeys(signer))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPassword, err := s.dial(user, ssh.Password("altes-passwort"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Schlüssel entfernt: nur die Sitzung mit diesem Schlüssel endet
+	s.grant(SFTPGrant{Username: user, PasswordHash: testHash("altes-passwort")})
+	if _, err := byKey.ReadDir("/"); err == nil {
+		t.Fatal("die Sitzung mit dem entfernten Schlüssel arbeitet weiter")
+	}
+	if _, err := byPassword.ReadDir("/"); err != nil {
+		t.Fatalf("die Sitzung mit Passwort ist betroffen: %v", err)
+	}
+	// Passwort geändert: die alte Sitzung endet
+	s.grant(SFTPGrant{Username: user, PasswordHash: testHash("neues-passwort")})
+	if _, err := byPassword.ReadDir("/"); err == nil {
+		t.Fatal("die Sitzung mit dem alten Passwort arbeitet weiter")
+	}
+
+	// Herabstufung auf nur lesen: ein schon offenes Schreib-Handle schreibt nicht weiter
+	writer, err := s.dial(user, ssh.Password("neues-passwort"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := writer.Create("/offen.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write([]byte("vorher")); err != nil {
+		t.Fatal(err)
+	}
+	s.grant(SFTPGrant{Username: user, PasswordHash: testHash("neues-passwort"), ReadOnly: true})
+	if _, err := file.Write([]byte("nachher")); err == nil {
+		if err := file.Close(); err == nil {
+			t.Fatal("das offene Handle schreibt nach der Herabstufung weiter")
+		}
+	}
+	if data, _ := s.server.FS().Read("offen.txt", 1<<20); strings.Contains(string(data), "nachher") {
+		t.Fatalf("Datei nach der Herabstufung: %q", data)
+	}
+	// Eine neue Sitzung darf weiter lesen
+	reader, err := s.dial(user, ssh.Password("neues-passwort"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reader.ReadDir("/"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Das Speicherlimit gilt auch für SFTP; Löschen bleibt erlaubt, damit man wieder darunter kommt.
+func TestSFTPRespectsTheDiskLimit(t *testing.T) {
+	s := newSFTPTest(t)
+	user := "anna." + s.server.ID()[:8]
+	s.grant(SFTPGrant{Username: user, PasswordHash: testHash("ein-passwort")})
+	client, err := s.dial(user, ssh.Password("ein-passwort"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeRemote(client, "/alt.txt", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.server.SetDiskLimit(256); err != nil {
+		t.Fatal(err)
+	}
+	s.manager.ops.mu.Lock()
+	s.manager.ops.initLocked()
+	s.manager.ops.usage[s.server.ID()] = DiskUsage{Bytes: 300 << 20, MeasuredAt: time.Now().UnixMilli()}
+	s.manager.ops.mu.Unlock()
+	if err := writeRemote(client, "/neu.bin", "viele daten"); err == nil || !strings.Contains(err.Error(), "Speicherlimit") {
+		t.Fatalf("Schreiben trotz vollem Limit: %v", err)
+	}
+	if s.server.FS().Exists("neu.bin") {
+		t.Fatal("die Datei wurde trotzdem angelegt")
+	}
+	if err := client.Remove("/alt.txt"); err != nil {
+		t.Fatalf("Löschen bei vollem Limit: %v", err)
 	}
 }
 

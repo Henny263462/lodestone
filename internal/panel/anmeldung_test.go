@@ -254,7 +254,7 @@ func TestOIDCLinkingWithoutAutoCreate(t *testing.T) {
 
 	// Der Administrator verknüpft sein Konto im Konto-Bereich
 	var start struct{ URL string }
-	_ = json.Unmarshal(admin.expect(200, "POST", "/api/me/oidc/link", nil), &start)
+	_ = json.Unmarshal(admin.expect(200, "POST", "/api/me/oidc/link", map[string]string{"password": "ein-gutes-passwort"}), &start)
 	if !strings.HasPrefix(start.URL, issuer.srv.URL+"/authorize?") {
 		t.Fatalf("Adresse beim Anbieter: %s", start.URL)
 	}
@@ -285,7 +285,7 @@ func TestOIDCLinkingWithoutAutoCreate(t *testing.T) {
 	// Dasselbe Konto beim Anbieter kann nicht zusätzlich zu bob gehören
 	bob := newClient(t, web.URL)
 	bob.expect(200, "POST", "/api/auth/login", map[string]string{"username": "bob", "password": "ein-gutes-passwort"})
-	_ = json.Unmarshal(bob.expect(200, "POST", "/api/me/oidc/link", nil), &start)
+	_ = json.Unmarshal(bob.expect(200, "POST", "/api/me/oidc/link", map[string]string{"password": "ein-gutes-passwort"}), &start)
 	if target := browse(t, bob, start.URL); target != "/account/?oidc=oidc_taken" {
 		t.Fatalf("doppelte Verknüpfung: %s", target)
 	}
@@ -513,7 +513,7 @@ type ceremonyStart struct {
 func registerPasskey(t *testing.T, c *client, device *softAuthenticator, name string) Passkey {
 	t.Helper()
 	var start ceremonyStart
-	_ = json.Unmarshal(c.expect(200, "POST", "/api/me/passkeys/begin", nil), &start)
+	_ = json.Unmarshal(c.expect(200, "POST", "/api/me/passkeys/begin", map[string]string{"password": "ein-gutes-passwort"}), &start)
 	var created Passkey
 	_ = json.Unmarshal(c.expect(201, "POST", "/api/me/passkeys/finish", map[string]any{"flow": start.Flow, "name": name, "credential": device.create(t, start.Options)}), &created)
 	return created
@@ -554,7 +554,7 @@ func TestPasskeyRegistrationAndPasswordlessLogin(t *testing.T) {
 
 	// Derselbe Passkey lässt sich nicht zweimal registrieren
 	var again ceremonyStart
-	_ = json.Unmarshal(admin.expect(200, "POST", "/api/me/passkeys/begin", nil), &again)
+	_ = json.Unmarshal(admin.expect(200, "POST", "/api/me/passkeys/begin", map[string]string{"password": "ein-gutes-passwort"}), &again)
 	var exclusions creationOptions
 	_ = json.Unmarshal(again.Options, &exclusions)
 	if len(exclusions.PublicKey.ExcludeCredentials) != 1 {
@@ -679,7 +679,7 @@ func TestPasskeyLimitsAndAdminReset(t *testing.T) {
 
 	// Ungültige Antwort, abgelaufene Zeremonie, Name fehlt
 	var start ceremonyStart
-	_ = json.Unmarshal(bob.expect(200, "POST", "/api/me/passkeys/begin", nil), &start)
+	_ = json.Unmarshal(bob.expect(200, "POST", "/api/me/passkeys/begin", map[string]string{"password": "ein-gutes-passwort"}), &start)
 	bob.expect(400, "POST", "/api/me/passkeys/finish", map[string]any{"flow": start.Flow, "name": "", "credential": device.create(t, start.Options)})
 	bob.expect(400, "POST", "/api/me/passkeys/finish", map[string]any{"flow": start.Flow, "name": "Handy", "credential": json.RawMessage(`{"id":"x"}`)})
 	bob.expect(409, "POST", "/api/me/passkeys/finish", map[string]any{"flow": start.Flow, "name": "Handy", "credential": device.create(t, start.Options)})
@@ -804,4 +804,51 @@ func TestFirstPasswordNeedsFreshSignIn(t *testing.T) {
 	fresh.expect(200, "POST", "/api/auth/login", map[string]string{"username": "oidc-nutzer", "password": "neues-passwort-1"})
 	fresh.expect(403, "POST", "/api/me/password", map[string]string{"current": "", "next": "noch-ein-passwort"})
 	fresh.expect(204, "POST", "/api/me/password", map[string]string{"current": "neues-passwort-1", "next": "noch-ein-passwort"})
+}
+
+// TestNewSignInWaysNeedConfirmation: Wer nur eine Sitzung hat (offener Rechner, gestohlenes Cookie), legt keinen
+// eigenen Passkey an und verknüpft kein eigenes OIDC-Konto. Beides überstünde sonst den Passwortwechsel.
+func TestNewSignInWaysNeedConfirmation(t *testing.T) {
+	issuer := newFakeIssuer(t)
+	p, web := setupSSOPanel(t, func(cfg *SSOConfig) { cfg.OIDCIssuer = issuer.srv.URL })
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+
+	// Mit Passwort im Konto: ohne oder mit falschem Passwort geht nichts
+	for _, path := range []string{"/api/me/passkeys/begin", "/api/me/oidc/link"} {
+		admin.expect(403, "POST", path, nil)
+		admin.expect(403, "POST", path, map[string]string{"password": "falsch-geraten"})
+	}
+	// Falsche Passwörter werden gedrosselt, auch das richtige hilft dann eine Weile nicht
+	for i := 0; i < throttleLimit; i++ {
+		admin.do("POST", "/api/me/passkeys/begin", map[string]string{"password": "falsch-geraten"})
+	}
+	admin.expect(429, "POST", "/api/me/passkeys/begin", map[string]string{"password": "ein-gutes-passwort"})
+	me, _ := p.store.UserByName("admin")
+	p.throttle.reset("confirm|" + me.ID)
+	admin.expect(200, "POST", "/api/me/passkeys/begin", map[string]string{"password": "ein-gutes-passwort"})
+	admin.expect(200, "POST", "/api/me/oidc/link", map[string]string{"password": "ein-gutes-passwort"})
+
+	// Ohne Passwort (Konto aus OIDC): nur kurz nach einer Anmeldung
+	user, err := p.store.CreateUser("oidc-nutzer", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := "test-sitzung-ohne-passwort"
+	if err := p.store.CreateSession(hashToken(token), user.ID, "test", time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	c := newClient(t, web.URL)
+	cookie := cookieName + "=" + token
+	if status, body := c.do("POST", "/api/me/passkeys/begin", nil, "Cookie", cookie); status != 200 {
+		t.Fatalf("frische Sitzung: %d %s", status, body)
+	}
+	if _, err := p.store.db.Exec("UPDATE sessions SET created_at = ? WHERE token_hash = ?", time.Now().Add(-firstPasswordWindow-time.Minute).UnixMilli(), hashToken(token)); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/api/me/passkeys/begin", "/api/me/oidc/link"} {
+		if status, body := c.do("POST", path, nil, "Cookie", cookie); status != 403 || !strings.Contains(string(body), "neu an") {
+			t.Fatalf("%s mit alter Sitzung: %d %s", path, status, body)
+		}
+	}
 }

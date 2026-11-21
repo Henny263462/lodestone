@@ -393,7 +393,8 @@ func TestBackupTargetSettingsAndPermissions(t *testing.T) {
 
 	// Interne Adressen sind gesperrt, solange es nicht erlaubt ist
 	p.cfg.AllowInternalBackupTargets = false
-	if status, body := admin.do("POST", path+"/test", noSecret); status != http.StatusBadGateway || !strings.Contains(string(body), "gesperrt") {
+	// … und die Meldung verrät die aufgelöste interne Adresse nicht
+	if status, body := admin.do("POST", path+"/test", noSecret); status != http.StatusBadGateway || !strings.Contains(string(body), "gesperrt") || strings.Contains(string(body), "127.0.0.1") {
 		t.Errorf("internes Ziel: %d %s", status, body)
 	}
 	operator.expect(403, "DELETE", path, nil)
@@ -485,7 +486,7 @@ func TestBackupUploadLockDeleteAndRestoreRemote(t *testing.T) {
 	fetched := fake.remote.fetched[first.Name]
 	fetches := append([]node.FetchRequest{}, fake.remote.fetches...)
 	fake.mu.Unlock()
-	if len(fetches) != 1 || !fetches[0].Restore || fetches[0].Size != 5<<20 || !bytes.Equal(fetched, backupContent(5<<20)) {
+	if len(fetches) != 1 || !fetches[0].Restore || !fetches[0].AllowInternal || fetches[0].Size != 5<<20 || !bytes.Equal(fetched, backupContent(5<<20)) {
 		t.Fatalf("Wiederherstellen: %+v (%d Bytes)", fetches, len(fetched))
 	}
 	if strings.Contains(fetches[0].URL, testSecret) {

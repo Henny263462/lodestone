@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -384,8 +385,15 @@ func TestNodeLinkPermissions(t *testing.T) {
 	}
 }
 
+// Fehlversuche werden gedrosselt, aber ein gültiges Token oder Geheimnis kommt immer durch: Sonst könnte jemand ohne
+// Konto von derselben Adresse (hinter einem Reverse-Proxy ist das die des Proxys) das Wiederverbinden aller Nodes sperren.
 func TestNodeLinkThrottle(t *testing.T) {
-	_, web, _, _ := setupPanel(t)
+	p, web, _, _ := setupPanel(t)
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+	var created joinTokenDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/nodes/link", map[string]string{"name": "remote", "publicHost": ""}), &created)
+
 	for range throttleLimit {
 		if status, _ := joinNode(t, web.URL, "ldj_geraten"); status != http.StatusUnauthorized {
 			t.Fatalf("Fehlversuch: %d", status)
@@ -394,10 +402,44 @@ func TestNodeLinkThrottle(t *testing.T) {
 	if status, _ := joinNode(t, web.URL, "ldj_geraten"); status != http.StatusTooManyRequests {
 		t.Fatalf("nach %d Fehlversuchen: %d", throttleLimit, status)
 	}
-	// auch das Verbinden ist für diese Adresse gesperrt
+	status, joined := joinNode(t, web.URL, created.Token)
+	if status != http.StatusOK {
+		t.Fatalf("gültiges Join-Token nach den Fehlversuchen: %d", status)
+	}
+
 	node, _ := newTunnelNode(t)
 	var rejected *nodelink.RejectedError
-	if _, err := node.connect(t, web.URL, "aaaaaaaaaaaa", "ldn_x"); err == nil || errors.As(err, &rejected) {
-		t.Fatalf("Verbinden trotz Sperre: %v", err)
+	for range throttleLimit {
+		if _, err := node.connect(t, web.URL, created.Node.ID, "ldn_falsch"); !errors.As(err, &rejected) || rejected.Status != http.StatusUnauthorized {
+			t.Fatalf("falsches Geheimnis: %v", err)
+		}
+	}
+	// 429 ist keine endgültige Ablehnung: Der Node versucht es später erneut
+	if _, err := node.connect(t, web.URL, created.Node.ID, "ldn_falsch"); err == nil || errors.As(err, &rejected) || !strings.Contains(err.Error(), "429") {
+		t.Fatalf("nach %d Fehlversuchen: %v", throttleLimit, err)
+	}
+	if _, err := node.connect(t, web.URL, created.Node.ID, joined.Secret); err != nil {
+		t.Fatalf("gültiges Geheimnis trotz Sperre abgelehnt: %v", err)
+	}
+	waitLink(t, p, created.Node.ID, true)
+}
+
+func TestClientIPBehindProxy(t *testing.T) {
+	p := &Panel{cfg: Config{TrustProxy: true}}
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.RemoteAddr = "10.0.0.2:4000"
+	// Der Aufrufer setzt einen falschen ersten Eintrag, der Proxy hängt die echte Adresse an
+	request.Header.Set("X-Forwarded-For", "198.51.100.1, 203.0.113.9")
+	if ip := p.clientIP(request); ip != "203.0.113.9" {
+		t.Fatalf("Adresse: %q", ip)
+	}
+	request.Header.Del("X-Forwarded-For")
+	if ip := p.clientIP(request); ip != "10.0.0.2" {
+		t.Fatalf("ohne Kopfzeile: %q", ip)
+	}
+	p.cfg.TrustProxy = false
+	request.Header.Set("X-Forwarded-For", "198.51.100.1")
+	if ip := p.clientIP(request); ip != "10.0.0.2" {
+		t.Fatalf("ohne TrustProxy: %q", ip)
 	}
 }

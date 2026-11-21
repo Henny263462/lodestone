@@ -867,6 +867,8 @@ function anmeldungDemo(res, method, body, parts) {
   }
   if (a === "me" && b === "passkeys") {
     if (method === "GET") send(res, 200, demoPasskeys);
+    // Wie das Panel: Ein neuer Anmeldeweg braucht das aktuelle Passwort (in der Demo genügt jedes)
+    else if (c === "begin" && !body.password) send(res, 403, { error: "das aktuelle Passwort stimmt nicht" });
     else if (c === "begin") {
       send(res, 200, {
         flow: id(),
@@ -892,7 +894,8 @@ function anmeldungDemo(res, method, body, parts) {
     return true;
   }
   if (a === "me" && b === "oidc") {
-    if (c === "link") send(res, 200, { url: "/api/auth/oidc/callback?demo=1" });
+    if (c === "link" && !body.password) send(res, 403, { error: "das aktuelle Passwort stimmt nicht" });
+    else if (c === "link") send(res, 200, { url: "/api/auth/oidc/callback?demo=1" });
     else if (method === "DELETE") {
       demoOidcLink = null;
       send(res, 204);

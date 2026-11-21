@@ -190,10 +190,6 @@ func discordReply(w http.ResponseWriter, content string, private bool) {
 // Discord es beim Eintragen der Adresse prüft.
 func (p *Panel) discordInteraction(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("id")
-	if !p.auto.discordLimit.allow(projectID, discordRequestLimit) {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "zu viele Anfragen"})
-		return
-	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, discordBodyLimit+1))
 	if err != nil || len(body) > discordBodyLimit {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ungültige Anfrage"})
@@ -202,6 +198,12 @@ func (p *Panel) discordInteraction(w http.ResponseWriter, r *http.Request) {
 	bot, err := p.store.DiscordBot(projectID)
 	if err != nil || !bot.Enabled || !verifyDiscord(bot.PublicKey, r.Header.Get("X-Signature-Ed25519"), r.Header.Get("X-Signature-Timestamp"), body, time.Now()) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "ungültige Signatur"})
+		return
+	}
+	// Erst nach der Signatur zählen: Unsignierte Anfragen dürfen das Kontingent des Projekts nicht aufbrauchen und
+	// unbekannte Projekt-IDs nicht in den Limiter kommen. Die Prüfung selbst (ed25519) ist billig.
+	if !p.auto.discordLimit.allow(projectID, discordRequestLimit) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "zu viele Anfragen"})
 		return
 	}
 	var interaction discordInteraction

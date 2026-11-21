@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -114,6 +115,9 @@ func (p *Panel) deliver(hook Webhook, event Event, project, server string) strin
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("User-Agent", "Lodestone")
 	response, err := p.hookClient.Do(request)
+	if errors.Is(err, errHookInternal) {
+		return "Fehler: " + errHookInternal.Error()
+	}
 	if err != nil {
 		return "Fehler: " + shorten(err.Error())
 	}
@@ -144,6 +148,10 @@ func isInternalIP(ip net.IP) bool {
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast()
 }
 
+// errHookInternal meldet eine gesperrte interne Adresse. Die aufgelöste IP steht bewusst nicht darin (auch nicht über
+// net.OpError), sonst ließen sich über Webhooks interne Namen und Adressen des Panels erkunden.
+var errHookInternal = errors.New("Verbindungen ins interne Netz sind für Webhooks gesperrt")
+
 // newHookClient baut den HTTP-Client für Webhooks. Er verbindet sich nie mit internen Adressen (auch nicht, wenn ein
 // Name auf eine solche zeigt oder nach einer Weiterleitung), außer allowInternal ist gesetzt. Geprüft wird die Adresse,
 // mit der wirklich verbunden wird.
@@ -159,7 +167,7 @@ func newHookClient(allowInternal bool) *http.Client {
 				return err
 			}
 			if ip := net.ParseIP(host); ip == nil || isInternalIP(ip) {
-				return fmt.Errorf("Verbindungen ins interne Netz sind für Webhooks gesperrt (%s)", host)
+				return errHookInternal
 			}
 			return nil
 		},

@@ -134,11 +134,19 @@ hält Sperren (`sync.Mutex`) kurz und nie über Netzwerkaufrufe. Neue Hinweise a
    `ipAddress`, `Slugify`) und nie in eine Shell eingesetzt. Konsolenbefehle: Zeilenumbrüche entfernen.
 3. Ausgehende Anfragen auf Wunsch von Benutzern (Webhooks) nur über `newHookClient` (sperrt interne Adressen, keine Weiterleitungen),
    zu Backup-Zielen über `newS3HTTPClient` (ebenso, Freigabe mit `LODESTONE_BACKUP_ALLOW_INTERNAL`). Zugangsdaten externer Dienste
-   bleiben im Panel (mit `seal` verschlüsselt); der Node bekommt höchstens vorsignierte, ablaufende Adressen.
+   bleiben im Panel (mit `seal` verschlüsselt); der Node bekommt höchstens vorsignierte, ablaufende Adressen und lädt sie nur über
+   `transferClient` (sperrt interne Adressen ebenso, Freigabe als `allowInternal` vom Panel). Fehlermeldungen dieser Sperren nennen
+   die aufgelöste Adresse nie (feste Fehlerwerte wie `errS3Internal`, sonst steht sie über `net.OpError` doch darin).
+   Was der Node aus solchen Quellen entpackt, braucht eine Größengrenze (`extractBudget`, `restoreBudget`).
 4. Schreibende Browser-Anfragen brauchen den Header `X-Lodestone: 1` (CSRF); der Websocket prüft die Herkunft. Cookies `HttpOnly`, `SameSite=Strict`.
 5. Antworten setzen `Cache-Control: no-store`; nichts Geheimes in URLs.
 6. Anmeldeversuche sind gedrosselt; Registrierung gibt es nicht (nur Einrichtung beim ersten Start oder Admin legt an).
+   Gedrosselt werden **Fehlversuche**; ein gültiges Geheimnis (Node-Tunnel) kommt immer durch, und Kontingente öffentlicher
+   Endpunkte (Discord) zählen erst nach der Signaturprüfung, sonst sperrt ein Fremder echte Nutzer aus. Neue Anmeldewege
+   (Passkey, OIDC verknüpfen) verlangen `confirmIdentity` (aktuelles Passwort bzw. frische Anmeldung).
 7. Öffentliche Routen (`/api/public/*`) liefern nur Unkritisches, sind ratenbegrenzt und gecacht.
+8. Daten, die ein Node meldet (SFTP-Anmeldungen, Konsolen-Ereignisse), übernimmt das Panel nur für Server **dieses** Nodes und
+   prüft die Felder streng (`validSFTPEvent`); ein kompromittierter Node darf nichts in fremde Projekte schreiben.
 
 ## 8. Tests
 

@@ -215,6 +215,10 @@ type s3Client struct {
 	now    func() time.Time
 }
 
+// errS3Internal meldet eine gesperrte interne Adresse. Die aufgelöste IP steht bewusst nicht darin (auch nicht über
+// net.OpError, siehe unwrapURLError), sonst verriete „Verbindung testen“ interne Namen und Adressen des Panels.
+var errS3Internal = errors.New("Verbindungen ins interne Netz sind für Backup-Ziele gesperrt")
+
 func newS3HTTPClient(allowInternal bool) *http.Client {
 	dialer := &net.Dialer{
 		Timeout: 10 * time.Second,
@@ -227,7 +231,7 @@ func newS3HTTPClient(allowInternal bool) *http.Client {
 				return err
 			}
 			if ip := net.ParseIP(host); ip == nil || isInternalIP(ip) {
-				return fmt.Errorf("Verbindungen ins interne Netz sind für Backup-Ziele gesperrt (%s)", host)
+				return errS3Internal
 			}
 			return nil
 		},
@@ -318,6 +322,9 @@ func parseS3Error(status int, data []byte) error {
 }
 
 func unwrapURLError(err error) error {
+	if errors.Is(err, errS3Internal) {
+		return errS3Internal
+	}
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
 		return urlErr.Err

@@ -356,9 +356,47 @@ func (p *Panel) oidcAccount(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// confirmBody ist die Bestätigung vor einem neuen Anmeldeweg.
+type confirmBody struct {
+	Password string `json:"password"`
+}
+
+// confirmIdentity verlangt vor einem neuen Anmeldeweg (Passkey, OIDC-Verknüpfung) eine frische Bestätigung: das
+// aktuelle Passwort oder, bei Konten ohne Passwort, eine Anmeldung, die höchstens firstPasswordWindow zurückliegt.
+// Sonst könnte sich jemand mit einer kurz geliehenen oder gestohlenen Sitzung einen eigenen Zugang anlegen, der den
+// Passwortwechsel übersteht. Falsche Passwörter werden je Benutzer gedrosselt.
+func (p *Panel) confirmIdentity(r *http.Request, password string) error {
+	user := userFrom(r.Context())
+	if user.PasswordHash == "" {
+		if p.firstPasswordUntil(r, user) > 0 {
+			return nil
+		}
+		return fail(http.StatusForbidden, "bestätige, dass du es bist: Melde dich ab und neu an, danach kannst du 10 Minuten lang einen Anmeldeweg hinzufügen")
+	}
+	key := "confirm|" + user.ID
+	if p.throttle.blocked(key) {
+		return fail(http.StatusTooManyRequests, "zu viele falsche Passwörter, versuche es in ein paar Minuten erneut")
+	}
+	if !CheckPassword(password, user.PasswordHash) {
+		p.throttle.fail(key)
+		return fail(http.StatusForbidden, "das aktuelle Passwort stimmt nicht")
+	}
+	p.throttle.reset(key)
+	return nil
+}
+
 // oidcLinkStart beginnt die Verknüpfung des angemeldeten Benutzers; die Oberfläche öffnet danach die Adresse.
 func (p *Panel) oidcLinkStart(w http.ResponseWriter, r *http.Request) {
 	if err := p.requireOIDC(); err != nil {
+		writeError(w, err)
+		return
+	}
+	var body confirmBody
+	if err := decodeOptional(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := p.confirmIdentity(r, body.Password); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -423,6 +461,11 @@ type credentialBody struct {
 
 // decodeEmpty erlaubt einen leeren Body oder {} (Zeremonien beginnen ohne Eingabe).
 func decodeEmpty(r *http.Request) error {
+	return decodeOptional(r, &struct{}{})
+}
+
+// decodeOptional liest einen JSON-Körper streng wie decode, ein leerer Körper ist aber erlaubt (into bleibt dann leer).
+func decodeOptional(r *http.Request, into any) error {
 	data, err := io.ReadAll(io.LimitReader(r.Body, 1<<16))
 	if err != nil {
 		return fail(http.StatusBadRequest, "ungültige Anfrage")
@@ -432,8 +475,7 @@ func decodeEmpty(r *http.Request) error {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	var body struct{}
-	if err := decoder.Decode(&body); err != nil {
+	if err := decoder.Decode(into); err != nil {
 		return fail(http.StatusBadRequest, "ungültige Anfrage: "+err.Error())
 	}
 	return nil
@@ -668,7 +710,12 @@ func (p *Panel) passkeyRegisterBegin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := decodeEmpty(r); err != nil {
+	var body confirmBody
+	if err := decodeOptional(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	if err := p.confirmIdentity(r, body.Password); err != nil {
 		writeError(w, err)
 		return
 	}

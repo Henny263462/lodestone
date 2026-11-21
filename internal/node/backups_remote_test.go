@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -240,16 +241,16 @@ func TestUploadBackupInParts(t *testing.T) {
 	part := int64(5 << 20)
 	urls := []string{remote.URL + "/b/k?partNumber=1&X-Amz-Signature=x", remote.URL + "/b/k?partNumber=2&X-Amz-Signature=x"}
 
-	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size + 1, PartSize: part, URLs: urls}); !errors.Is(err, errBadRequest) {
+	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size + 1, PartSize: part, URLs: urls, AllowInternal: true}); !errors.Is(err, errBadRequest) {
 		t.Fatalf("falsche Größe: %v", err)
 	}
-	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: urls[:1]}); !errors.Is(err, errBadRequest) {
+	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: urls[:1], AllowInternal: true}); !errors.Is(err, errBadRequest) {
 		t.Fatalf("zu wenige Adressen: %v", err)
 	}
-	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: urls}); err != nil {
+	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: urls, AllowInternal: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: urls}); !errors.Is(err, ErrBadState) {
+	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: urls, AllowInternal: true}); !errors.Is(err, ErrBadState) {
 		t.Errorf("zweite Übertragung gleichzeitig: %v", err)
 	}
 	waitFor(t, "Hochladen", func() bool { return server.transferStatus().State != "running" })
@@ -267,7 +268,7 @@ func TestUploadBackupInParts(t *testing.T) {
 	}
 
 	// Lehnt das Ziel ab, steht der Grund im Stand
-	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: []string{remote.URL + "/b/k?partNumber=1", remote.URL + "/b/k?partNumber=2"}}); err != nil {
+	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: part, URLs: []string{remote.URL + "/b/k?partNumber=1", remote.URL + "/b/k?partNumber=2"}, AllowInternal: true}); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "Fehlschlag", func() bool { return server.transferStatus().State != "running" })
@@ -296,7 +297,7 @@ func TestFetchBackupAndRestore(t *testing.T) {
 	address := remote.URL + "/b/" + backup.Name + "?X-Amz-Signature=x"
 
 	// Unvollständige Daten werden verworfen
-	if err := server.FetchBackup(backup.Name, FetchRequest{URL: address, Size: int64(len(archive)) + 10, Restore: true}); err != nil {
+	if err := server.FetchBackup(backup.Name, FetchRequest{URL: address, Size: int64(len(archive)) + 10, Restore: true, AllowInternal: true}); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "Abbruch", func() bool { return server.View().State == StateOffline && !server.backupBusy.Load() })
@@ -309,13 +310,13 @@ func TestFetchBackupAndRestore(t *testing.T) {
 
 	_ = server.Start()
 	waitState(t, server, StateRunning)
-	if err := server.FetchBackup(backup.Name, FetchRequest{URL: address, Size: int64(len(archive)), Restore: true}); !errors.Is(err, ErrBadState) {
+	if err := server.FetchBackup(backup.Name, FetchRequest{URL: address, Size: int64(len(archive)), Restore: true, AllowInternal: true}); !errors.Is(err, ErrBadState) {
 		t.Fatalf("Einspielen bei laufendem Server: %v", err)
 	}
 	_ = server.Stop()
 	waitState(t, server, StateOffline)
 
-	if err := server.FetchBackup(backup.Name, FetchRequest{URL: address, Size: int64(len(archive)), Restore: true}); err != nil {
+	if err := server.FetchBackup(backup.Name, FetchRequest{URL: address, Size: int64(len(archive)), Restore: true, AllowInternal: true}); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "Wiederherstellung", func() bool { return server.View().State == StateOffline && !server.backupBusy.Load() })
@@ -359,5 +360,91 @@ func TestBackupRemoteRoutes(t *testing.T) {
 	}
 	if status, _ := api.do("POST", base+"/backups/"+backup.Name+"/upload", map[string]any{"size": 1, "partSize": 1, "urls": []string{"x"}}); status != http.StatusBadRequest {
 		t.Errorf("ungültiger Upload: %d", status)
+	}
+}
+
+// Den Endpunkt des Backup-Ziels stellt ein Projekt-Admin ein. Ohne Freigabe spricht der Node damit nie interne
+// Adressen an (hier 127.0.0.1), weder beim Hochladen noch beim Laden, und die Meldung nennt keine Adresse.
+func TestTransfersRefuseInternalTargets(t *testing.T) {
+	transferRetryWait = time.Millisecond
+	manager := newTestManager(t, testConfig(t), newFakeRuntime())
+	server := createPaper(t, manager, "Intern")
+	put(t, server, "world/level.dat", []byte("x"))
+	if _, err := server.CreateBackup("intern"); err != nil {
+		t.Fatal(err)
+	}
+	backup := waitBackup(t, server, 1)[0]
+	hits := 0
+	var mu sync.Mutex
+	internal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		mu.Unlock()
+		w.Header().Set("ETag", `"x"`)
+	}))
+	t.Cleanup(internal.Close)
+
+	if err := server.UploadBackup(backup.Name, UploadRequest{Size: backup.Size, PartSize: backup.Size, URLs: []string{internal.URL + "/b/k?partNumber=1"}}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "Hochladen", func() bool { return server.transferStatus().State != "running" })
+	status := server.transferStatus()
+	if status.State != "failed" || !strings.Contains(status.Error, "gesperrt") || strings.Contains(status.Error, "127.0.0.1") {
+		t.Fatalf("Hochladen ins interne Netz: %+v", status)
+	}
+	if err := server.FetchBackup("20260101-000001.tar.gz", FetchRequest{URL: internal.URL + "/b/x.tar.gz", Size: 10}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "Laden", func() bool { return server.transferStatus().State != "running" })
+	if status := server.transferStatus(); status.State != "failed" || !strings.Contains(status.Error, "gesperrt") {
+		t.Fatalf("Laden aus dem internen Netz: %+v", status)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if hits != 0 {
+		t.Fatalf("das interne Ziel wurde %d-mal erreicht", hits)
+	}
+	if !internalIP(net.ParseIP("169.254.169.254")) || !internalIP(net.ParseIP("100.64.1.1")) || !internalIP(net.ParseIP("fd00::1")) || internalIP(net.ParseIP("203.0.113.5")) {
+		t.Error("Erkennung interner Adressen")
+	}
+}
+
+// Ein Backup aus dem eigenen Bucket kann eine Gzip-Bombe sein (gleiche Größe, anderer Inhalt). Entpackt darf es nicht
+// mehr Platz belegen als frei ist; die alten Dateien bleiben, und die geladene Datei bleibt nicht liegen.
+func TestRestoreStopsAGzipBomb(t *testing.T) {
+	manager := newTestManager(t, testConfig(t), newFakeRuntime())
+	server := createPaper(t, manager, "Bombe")
+	put(t, server, "world/level.dat", []byte("vorher"))
+	manager.ops.mu.Lock()
+	manager.ops.restoreLimit = 1 << 20
+	manager.ops.mu.Unlock()
+
+	var archive bytes.Buffer
+	gz := gzip.NewWriter(&archive)
+	tw := tar.NewWriter(gz)
+	zeros := make([]byte, 4<<20) // komprimiert wenige KB, entpackt 4 MB
+	_ = tw.WriteHeader(&tar.Header{Name: "world/bombe.bin", Mode: 0o644, Size: int64(len(zeros)), Typeflag: tar.TypeReg})
+	_, _ = tw.Write(zeros)
+	_ = tw.Close()
+	_ = gz.Close()
+	name := "20260101-000000.tar.gz"
+	bucket, remote := newFakeBucket(t)
+	bucket.objects["/b/"+name] = archive.Bytes()
+
+	if err := server.FetchBackup(name, FetchRequest{URL: remote.URL + "/b/" + name + "?X-Amz-Signature=x", Size: int64(archive.Len()), Restore: true, AllowInternal: true}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "Einspielen", func() bool { return server.View().State == StateOffline && !server.backupBusy.Load() })
+	if !strings.Contains(server.View().LastError, "größer als der freie Platz") || read(t, server.FS(), "world/level.dat") != "vorher" {
+		t.Fatalf("Bombe: %q", server.View().LastError)
+	}
+	if _, err := server.BackupFile(name); err == nil {
+		t.Error("die Datei, die sich nicht einspielen ließ, liegt noch als Backup herum")
+	}
+	if entries, _ := server.FS().List("."); len(entries) == 0 {
+		t.Fatal("die alten Dateien sind weg")
+	}
+	if _, err := os.Stat(filepath.Join(server.dir, "data", restoreTemp)); err == nil {
+		t.Error("der Hilfsordner ist liegen geblieben")
 	}
 }

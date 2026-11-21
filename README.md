@@ -125,7 +125,8 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   bleibt alles unverändert. Öffentliche Adressen (playit-Tunnel) gehören zur alten Maschine und werden mit Hinweis entfernt
 - **Speicherplatz:** Der Node misst alle 5 Minuten jeden Serverordner und den freien Platz der Maschine (Anzeige unter
   *Statistiken* und auf der Nodes-Seite). Pro Server ein **weiches Speicherlimit** (nur Admins): bei 90 % das Ereignis
-  „Speicher fast voll“ (auch als Webhook), bei 100 % kein Start, kein Upload und kein Entpacken mehr
+  „Speicher fast voll“ (auch als Webhook), bei 100 % kein Start, kein Upload (auch Welten, Datapacks, SFTP), kein
+  Speichern im Editor, kein Archivieren und kein Entpacken mehr; Löschen und Wiederherstellen bleiben möglich
 - **Spieleinstellungen:** die `server.properties` als Formular mit Erklärungen (Schwierigkeit, Spielmodus, PvP,
   Spielerzahl, Sicht- und Simulationsweite, Whitelist, Spawn-Schutz, Fliegen, MOTD, Seed …) plus Rohansicht im Editor.
   Kommentare und unbekannte Schlüssel bleiben erhalten; `server-port` und im Netzwerk `online-mode` sind gesperrt, weil
@@ -224,10 +225,10 @@ Für schlanke Maschinen: `sh scripts/package.sh` baut Linux-Binaries nach `dist/
 | `LODESTONE_DATA_DIR` | Ordner der Datenbank (`lodestone.db`), Standard `data` |
 | `LODESTONE_ADMIN_USER` / `_PASSWORD` | legt beim ersten Start den Administrator an (ohne Passwort wird eins erzeugt und einmalig ins Log geschrieben). Ohne diese Variablen fragt die Oberfläche beim ersten Aufruf nach dem Administrator |
 | `LODESTONE_NODE_URL` / `_TOKEN` / `_NAME` / `_PUBLIC_HOST` | trägt beim Start einen Node ein bzw. aktualisiert ihn |
-| `LODESTONE_SECURE_COOKIES`, `LODESTONE_TRUST_PROXY` | hinter HTTPS-Proxy auf `true` |
+| `LODESTONE_SECURE_COOKIES`, `LODESTONE_TRUST_PROXY` | hinter HTTPS-Proxy auf `true`. Mit `TRUST_PROXY` zählt der letzte Eintrag von `X-Forwarded-For` (den hängt der Proxy an) |
 | `LODESTONE_TZ` | Zeitzone für Zeitpläne, z. B. `Europe/Berlin` (Standard: Zeitzone des Panels, sonst UTC) |
 | `LODESTONE_WEBHOOK_ALLOW_INTERNAL` | `true` erlaubt Webhooks an Adressen im internen Netz (Standard: gesperrt) |
-| `LODESTONE_BACKUP_ALLOW_INTERNAL` | `true` erlaubt Backup-Ziele im internen Netz, z. B. MinIO im LAN (Standard: gesperrt) |
+| `LODESTONE_BACKUP_ALLOW_INTERNAL` | `true` erlaubt Backup-Ziele im internen Netz, z. B. MinIO im LAN (Standard: gesperrt). Gilt auch für die Übertragungen, die der Node selbst macht; das Panel gibt die Freigabe mit |
 | `LODESTONE_PUBLIC_URL` | Adresse, unter der du das Panel im Browser öffnest, z. B. `https://panel.example.org`. Nötig für Passkeys und den OIDC-Rücksprung |
 | `LODESTONE_OIDC_ISSUER` / `_CLIENT_ID` / `_CLIENT_SECRET` | schaltet die Anmeldung über einen OIDC-Anbieter ein (Issuer-Adresse wie beim Anbieter angegeben) |
 | `LODESTONE_OIDC_NAME` | Name auf dem Knopf („Mit Authentik anmelden“), Standard `SSO` |
@@ -265,7 +266,9 @@ Panel neu und melde dich mit Benutzername und Passwort an. Benutzer ohne Passwor
 
 **Passkeys** brauchen `LODESTONE_PUBLIC_URL` und HTTPS (oder `http://localhost`). RP-ID ist der Hostname dieser Adresse,
 erlaubte Herkunft ist `Schema://Host[:Port]` daraus. Ein Passkey gilt nur für genau diese RP-ID: Wechselst du die Adresse,
-müssen alle ihre Passkeys neu anlegen. Passkeys legst du unter **Konto → Passkeys** an. Die Anmeldung nur mit Passkey verlangt die Prüfung am Gerät
+müssen alle ihre Passkeys neu anlegen. Passkeys legst du unter **Konto → Passkeys** an. Einen neuen Passkey anlegen und
+ein OIDC-Konto verknüpfen verlangt das aktuelle Passwort (Konten ohne Passwort: eine Anmeldung vor höchstens
+10 Minuten), damit eine fremde Sitzung allein keinen dauerhaften Zugang anlegen kann. Die Anmeldung nur mit Passkey verlangt die Prüfung am Gerät
 (PIN, Fingerabdruck) und ersetzt Passwort und zweiten Faktor. Wer einen Passkey hat, braucht nach
 dem Passwort einen zweiten Schritt (Passkey oder Code aus der App). Hat jemand sein Gerät verloren, entfernt ein
 Administrator seine Passkeys unter **Benutzer → ⋯ → Passkeys zurücksetzen** (`DELETE /api/users/<id>/passkeys`).
@@ -314,16 +317,19 @@ scrape_configs:
 - Das Token des Nodes verlässt das Panel nie; die Node-API gehört nur ins interne Netz oder hinter TLS/VPN
 - SFTP: nur das Subsystem `sftp` (keine Shell, keine Befehle, keine Weiterleitungen), Zugriff strikt im Serverordner über
   `os.Root` (auch Symlinks), keine neuen Symlinks, Upload-Grenze wie im Panel, Passwörter nur als argon2id-Hash, Drosselung
-  nach 8 Fehlversuchen je Adresse in 10 Minuten
+  nach 8 Fehlversuchen je Adresse in 10 Minuten. Laufende Sitzungen enden, sobald ihr Zugang, ihr Schlüssel oder ihr
+  Passwort wegfällt oder sie nur noch lesen dürfen
 - Nodes, die sich selbst verbinden: Join-Token einmalig und 24 Stunden gültig, danach ein eigenes Geheimnis je Node
-  (im Panel nur als SHA-256-Hash), Prüfung in konstanter Zeit, Drosselung nach Fehlversuchen. Ein Node beantwortet nur
+  (im Panel nur als SHA-256-Hash), Prüfung in konstanter Zeit, Drosselung nur der Fehlversuche (ein gültiges Geheimnis
+  kommt immer durch, damit niemand das Wiederverbinden sperren kann). Ein Node beantwortet nur
   Anfragen für sich selbst und kann über die Verbindung nichts am Panel aufrufen; Nachrichten über 1 MiB beenden die
   Verbindung
 - Container laufen ohne Root-Rechte des Hosts, mit `no-new-privileges`, abgeschalteten Capabilities, Prozess-,
   Speicher- und CPU-Limit; Dateizugriffe bleiben im Serverordner (`os.Root`, auch über Symlinks hinweg)
 - **Java2Shell/Java4Shell (CVE-2026-114938):** Jeder Server bekommt `JAVA_TOOL_OPTIONS=-XX:-UseBASE64Intrinsics`
   (gilt auch für eigene Startzeilen), und der Node lädt die Java-Images höchstens alle 6 Stunden beim Start neu, damit
-  gepatchte Java-Versionen ankommen
+  gepatchte Java-Versionen ankommen. Wer den Schutz bewusst mit `-XX:+UseBASE64Intrinsics` abschaltet (in
+  `JAVA_TOOL_OPTIONS`, `_JAVA_OPTIONS`, `JDK_JAVA_OPTIONS` oder der Startzeile), sieht beim Start einen Hinweis in der Konsole
 - Ein Daemon mit Zugriff auf `docker.sock` hat auf der Maschine weitreichende Rechte. Vor dem Öffnen für fremde
   Benutzer: unabhängige Sicherheitsprüfung (siehe docs/architecture.md)
 

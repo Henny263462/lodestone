@@ -268,10 +268,15 @@ func (t *throttle) reset(key string) {
 	delete(t.failures, key)
 }
 
+// clientIP ist die Adresse des Aufrufers. Hinter einem vertrauten Reverse-Proxy zählt der letzte Eintrag von
+// X-Forwarded-For: Den hängt der Proxy selbst an, alles davor kann der Aufrufer frei setzen.
 func (p *Panel) clientIP(r *http.Request) string {
 	if p.cfg.TrustProxy {
-		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-			return strings.TrimSpace(strings.Split(forwarded, ",")[0])
+		if forwarded := r.Header.Values("X-Forwarded-For"); len(forwarded) > 0 {
+			entries := strings.Split(forwarded[len(forwarded)-1], ",")
+			if last := strings.TrimSpace(entries[len(entries)-1]); last != "" {
+				return last
+			}
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

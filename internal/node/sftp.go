@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -15,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -61,11 +63,41 @@ type SFTPService struct {
 	failures map[string][]time.Time
 }
 
-// sftpConn ist eine angemeldete Verbindung.
+// sftpConn ist eine angemeldete Verbindung. Sie merkt sich, womit sie hereinkam (Passwort-Hash oder Schlüssel) und ob
+// sie schreiben durfte, damit SetAccess sie trennen kann, sobald genau das wegfällt.
 type sftpConn struct {
 	conn     *ssh.ServerConn
 	serverID string
 	username string
+	// passwordHash ist der Hash, gegen den das Passwort geprüft wurde; key der benutzte Schlüssel (ssh.PublicKey.Marshal).
+	passwordHash string
+	key          []byte
+	// writable sagt, ob die Verbindung zuletzt schreiben durfte (geschützt durch SFTPService.mu).
+	writable bool
+}
+
+// refresh gleicht die Verbindung an neue Zugänge an. false heißt trennen: Der Zugang ist weg, das Passwort bzw. der
+// Schlüssel, mit dem sie hereinkam, gilt nicht mehr, oder sie verliert das Schreibrecht – dann enden auch schon offene
+// Schreib-Handles. Der Aufrufer hält SFTPService.mu.
+func (c *sftpConn) refresh(grants []sftpGrant) bool {
+	for _, grant := range grants {
+		if grant.Username != c.username {
+			continue
+		}
+		if c.writable && grant.ReadOnly {
+			return false
+		}
+		valid := c.passwordHash != "" && grant.PasswordHash == c.passwordHash
+		if c.key != nil {
+			valid = false
+			for _, known := range grant.keys {
+				valid = valid || bytes.Equal(known, c.key)
+			}
+		}
+		c.writable = !grant.ReadOnly
+		return valid
+	}
+	return false
 }
 
 // NewSFTPService baut den Dienst und liest die gespeicherten Zugänge. Ist SFTP eingeschaltet, wird der Host-Schlüssel
@@ -219,7 +251,8 @@ func (s *SFTPService) checkPassword(ip, username string, password []byte) (*ssh.
 		s.log.Warn("SFTP: falsches Passwort", "user", username, "ip", ip)
 		return nil, errSFTPDenied
 	}
-	return &ssh.Permissions{Extensions: map[string]string{"server": serverID, "user": username, "method": "password"}}, nil
+	return &ssh.Permissions{Extensions: map[string]string{"server": serverID, "user": username, "method": "password",
+		"hash": grant.PasswordHash, "writable": strconv.FormatBool(!grant.ReadOnly)}}, nil
 }
 
 func (s *SFTPService) checkKey(ip, username string, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -235,6 +268,7 @@ func (s *SFTPService) checkKey(ip, username string, key ssh.PublicKey) (*ssh.Per
 		if subtle.ConstantTimeCompare(known, offered) == 1 {
 			return &ssh.Permissions{Extensions: map[string]string{
 				"server": serverID, "user": username, "method": "publickey", "key": ssh.FingerprintSHA256(key),
+				"keydata": string(offered), "writable": strconv.FormatBool(!grant.ReadOnly),
 			}}, nil
 		}
 	}
@@ -310,7 +344,11 @@ func (s *SFTPService) handle(raw net.Conn) {
 	}
 	_ = raw.SetDeadline(time.Time{})
 	extensions := conn.Permissions.Extensions
-	session := &sftpConn{conn: conn, serverID: extensions["server"], username: extensions["user"]}
+	session := &sftpConn{conn: conn, serverID: extensions["server"], username: extensions["user"],
+		passwordHash: extensions["hash"], writable: extensions["writable"] == "true"}
+	if data, ok := extensions["keydata"]; ok {
+		session.key = []byte(data)
+	}
 	s.reset(ip)
 	s.record(SFTPEvent{ServerID: session.serverID, Username: session.username, IP: ip, Method: extensions["method"], KeyFingerprint: extensions["key"], Success: true})
 	s.log.Info("SFTP: angemeldet", "user", session.username, "server", session.serverID, "ip", ip, "method", extensions["method"])
@@ -320,6 +358,8 @@ func (s *SFTPService) handle(raw net.Conn) {
 
 	s.mu.Lock()
 	s.conns[session] = struct{}{}
+	// Hat SetAccess zwischen Anmeldung und hier schon geändert, gilt der neue Stand auch für diese Verbindung
+	current := session.refresh(s.access[session.serverID])
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
@@ -327,6 +367,9 @@ func (s *SFTPService) handle(raw net.Conn) {
 		s.mu.Unlock()
 		_ = conn.Close()
 	}()
+	if !current {
+		return
+	}
 
 	go ssh.DiscardRequests(requests)
 	for incoming := range channels {

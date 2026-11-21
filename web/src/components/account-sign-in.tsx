@@ -27,6 +27,34 @@ function CardError({ error, retry }: { error: ApiError; retry: () => void }) {
   );
 }
 
+// ---------------------------------------------------------------- Bestätigung vor einem neuen Anmeldeweg
+
+/**
+ * Ein neuer Anmeldeweg (Passkey, Verknüpfung) braucht eine frische Bestätigung: das aktuelle Passwort oder, bei Konten
+ * ohne Passwort, eine Anmeldung vor höchstens 10 Minuten. Das Backend prüft dasselbe.
+ */
+function confirmBlocked(account: OidcAccount | undefined): string | undefined {
+  if (!account || account.hasPassword || account.firstPasswordUntil > Date.now()) return undefined;
+  return "Bestätige, dass du es bist: Melde dich ab und neu an. Danach kannst du 10 Minuten lang einen Anmeldeweg hinzufügen.";
+}
+
+function ConfirmIdentity({ account, password, onChange }: { account: OidcAccount | undefined; password: string; onChange: (value: string) => void }) {
+  const blocked = confirmBlocked(account);
+  if (blocked) return <p className="rounded-lg border border-warn/25 bg-warn/10 px-4 py-3 text-xs text-warn">{blocked}</p>;
+  if (!account?.hasPassword) return null;
+  return (
+    <div>
+      <label className="label">Aktuelles Passwort</label>
+      <input className="field" type="password" autoComplete="current-password" value={password} onChange={(event) => onChange(event.target.value)} />
+      <p className="mt-1.5 text-xs text-muted">Zur Bestätigung, dass du es bist. So reicht eine fremde Sitzung nicht, um sich einen eigenen Zugang anzulegen.</p>
+    </div>
+  );
+}
+
+function confirmReady(account: OidcAccount | undefined, password: string): boolean {
+  return !!account && !confirmBlocked(account) && (!account.hasPassword || password !== "");
+}
+
 // ---------------------------------------------------------------- Passkeys
 
 export function PasskeysCard() {
@@ -34,8 +62,10 @@ export function PasskeysCard() {
   const supported = usePasskeySupport();
   const { data: status } = useApi<AuthStatus>("/auth/status");
   const { data, error, mutate } = useApi<Passkey[]>("/me/passkeys");
+  const { data: account } = useApi<OidcAccount>("/me/oidc");
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<Passkey | null>(null);
   const [newName, setNewName] = useState("");
@@ -46,12 +76,13 @@ export function PasskeysCard() {
   async function add() {
     setBusy(true);
     try {
-      const start = await api.post<PasskeyCeremony<PasskeyCreationOptions>>("/me/passkeys/begin");
+      const start = await api.post<PasskeyCeremony<PasskeyCreationOptions>>("/me/passkeys/begin", { password });
       const credential = await createPasskey(start.options);
       await api.post("/me/passkeys/finish", { flow: start.flow, name: name.trim(), credential });
       toast.success("Passkey hinzugefügt");
       setAdding(false);
       setName("");
+      setPassword("");
       mutate();
     } catch (failure) {
       toast.error(passkeyErrorText(failure));
@@ -125,15 +156,18 @@ export function PasskeysCard() {
             <Button variant="ghost" onClick={() => setAdding(false)}>
               Abbrechen
             </Button>
-            <Button variant="primary" loading={busy} disabled={!name.trim()} onClick={add}>
+            <Button variant="primary" loading={busy} disabled={!name.trim() || !confirmReady(account, password)} onClick={add}>
               Weiter
             </Button>
           </>
         }
       >
-        <div>
-          <label className="label">Name</label>
-          <input className="field" value={name} onChange={(event) => setName(event.target.value)} placeholder="Laptop" maxLength={48} autoFocus />
+        <div className="space-y-4">
+          <div>
+            <label className="label">Name</label>
+            <input className="field" value={name} onChange={(event) => setName(event.target.value)} placeholder="Laptop" maxLength={48} autoFocus />
+          </div>
+          <ConfirmIdentity account={account} password={password} onChange={setPassword} />
         </div>
       </Dialog>
 
@@ -191,6 +225,8 @@ export function OidcCard() {
   const toast = useToast();
   const { data, error, mutate } = useApi<OidcAccount>("/me/oidc");
   const [busy, setBusy] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [password, setPassword] = useState("");
   const [unlinking, setUnlinking] = useState(false);
 
   // Rückmeldung nach dem Rücksprung vom Anbieter (/account/?oidc=linked oder ein Fehlercode)
@@ -230,12 +266,32 @@ export function OidcCard() {
               </Button>
             </>
           ) : (
+            <Button onClick={() => setLinking(true)}>
+              <Link2 className="h-4 w-4" />
+              Mit {name} verknüpfen
+            </Button>
+          )}
+        </div>
+      )}
+
+      <Dialog
+        open={linking}
+        onClose={() => setLinking(false)}
+        title={`Mit ${name} verknüpfen`}
+        description={`Danach meldest du dich auch über ${name} an. Dein Browser wechselt dafür kurz zu ${name}.`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setLinking(false)}>
+              Abbrechen
+            </Button>
             <Button
+              variant="primary"
               loading={busy}
+              disabled={!confirmReady(data, password)}
               onClick={async () => {
                 setBusy(true);
                 try {
-                  const answer = await api.post<{ url: string }>("/me/oidc/link");
+                  const answer = await api.post<{ url: string }>("/me/oidc/link", { password });
                   window.location.assign(answer.url);
                 } catch (failure) {
                   toast.error(failure instanceof Error ? failure.message : "Die Verknüpfung konnte nicht beginnen.");
@@ -243,12 +299,13 @@ export function OidcCard() {
                 }
               }}
             >
-              {!busy && <Link2 className="h-4 w-4" />}
-              Mit {name} verknüpfen
+              Weiter
             </Button>
-          )}
-        </div>
-      )}
+          </>
+        }
+      >
+        <ConfirmIdentity account={data} password={password} onChange={setPassword} />
+      </Dialog>
 
       <ConfirmDialog
         open={unlinking}

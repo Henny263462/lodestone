@@ -130,7 +130,8 @@ func (s *SFTPService) loadAccess() {
 	}
 }
 
-// SetAccess ersetzt die Zugänge eines Servers, speichert sie und trennt Verbindungen, deren Zugang weggefallen ist.
+// SetAccess ersetzt die Zugänge eines Servers, speichert sie und trennt Verbindungen, deren Zugang, Passwort oder
+// Schlüssel weggefallen ist oder die nur noch lesen dürfen (siehe sftpConn.refresh).
 func (s *SFTPService) SetAccess(serverID string, access SFTPAccess) error {
 	server, ok := s.manager.Get(serverID)
 	if !ok {
@@ -158,7 +159,7 @@ func (s *SFTPService) SetAccess(serverID string, access SFTPAccess) error {
 	s.access[serverID] = grants
 	var stale []*sftpConn
 	for conn := range s.conns {
-		if conn.serverID == serverID && !hasGrant(grants, conn.username) {
+		if conn.serverID == serverID && !conn.refresh(grants) {
 			stale = append(stale, conn)
 		}
 	}
@@ -168,15 +169,6 @@ func (s *SFTPService) SetAccess(serverID string, access SFTPAccess) error {
 		_ = conn.conn.Close()
 	}
 	return nil
-}
-
-func hasGrant(grants []sftpGrant, username string) bool {
-	for _, grant := range grants {
-		if grant.Username == username {
-			return true
-		}
-	}
-	return false
 }
 
 // Status liefert den Zustand und die Anmeldungen nach der Folgenummer after.

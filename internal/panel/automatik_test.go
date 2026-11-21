@@ -651,6 +651,35 @@ func TestDiscordInteractions(t *testing.T) {
 	}
 }
 
+// Unsignierte Anfragen dürfen das Kontingent des Projekts nicht aufbrauchen, sonst legt jeder ohne Konto den Bot lahm.
+func TestDiscordUnsignedFloodDoesNotBlockTheBot(t *testing.T) {
+	f := newDiscordFixture(t)
+	f.configure(t)
+	now := time.Now()
+	for range discordRequestLimit + 5 {
+		if status, _ := f.interact(t, map[string]int{"type": 1}, false, now); status != 401 {
+			t.Fatalf("unsignierte Anfrage: %d", status)
+		}
+	}
+	if status, out := f.interact(t, map[string]int{"type": 1}, true, now); status != 200 || out["type"] != float64(1) {
+		t.Fatalf("echte Anfrage von Discord nach der Flut: %d %+v", status, out)
+	}
+	// Unbekannte Projekt-IDs landen nicht im Limiter (sonst ließe er sich mit vielen IDs leeren)
+	request, _ := http.NewRequest("POST", f.web+"/api/public/discord/ffffffffffffffff/interactions", strings.NewReader(`{"type":1}`))
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	f.p.auto.discordLimit.mu.Lock()
+	_, unknown := f.p.auto.discordLimit.windows["ffffffffffffffff"]
+	count := f.p.auto.discordLimit.windows[f.projectID].count
+	f.p.auto.discordLimit.mu.Unlock()
+	if response.StatusCode != 401 || unknown || count != 1 {
+		t.Fatalf("Limiter: Status %d, unbekannte ID gezählt %v, Projekt %d", response.StatusCode, unknown, count)
+	}
+}
+
 func TestDiscordAllowedAndPickServer(t *testing.T) {
 	rules := []DiscordRule{{Kind: "role", ID: "1", Actions: []string{"status"}}, {Kind: "user", ID: "2", Actions: []string{"stop"}}}
 	cases := []struct {

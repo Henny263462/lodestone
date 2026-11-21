@@ -42,10 +42,11 @@ func sftpPath(name string) (string, error) {
 func sftpError(err error) error {
 	err = translate(err)
 	var sizeErr *sftpSizeError
+	var limitErr *sftpLimitError
 	switch {
 	case err == nil:
 		return nil
-	case errors.As(err, &sizeErr):
+	case errors.As(err, &sizeErr), errors.As(err, &limitErr):
 		return err
 	case errors.Is(err, sftp.ErrSSHFxPermissionDenied), errors.Is(err, sftp.ErrSSHFxOpUnsupported), errors.Is(err, sftp.ErrSSHFxBadMessage):
 		return err
@@ -91,10 +92,17 @@ func (h *sftpHandler) OpenFile(r *sftp.Request) (sftp.WriterAtReaderAt, error) {
 }
 
 func (h *sftpHandler) open(r *sftp.Request) (*limitedFile, error) {
-	root, err := h.root(true)
+	server, err := h.service.allowed(h.serverID, h.username, true)
 	if err != nil {
 		return nil, err
 	}
+	// Das Speicherlimit gilt auch hier, sonst füllte man über SFTP die Platte, die alle Server des Nodes teilen.
+	// Löschen bleibt erlaubt, damit man wieder darunter kommt.
+	manager := h.service.manager
+	if err := manager.diskLimitErr(server.ID(), server.snapshot().DiskLimitMB); err != nil {
+		return nil, &sftpLimitError{}
+	}
+	root := server.FS().root
 	rel, err := sftpPath(r.Filepath)
 	if err != nil {
 		return nil, err
@@ -122,7 +130,14 @@ func (h *sftpHandler) open(r *sftp.Request) (*limitedFile, error) {
 		_ = file.Close()
 		return nil, sftp.ErrSSHFxFailure
 	}
-	return &limitedFile{File: file, max: h.maxWrite}, nil
+	return &limitedFile{File: file, max: h.maxWrite, closed: func() { manager.remeasureSoon(server) }}, nil
+}
+
+// sftpLimitError meldet ein erreichtes Speicherlimit.
+type sftpLimitError struct{}
+
+func (*sftpLimitError) Error() string {
+	return "das Speicherlimit des Servers ist erreicht, lösche zuerst Dateien"
 }
 
 // sftpSizeError meldet eine Datei über der Upload-Grenze.
@@ -132,10 +147,19 @@ func (e *sftpSizeError) Error() string {
 	return fmt.Sprintf("die Datei ist zu groß (erlaubt sind %d MB)", e.max>>20)
 }
 
-// limitedFile lässt nicht über die Upload-Grenze des Nodes hinaus schreiben.
+// limitedFile lässt nicht über die Upload-Grenze des Nodes hinaus schreiben und misst nach dem Schließen nach.
 type limitedFile struct {
 	*os.File
-	max int64
+	max    int64
+	closed func()
+}
+
+func (f *limitedFile) Close() error {
+	err := f.File.Close()
+	if f.closed != nil {
+		f.closed()
+	}
+	return err
 }
 
 func (f *limitedFile) WriteAt(p []byte, offset int64) (int, error) {

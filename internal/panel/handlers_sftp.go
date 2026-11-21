@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -626,9 +628,52 @@ func (p *Panel) sftpPollNode(ctx context.Context, n Node) {
 	p.sftp.mu.Lock()
 	state.online, state.unsupported, state.status, state.at, state.lastSeq = true, false, status, time.Now(), maxSeq
 	p.sftp.mu.Unlock()
+	if len(events) == 0 {
+		return
+	}
+	rows, err := p.store.ListServers("")
+	if err != nil {
+		p.log.Warn("SFTP-Anmeldungen nicht übernommen", "node", n.Name, "error", err)
+		return
+	}
+	onNode := map[string]bool{}
+	for _, row := range rows {
+		if row.NodeID == n.ID {
+			onNode[row.ID] = true
+		}
+	}
+	taken := 0
 	for _, event := range events {
+		// Ein Node meldet nur Anmeldungen an seinen eigenen Servern; alles andere (fremde Server, kaputte Felder) wäre
+		// ein eingeschleuster Eintrag im Protokoll und Verlauf fremder Projekte.
+		if !onNode[event.ServerID] || !validSFTPEvent(event) {
+			continue
+		}
+		if taken++; taken > maxSFTPEventsPerPoll {
+			p.log.Warn("Zu viele SFTP-Anmeldungen auf einmal, der Rest wird verworfen", "node", n.Name)
+			break
+		}
 		p.recordSFTPEvent(event)
 	}
+}
+
+const maxSFTPEventsPerPoll = 500
+
+var (
+	sftpEventUser        = regexp.MustCompile(`^[a-z0-9_.-]{1,64}$`)
+	sftpEventFingerprint = regexp.MustCompile(`^SHA256:[A-Za-z0-9+/]{43}$`)
+)
+
+// validSFTPEvent prüft ein Ereignis des Nodes streng: Der Anmeldename muss zum Server passen (Benutzer + Kurz-ID).
+func validSFTPEvent(event node.SFTPEvent) bool {
+	cut := strings.LastIndex(event.Username, ".")
+	if !sftpEventUser.MatchString(event.Username) || cut <= 0 || event.Username != sftpLogin(event.Username[:cut], event.ServerID) {
+		return false
+	}
+	if net.ParseIP(event.IP) == nil || (event.Method != "password" && event.Method != "publickey") {
+		return false
+	}
+	return event.KeyFingerprint == "" || event.Method == "publickey" && sftpEventFingerprint.MatchString(event.KeyFingerprint)
 }
 
 // recordSFTPEvent trägt eine Anmeldung ins Protokoll ein (bei Schlüsseln auch „zuletzt benutzt“).

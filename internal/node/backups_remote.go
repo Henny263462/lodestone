@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -241,6 +243,8 @@ type UploadRequest struct {
 	Size     int64    `json:"size"`
 	PartSize int64    `json:"partSize"`
 	URLs     []string `json:"urls"`
+	// AllowInternal erlaubt Ziele im internen Netz (das Panel setzt es nur mit LODESTONE_BACKUP_ALLOW_INTERNAL).
+	AllowInternal bool `json:"allowInternal,omitempty"`
 }
 
 // FetchRequest lädt ein Backup über eine vorsignierte GET-Adresse in den Backup-Ordner, auf Wunsch mit Einspielen.
@@ -248,6 +252,8 @@ type FetchRequest struct {
 	URL     string `json:"url"`
 	Size    int64  `json:"size"`
 	Restore bool   `json:"restore"`
+	// AllowInternal erlaubt Ziele im internen Netz (das Panel setzt es nur mit LODESTONE_BACKUP_ALLOW_INTERNAL).
+	AllowInternal bool `json:"allowInternal,omitempty"`
 }
 
 // UploadedPart ist ein fertig hochgeladener Teil mit der ETag, die das Ziel geliefert hat.
@@ -324,11 +330,44 @@ func validTransferURL(raw string) error {
 	return nil
 }
 
-// transferClient folgt keinen Weiterleitungen (eine vorsignierte Adresse gilt nur für ihr Ziel).
-func transferClient() *http.Client {
+// errTransferInternal meldet ein gesperrtes internes Ziel, bewusst ohne die aufgelöste Adresse.
+var errTransferInternal = errors.New("Verbindungen ins interne Netz sind für Backup-Ziele gesperrt. Ein Administrator kann sie am Panel mit LODESTONE_BACKUP_ALLOW_INTERNAL erlauben")
+
+// transferClient folgt keinen Weiterleitungen (eine vorsignierte Adresse gilt nur für ihr Ziel). Ohne allowInternal
+// verbindet er sich nie mit internen Adressen: geprüft wird die IP, mit der wirklich verbunden wird, auch wenn ein Name
+// erst später (DNS-Rebinding) auf eine interne Adresse zeigt. Den Endpunkt stellt ein Projekt-Admin ein; ohne diese
+// Sperre könnte er über den Node dessen Heimnetz (Router, NAS) oder Metadaten-Dienste ansprechen. Ein Proxy aus der
+// Umgebung gilt dann nicht, weil er die Prüfung umginge.
+func transferClient(allowInternal bool) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = 2 * time.Minute
+	if !allowInternal {
+		dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second, Control: func(_, address string, _ syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			if ip := net.ParseIP(host); ip == nil || internalIP(ip) {
+				return errTransferInternal
+			}
+			return nil
+		}}
+		transport.DialContext = dialer.DialContext
+		transport.Proxy = nil
+	}
 	return &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
+// internalIP erkennt Adressen im internen Netz (wie isInternalIP im Panel): Loopback, privat (auch IPv6-ULA),
+// link-local, CGNAT, 0.0.0.0/8, unbestimmt und Multicast.
+func internalIP(ip net.IP) bool {
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+		if v4[0] == 0 || (v4[0] == 100 && v4[1]&0xc0 == 64) {
+			return true
+		}
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast()
 }
 
 // remoteFailure macht aus einer Fehlerantwort des Ziels einen lesbaren Satz.
@@ -391,7 +430,7 @@ func (s *Server) uploadParts(file string, request UploadRequest) error {
 		return err
 	}
 	defer source.Close()
-	client := transferClient()
+	client := transferClient(request.AllowInternal)
 	var done int64
 	for index, address := range request.URLs {
 		offset := int64(index) * request.PartSize
@@ -441,6 +480,9 @@ func putPart(client *http.Client, address string, body io.Reader, length int64) 
 }
 
 func unwrapURL(err error) error {
+	if errors.Is(err, errTransferInternal) {
+		return errTransferInternal
+	}
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
 		return urlErr.Err
@@ -502,7 +544,12 @@ func (s *Server) FetchBackup(name string, request FetchRequest) error {
 		defer s.backupBusy.Store(false)
 		if err == nil {
 			s.logf("Backup %s wird eingespielt", name)
-			err = s.extract(filepath.Join(s.backupDir(), name))
+			fetched := filepath.Join(s.backupDir(), name)
+			if err = s.extract(fetched); err != nil {
+				// Was sich nicht einspielen lässt, bleibt nicht liegen: Sonst ließe sich jede fremde Antwort mit
+				// passender Länge als „Backup“ herunterladen. Im Backup-Ziel liegt das Original weiter.
+				_ = os.Remove(fetched)
+			}
 		}
 		if err != nil {
 			s.logf("Wiederherstellung fehlgeschlagen, die bisherigen Dateien sind unverändert: %v", err)
@@ -522,7 +569,7 @@ func (s *Server) download(name string, request FetchRequest) error {
 	if err != nil {
 		return err
 	}
-	response, err := transferClient().Do(call)
+	response, err := transferClient(request.AllowInternal).Do(call)
 	if err != nil {
 		return fmt.Errorf("das Backup-Ziel ist nicht erreichbar: %v", unwrapURL(err))
 	}

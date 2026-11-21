@@ -243,8 +243,8 @@ func TestWebhookClientBlocksInternalTargets(t *testing.T) {
 	defer target.Close()
 	p := &Panel{hookClient: newHookClient(false)}
 	status := p.deliver(Webhook{Kind: "generic", URL: target.URL}, Event{Kind: "crash", Time: time.Now().UnixMilli()}, "p", "")
-	if !strings.HasPrefix(status, "Fehler") || !strings.Contains(status, "gesperrt") {
-		t.Errorf("Status: %q", status)
+	if !strings.HasPrefix(status, "Fehler") || !strings.Contains(status, "gesperrt") || strings.Contains(status, "127.0.0.1") {
+		t.Errorf("Status (ohne die interne Adresse): %q", status)
 	}
 	// Eine Weiterleitung auf ein internes Ziel wird nicht verfolgt
 	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, http.StatusFound) }))

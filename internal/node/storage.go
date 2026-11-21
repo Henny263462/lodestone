@@ -37,6 +37,8 @@ type serverOps struct {
 	reserved map[string]bool
 	// remeasureDelay ist die Wartezeit, bevor nach einem Upload nachgemessen wird (0 = Standard; in Tests kürzer).
 	remeasureDelay time.Duration
+	// restoreLimit ersetzt in Tests den freien Platz als Obergrenze beim Einspielen eines Backups (0 = freier Platz).
+	restoreLimit int64
 }
 
 func (o *serverOps) initLocked() {
@@ -217,7 +219,7 @@ func (m *Manager) diskLimitErr(id string, limitMB int) error {
 	if usage.MeasuredAt == 0 || usage.Bytes < limit {
 		return nil
 	}
-	return fmt.Errorf("%w: Das Speicherlimit des Servers ist erreicht (belegt %s von %s). Starten, Hochladen und Entpacken sind gesperrt, bis du Dateien löschst oder ein Administrator das Limit erhöht",
+	return fmt.Errorf("%w: Das Speicherlimit des Servers ist erreicht (belegt %s von %s). Starten, Hochladen, Speichern und Entpacken sind gesperrt, bis du Dateien löschst oder ein Administrator das Limit erhöht",
 		ErrConflict, formatBytes(usage.Bytes), formatBytes(limit))
 }
 
@@ -266,15 +268,18 @@ func formatBytes(n int64) string {
 
 // ---------------------------------------------------------------- Schnittstelle
 
-// guardedPath sind die Aktionen, die einen Server wachsen lassen und beim erreichten Limit gesperrt sind.
-var guardedPath = regexp.MustCompile(`^/api/servers/([a-z0-9][a-z0-9-]{0,62})/(files/upload|files/extract|files/pull|modpack)$`)
+// guardedPath sind die Aktionen, die einen Server wachsen lassen und beim erreichten Limit gesperrt sind (POST, beim
+// Speichern einer Datei PUT). Wiederherstellen bleibt erlaubt: Es ersetzt den Ordner durch einen früheren Stand und
+// ist der Weg zurück; die Platte des Nodes schützt dort restoreBudget.
+var guardedPath = regexp.MustCompile(`^/api/servers/([a-z0-9][a-z0-9-]{0,62})/(files/upload|files/extract|files/pull|files/archive|files/content|modpack|worlds/[^/]+/upload|worlds/[^/]+/datapacks)$`)
 
-// storageGuard sperrt Uploads, Entpacken, Downloads per Link und Modpacks, wenn das Limit erreicht ist oder der
-// Server gerade umzieht, und misst nach einer erfolgreichen Änderung nach.
+// storageGuard sperrt Uploads, Entpacken, Archivieren, Speichern, Downloads per Link, Welten, Datapacks und Modpacks,
+// wenn das Limit erreicht ist oder der Server gerade umzieht, und misst nach einer erfolgreichen Änderung nach.
+// SFTP prüft dasselbe selbst (sftpHandler.open).
 func (a *API) storageGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		match := guardedPath.FindStringSubmatch(r.URL.Path)
-		if r.Method != http.MethodPost || match == nil {
+		if (r.Method != http.MethodPost && r.Method != http.MethodPut) || match == nil {
 			next.ServeHTTP(w, r)
 			return
 		}
