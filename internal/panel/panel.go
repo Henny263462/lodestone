@@ -205,6 +205,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("POST /api/servers/{id}/addons/update", p.authenticate(p.addonsUpdate))
 	p.registerSFTPRoutes(mux)
 	p.registerBackupRoutes(mux)
+	p.registerServerOpsRoutes(mux)
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
 	p.registerRechteRoutes(mux)
 

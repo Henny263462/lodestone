@@ -149,9 +149,30 @@ Server), prüft beim Anmelden Passwort (argon2id im Format des Panels) oder Schl
 der Zugang noch besteht und schreiben darf; widerrufene Zugänge trennen offene Verbindungen. Dateizugriff nur über das `os.Root`
 des Servers. Benutzername: `<benutzer>.<erste 8 Zeichen der Server-ID>`.
 
+## Kopie, Umzug und Speicherplatz
+
+- **Speicherplatz** (`internal/node/storage.go`): `KeepMeasuring` misst alle 5 Minuten jeden Serverordner (und die Backups)
+  im Hintergrund, nach Uploads und Entpacken wird kurz danach nachgemessen; Anfragen lesen nur die Messung. Der freie Platz
+  kommt aus `statfs` bzw. `GetDiskFreeSpaceExW` (`diskfree_*.go`). Das weiche Limit steht als `diskLimitMB` in `spec.json`;
+  ist es erreicht, lehnen `Start` und die Middleware `storageGuard` (Upload, Entpacken, Download per Link, Modpack) ab.
+  Das Panel prüft die Limits in `storageLoop` (alle 5 Minuten) und meldet `storage` bei 90 % und 100 %.
+- **Kopie** (`internal/node/serverops.go`, `Clone`): kopiert den Ordner (Symlinks und Hilfsdateien nie, Welten = Ordner mit
+  `level.dat` wahlweise) in einen Hilfsordner `servers/.clone-<id>`, vergibt neue Host-Ports und schiebt ihn erst am Ende an
+  seinen Platz. Das Panel (`serverops.go`, `runClone`) trägt die Kopie ein und gleicht ein Netzwerk ab (`inTry` aus).
+- **Umzug** (`runMigration`): stoppen → `GET /api/servers/{id}/export` am Quell-Node (tar.gz: `spec.json`, `data/…`,
+  Abschlussvermerk) wird ohne Zwischenspeicher als Körper von `POST /api/servers/import` an den Ziel-Node gereicht →
+  Ziel entpackt in `servers/.import-<id>` und übernimmt den Server erst, wenn der Vermerk und die gzip-Prüfsumme stimmen →
+  `node_id` in einer Transaktion umtragen → alte Server löschen → Netzwerk abgleichen → wieder starten. Die Server-ID bleibt
+  gleich (Docker-Namen `lodestone-<id>` im Netzwerk passen weiter). Bis zum Umtragen macht jeder Fehler und jeder Abbruch
+  alles rückgängig.
+- **Vorgänge** stehen in der Tabelle `server_ops` (Schritt, Bytes, Ergebnis, Hinweise). Der laufende Vorgang schreibt jede
+  Sekunde ein Lebenszeichen und liest dabei den Abbruchwunsch; ohne Lebenszeichen seit 2 Minuten (Panel neu gestartet) gilt
+  er als fehlgeschlagen. Pro Projekt läuft höchstens ein Vorgang.
+
 ## Grenzen in v0.1
 
-- Ein Netzwerk liegt auf **einem** Node (die Server erreichen sich über das Docker-Netz `lodestone`).
+- Ein Netzwerk liegt auf **einem** Node (die Server erreichen sich über das Docker-Netz `lodestone`); es zieht nur als Ganzes
+  um, Netzwerke mit Gruppen (noch) gar nicht. Backups ziehen nicht mit um.
 - Das Panel greift per HTTP auf die Nodes zu (kein Tunnel nach außen).
 - Backups liegen auf der Maschine des Nodes (begrenzte Aufbewahrung) und auf Wunsch in einem S3-kompatiblen Ziel; es
   gibt nur Vollsicherungen (keine inkrementellen), kein SFTP/restic.

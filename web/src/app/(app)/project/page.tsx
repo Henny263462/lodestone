@@ -15,6 +15,7 @@ import { EventsTab } from "@/components/events";
 import { MotdCard } from "@/components/motd";
 import { StatusCard } from "@/components/status-settings";
 import { BackupTargetCard } from "@/components/backup-target";
+import { ProjectTransferCard } from "@/components/server/transfer";
 import { ChartCard, RangeTabs } from "@/components/server/stats";
 import { SeriesChart } from "@/components/ui/chart";
 import { PowerButtons, StateBadge } from "@/components/status";
@@ -548,6 +549,8 @@ function SettingsTab({ project, refresh }: { project: Project; refresh: () => vo
           </Button>
         </div>
       </Card>
+
+      {project.kind === "network" && <ProjectTransferCard project={project} />}
 
       {isOwner && (
         <Card className="border-bad/25">

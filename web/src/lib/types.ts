@@ -647,3 +647,62 @@ export interface PasskeyCeremony<T> {
   flow: string;
   options: T;
 }
+
+// --- serverops: Speicherplatz, Kopie und Umzug
+
+export interface DiskUsage {
+  bytes: number;
+  files: number;
+  backups: number;
+  measuredAt: number;
+}
+
+export interface StorageInfo extends DiskUsage {
+  limitMB: number;
+  blocked: boolean;
+  measuring: boolean;
+  free: number;
+  total: number;
+}
+
+export interface NodeStorageServer {
+  id: string;
+  name: string;
+  projectId: string;
+  projectName: string;
+  bytes: number;
+  backups: number;
+  limitMB: number;
+  measuredAt: number;
+}
+
+export interface NodeStorage {
+  online: boolean;
+  error?: string;
+  free: number;
+  total: number;
+  used: number;
+  servers?: NodeStorageServer[];
+}
+
+export type ServerOpState = "running" | "done" | "failed" | "canceled";
+
+export interface ServerOp {
+  id: string;
+  projectId: string;
+  serverId?: string;
+  kind: "clone" | "migrate";
+  state: ServerOpState;
+  label: string;
+  step: string;
+  done: number;
+  total: number;
+  message: string;
+  warnings: string[];
+  sourceNodeId?: string;
+  targetNodeId?: string;
+  resultServerId?: string;
+  cancelRequested: boolean;
+  createdAt: number;
+  updatedAt: number;
+}

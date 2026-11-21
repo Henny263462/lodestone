@@ -4,6 +4,7 @@ import { RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, CardHeader, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
+import { TransferCard } from "@/components/server/transfer";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
 import type { Server } from "@/lib/types";
@@ -136,6 +137,7 @@ export function SettingsTab({ server, canEdit = true, canDelete = true, onChange
 
       <AutoRestart server={server} onDone={onChanged} />
       <PublicAddress server={server} onDone={onChanged} />
+      <TransferCard server={server} />
 
       <Reinstall server={server} offline={!!offline} onDone={onChanged} />
 

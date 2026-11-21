@@ -106,8 +106,9 @@ func (a *API) Handler() http.Handler {
 	mux.HandleFunc("POST /api/servers/{id}/files/upload", a.server(a.upload))
 	mux.HandleFunc("GET /api/servers/{id}/files/download", a.server(a.download))
 	a.registerSFTPRoutes(mux)
+	a.registerServerOpsRoutes(mux)
 
-	return a.authenticate(mux)
+	return a.authenticate(a.storageGuard(mux))
 }
 
 // ---------------------------------------------------------------- Hilfen

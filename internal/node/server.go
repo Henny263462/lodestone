@@ -257,6 +257,10 @@ func (s *Server) Start() error {
 		s.mu.Unlock()
 		return fmt.Errorf("%w: Das Modpack wird noch installiert", ErrBadState)
 	}
+	if err := s.m.startBlocked(s.spec.ID, s.spec.DiskLimitMB); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	if err := s.m.checkMemory(s.spec.MemoryMB); err != nil {
 		s.mu.Unlock()
 		return err

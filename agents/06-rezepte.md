@@ -53,6 +53,10 @@ gestartet) gleicht regelmäßig ab und fragt den Node nach einer Start-Kennung (
 alles neu schicken. Der Node speichert den Zustand neben `spec.json`, prüft streng und weist bei jeder Nutzung erneut nach.
 Die Node-Route steht **nicht** in `requiredRank`, damit der Browser sie nie erreicht.
 
+Dauert die Aktion lange und betrifft mehrere Schritte oder Nodes (Kopie, Umzug): Vorbild `internal/panel/serverops.go`
+(`startOp`/`runOp`, Tabelle `server_ops` mit Lebenszeichen und Abbruch) und `components/server/transfer.tsx` (`OpsList`).
+Daten zwischen Nodes immer als Strom durch das Panel reichen (`NodeClient.send`, `longClient`), nie ganz in den Speicher laden.
+
 ## D. Neue Hauptseite
 
 Siehe `03` §6. Vorbild: `app/(app)/audit/page.tsx` (Liste mit Filter) oder `nodes/page.tsx` (Karten).

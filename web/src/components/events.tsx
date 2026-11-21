@@ -20,9 +20,11 @@ export const eventLabels: Record<string, string> = {
   node_online: "Node wieder erreichbar",
   lowmemory: "Wenig Arbeitsspeicher",
   scale: "Skalierung",
+  storage: "Speicher fast voll",
+  transfer: "Kopie und Umzug",
 };
 
-const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory"];
+const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory", "storage"];
 
 export function EventsTab({ project }: { project: Project }) {
   const canManage = can(project.myPermissions, "webhooks");

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Card, CardHeader, StatCard, Tabs } from "@/components/ui/primitives";
 import { SeriesChart } from "@/components/ui/chart";
 import { ErrorState, Loading } from "@/components/ui/async";
+import { StorageCard } from "@/components/server/storage";
 import { useApi } from "@/lib/api";
 import { megabytes, uptime } from "@/lib/format";
 import type { Metrics, Range, Server } from "@/lib/types";
@@ -111,6 +112,7 @@ export function StatsTab({ server }: { server: Server }) {
           />
         </ChartCard>
       </div>
+      <StorageCard server={server} />
     </div>
   );
 }

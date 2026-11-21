@@ -51,6 +51,9 @@ type Manager struct {
 	// Die vergebenen Host-Ports stehen getrennt, damit die Vergabe nie Server-Sperren braucht.
 	portMu sync.Mutex
 	ports  map[string][]PortMapping
+
+	// ops sind Speicherplatz, Klonen und Umzug (serverops.go, storage.go).
+	ops serverOps
 }
 
 // NewManager legt einen Manager an. Load liest die vorhandenen Server.
