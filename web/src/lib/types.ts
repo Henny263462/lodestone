@@ -752,3 +752,70 @@ export interface ProjectPref {
   position: number;
   tags: string[];
 }
+
+// --- automatik: Schlafmodus, Konsolen-Auslöser, Discord-Bot, Absturzanalyse
+
+export interface SleepStatus {
+  enabled: boolean;
+  idleMinutes: number;
+  /** false: Der Node kann die Ports der Maschine nicht selbst belegen (läuft im Container). */
+  supported: boolean;
+  /** Der Server schläft, der Node wartet auf seinem Port auf Spieler. */
+  listening: boolean;
+  port?: number;
+  idleSince?: number;
+  lastWake?: number;
+  lastSleep?: number;
+  problem?: string;
+  /** false für Backend-Server hinter dem Proxy und Gruppen-Instanzen. */
+  allowed: boolean;
+  reason?: string;
+}
+
+export type TriggerLevel = "info" | "warn" | "error";
+
+export interface ConsoleTrigger {
+  id: string;
+  projectId: string;
+  /** leer = alle Server des Projekts */
+  serverId: string;
+  name: string;
+  pattern: string;
+  level: TriggerLevel;
+  /** leer = kein Zeitplan */
+  scheduleId: string;
+  enabled: boolean;
+  lastMatch: number;
+  lastLine: string;
+  createdAt: number;
+}
+
+export type DiscordAction = "status" | "players" | "start" | "stop" | "restart";
+
+export interface DiscordRule {
+  kind: "role" | "user";
+  id: string;
+  label?: string;
+  actions: DiscordAction[];
+}
+
+export interface DiscordConfig {
+  configured: boolean;
+  applicationId: string;
+  publicKey: string;
+  hasToken: boolean;
+  rules: DiscordRule[];
+  enabled: boolean;
+  registeredAt: number;
+  interactionsPath: string;
+}
+
+export interface CrashAnalysis {
+  found: boolean;
+  report?: string;
+  suspects: { modId: string; name?: string; reason: "suspected" | "stacktrace" | "mixin" }[];
+  missing: { mod: string; requires: string; version?: string }[];
+  java?: { required: number; current?: number };
+  mixins: string[];
+  summary?: string;
+}

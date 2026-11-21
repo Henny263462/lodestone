@@ -54,6 +54,9 @@ type Manager struct {
 
 	// ops sind Speicherplatz, Klonen und Umzug (serverops.go, storage.go).
 	ops serverOps
+
+	// auto ist der Stand von Schlafmodus und Konsolen-Beobachtung (automatik.go).
+	auto autoState
 }
 
 // NewManager legt einen Manager an. Load liest die vorhandenen Server.

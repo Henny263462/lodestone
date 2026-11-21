@@ -5,6 +5,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Keybo
 import { Badge, Button, Card, Dot } from "@/components/ui/primitives";
 import { downloadUrl, wsBase } from "@/lib/api";
 import { analyse } from "@/lib/crash";
+import { CrashReportHint } from "@/components/server/crash-analysis";
 import { ansiStrip, bytes, stateLabel, stateTone } from "@/lib/format";
 import type { LogLine, ServerState, Stats } from "@/lib/types";
 
@@ -218,6 +219,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
         )}
       </div>
 
+      <CrashReportHint serverId={serverId} offline={state === "offline"} />
       {hints.length > 0 && (
         <div className="space-y-2 border-b border-white/[0.06] bg-white/[0.015] px-4 py-3">
           {hints.map((hint) => (

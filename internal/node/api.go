@@ -108,6 +108,7 @@ func (a *API) Handler() http.Handler {
 	a.registerSFTPRoutes(mux)
 	a.registerServerOpsRoutes(mux)
 	a.registerWorldRoutes(mux)
+	a.registerAutomatikRoutes(mux)
 
 	return a.authenticate(a.storageGuard(mux))
 }

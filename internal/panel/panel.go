@@ -83,6 +83,9 @@ type Panel struct {
 
 	// sso hält laufende OIDC- und Passkey-Abläufe (anmeldung.go).
 	sso *ssoState
+
+	// auto ist der Stand von Konsolen-Auslösern, Schlafmodus und Discord-Bot (automatik.go).
+	auto autoState
 }
 
 type viewEntry struct {
@@ -209,6 +212,7 @@ func (p *Panel) Handler() http.Handler {
 	p.registerWorldRoutes(mux)
 	mux.HandleFunc("/api/servers/{id}/{rest...}", p.authenticate(p.proxyServer))
 	p.registerRechteRoutes(mux)
+	p.registerAutomatikRoutes(mux)
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unbekannte Adresse"})

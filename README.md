@@ -67,6 +67,21 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   `/api/public/status/<Kürzel>`; zeigt nur Online-Status, Spielerzahl, Version und Adresse
 - **Konsole:** Suche, Filter nach Stufe, Log-Download und Hinweise zu bekannten Fehlern (zu wenig RAM, EULA, Port belegt,
   falsche Java-Version, Plugin- und Mod-Konflikte)
+- **Absturzanalyse:** Der Node wertet den neuesten Bericht unter `crash-reports/` und das Log aus („Suspected Mod(s)“,
+  Mod-IDs im Stacktrace, fehlende Abhängigkeiten, falsche Java-Version, Mixin-Fehler). Der Verdächtige steht im
+  Absturz-Ereignis und als Hinweis über der Konsole
+- **Schlafmodus** pro Server (Einzelserver und Proxy eines Netzwerks): Ist der Server aus, hält der Node seinen Port mit
+  einem kleinen Minecraft-Listener – die Serverliste zeigt „Schläft – zum Starten beitreten“, ein Beitritt startet ihn.
+  Nach N Minuten ohne Spieler stoppt er sauber. Schläft der Proxy, gehen die Backend-Server mit schlafen und wachen mit
+  ihm auf. Braucht einen Node, der die Ports der Maschine selbst belegen kann (direkt auf der Maschine oder
+  `network_mode: host`, siehe `LODESTONE_NODE_SLEEP_MODE`)
+- **Mehr Ereignisse:** Spieler betritt/verlässt (aus der Konsole erkannt), **Konsolen-Auslöser** mit eigenem Muster
+  (regulärer Ausdruck, höchstens 20 pro Projekt, Projekt-Admins) – als Ereignis, Webhook und auf Wunsch Start eines Zeitplans
+- **Discord-Bot** über den Interactions-Endpunkt (kein Gateway): `/status`, `/spieler`, `/start`, `/stop`, `/restart`,
+  Rechte je Discord-Rolle oder -Benutzer, Bot-Token verschlüsselt gespeichert, Befehle per Knopf eintragen. Discord muss
+  das Panel öffentlich per **HTTPS** erreichen (`https://…/api/public/discord/<Projekt-ID>/interactions`)
+- **Prometheus:** `GET /metrics` mit eigenem Token (`LODESTONE_METRICS_TOKEN`) – Zustand, Spieler, CPU, RAM und Laufzeit
+  je Server, Erreichbarkeit und freier Arbeitsspeicher je Node
 - **Arbeitsspeicher-Planer:** Der Node prüft vor dem Start, ob genug RAM frei ist (Reserve einstellbar), und die
   Nodes-Seite zeigt zugesagt gegen tatsächlich belegt
 - **Konto-Sicherheit:** Zwei-Faktor-Anmeldung (TOTP mit QR-Code und Wiederherstellungscodes), **API-Schlüssel** für
@@ -225,14 +240,28 @@ müssen alle ihre Passkeys neu anlegen. Passkeys legst du unter **Konto → Pass
 (PIN, Fingerabdruck) und ersetzt Passwort und zweiten Faktor. Wer einen Passkey hat, braucht nach
 dem Passwort einen zweiten Schritt (Passkey oder Code aus der App). Hat jemand sein Gerät verloren, entfernt ein
 Administrator seine Passkeys mit `DELETE /api/users/<id>/passkeys`.
+| `LODESTONE_METRICS_TOKEN` | schaltet `GET /metrics` für Prometheus ein; der Abfrager schickt `Authorization: Bearer <Token>` (ohne Variable: 404) |
 
 Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_PORT_RANGE` (z. B. `28000-28099`),
 `_CONTAINER_USER`, `_NETWORK`, `_MEMORY_RESERVE_MB` (RAM, der für das System frei bleibt, Standard 1024), `_PLAYIT_IMAGE`,
-`_SFTP_LISTEN` (Adresse des SFTP-Zugangs, Standard `:2022`; leer oder `off` schaltet SFTP ab)
+`_SFTP_LISTEN` (Adresse des SFTP-Zugangs, Standard `:2022`; leer oder `off` schaltet SFTP ab),
+`_SLEEP_MODE` (`on`/`off`; leer = an, außer der Node läuft in einem Docker-Container mit eigenem Netz – dort erreicht
+den Listener des Schlafmodus niemand)
 – oder `config.json` (siehe unten). Der Host-Schlüssel für SFTP wird beim ersten Start im Datenordner des Nodes angelegt
 (`sftp_host_ed25519_key`) und danach nie geändert. Im Compose-Setup ist der Port über `LODESTONE_SFTP_PORT` (Standard 2022)
 veröffentlicht; zum Abschalten `LODESTONE_NODE_SFTP_LISTEN: ""` setzen und den `ports`-Eintrag des Nodes entfernen. Lässt sich
 SFTP nicht starten (Port belegt, Schlüssel nicht schreibbar), läuft der Node ohne SFTP weiter und schreibt den Grund ins Log.
+
+
+Prometheus-Beispiel:
+
+```yaml
+scrape_configs:
+  - job_name: lodestone
+    metrics_path: /metrics
+    authorization: { credentials: "<LODESTONE_METRICS_TOKEN>" }
+    static_configs: [{ targets: ["panel.example.org:8480"] }]
+```
 
 ## Sicherheit
 

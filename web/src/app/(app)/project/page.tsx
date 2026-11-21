@@ -16,6 +16,7 @@ import { MotdCard } from "@/components/motd";
 import { StatusCard } from "@/components/status-settings";
 import { BackupTargetCard } from "@/components/backup-target";
 import { ProjectTransferCard } from "@/components/server/transfer";
+import { DiscordBotCard } from "@/components/discord-bot";
 import { ChartCard, RangeTabs } from "@/components/server/stats";
 import { SeriesChart } from "@/components/ui/chart";
 import { PowerButtons, StateBadge } from "@/components/status";
@@ -536,6 +537,7 @@ function SettingsTab({ project, refresh }: { project: Project; refresh: () => vo
     <div className="space-y-5">
       <StatusCard project={project} refresh={refresh} />
       <BackupTargetCard project={project} />
+      <DiscordBotCard project={project} />
       <Card>
         <CardHeader title="Allgemein" />
         <div className="space-y-4 px-5 py-4">
