@@ -35,7 +35,7 @@ func (p *Panel) sourceContext(r *http.Request, needed ...Permission) (ServerRow,
 }
 
 func (p *Panel) listSources(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r)
 	if err != nil {
 		writeError(w, err)
 		return

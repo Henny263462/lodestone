@@ -32,6 +32,12 @@ const (
 	maxSFTPKeysUser  = 20
 )
 
+func init() {
+	// SFTP-Anmeldungen erscheinen auch im Verlauf des Projekts (und auf Wunsch per Webhook), nicht nur im Protokoll.
+	eventKinds = append(eventKinds, "sftp_login")
+	titles["sftp_login"] = "SFTP-Anmeldung"
+}
+
 // sftpState ist der Stand des Abgleichs. Der Nullwert ist benutzbar (init legt die Maps an).
 type sftpState struct {
 	once   sync.Once
@@ -289,8 +295,8 @@ func sftpHost(n Node) string {
 }
 
 func (p *Panel) getServerSFTP(w http.ResponseWriter, r *http.Request) {
-	// Wer Dateien bearbeiten darf, darf auch per SFTP – Betrachter nicht
-	row, _, rank, err := p.requireServer(r, rankOperator)
+	// SFTP braucht das eigene Recht und „Dateien ansehen“; ohne „Dateien ändern“ ist der Zugang nur lesend
+	row, _, access, err := p.requireServerPermission(r, PermSFTP, PermFilesRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -324,13 +330,13 @@ func (p *Panel) getServerSFTP(w http.ResponseWriter, r *http.Request) {
 	p.sftpWake() // falls der Server neu ist, bekommt der Node seine Zugänge sofort
 	writeJSON(w, http.StatusOK, SFTPServerDTO{
 		Enabled: status.Enabled, Host: sftpHost(n), Port: status.Port, Username: sftpLogin(user.Username, row.ID), Fingerprint: status.Fingerprint,
-		ReadOnly: rank == rankOperator && readOnly, OperatorsReadOnly: readOnly, CanConfigure: rank >= rankAdmin,
+		ReadOnly: sftpReadOnly(access, readOnly), OperatorsReadOnly: readOnly, CanConfigure: access.Has(PermSettings),
 		PasswordReady: credential.PasswordHash != "" && credential.PasswordLogin, KeyCount: len(keys),
 	})
 }
 
 func (p *Panel) putServerSFTP(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -375,32 +381,35 @@ func (p *Panel) sftpNodeStatus(ctx context.Context, client *NodeClient, nodeID s
 
 // ---------------------------------------------------------------- Abgleich
 
-// sftpTargets rechnet aus, welche Zugänge jeder Server haben soll. Ab Operator darf man hinein, globale
-// Administratoren überall; gesperrte Benutzer und solche ohne Passwort und Schlüssel bekommen keinen Zugang.
+// sftpReadOnly sagt, ob ein Zugang nur lesen darf: ohne „Dateien ändern“ immer, und wenn der Server „Operatoren nur
+// lesend“ eingestellt hat, für alle, die diese Einstellung nicht selbst ändern dürfen (in den Vorlagen: Operatoren).
+func sftpReadOnly(access Access, operatorsReadOnly bool) bool {
+	return !access.Has(PermFilesWrite) || (operatorsReadOnly && !access.Has(PermSettings))
+}
+
+// sftpTargets rechnet aus, welche Zugänge jeder Server haben soll. Hinein darf, wer im Projekt die Rechte „SFTP-Zugang“
+// und „Dateien ansehen“ hat (auch angepasste Rechte zählen), globale Administratoren überall; gesperrte Benutzer und
+// solche ohne Passwort und Schlüssel bekommen keinen Zugang.
 func sftpTargets(snapshot sftpSnapshot) map[string]node.SFTPAccess {
 	users := map[string]User{}
-	var admins []User
 	for _, user := range snapshot.users {
 		users[user.ID] = user
-		if user.IsAdmin && !user.Disabled {
-			admins = append(admins, user)
-		}
 	}
 	targets := make(map[string]node.SFTPAccess, len(snapshot.servers))
 	for _, server := range snapshot.servers {
-		ranks := map[string]int{}
-		for _, admin := range admins {
-			ranks[admin.ID] = rankOwner
-		}
+		accesses := map[string]Access{}
 		for userID, role := range snapshot.members[server.ProjectID] {
-			if rank := roleRanks[role]; rank > ranks[userID] {
-				ranks[userID] = rank
+			accesses[userID] = accessFor(roleRanks[role], snapshot.custom[server.ProjectID][userID])
+		}
+		for _, user := range snapshot.users {
+			if user.IsAdmin {
+				accesses[user.ID] = accessFor(rankOwner, nil)
 			}
 		}
 		grants := []node.SFTPGrant{}
-		for userID, rank := range ranks {
+		for userID, access := range accesses {
 			user, ok := users[userID]
-			if !ok || user.Disabled || rank < rankOperator {
+			if !ok || user.Disabled || !access.Has(PermSFTP, PermFilesRead) {
 				continue
 			}
 			credential := snapshot.credentials[userID]
@@ -414,7 +423,7 @@ func sftpTargets(snapshot sftpSnapshot) map[string]node.SFTPAccess {
 			}
 			grants = append(grants, node.SFTPGrant{
 				Username: sftpLogin(user.Username, server.ID), PasswordHash: hash, Keys: keys,
-				ReadOnly: rank == rankOperator && snapshot.readOnly[server.ID],
+				ReadOnly: sftpReadOnly(access, snapshot.readOnly[server.ID]),
 			})
 		}
 		sort.Slice(grants, func(i, j int) bool { return grants[i].Username < grants[j].Username })
@@ -643,4 +652,15 @@ func (p *Panel) recordSFTPEvent(event node.SFTPEvent) {
 		action, status = "SFTP-Anmeldung abgelehnt (falsches Passwort)", http.StatusUnauthorized
 	}
 	p.recordAudit(user.ID, user.Username, action, "/api/servers/"+event.ServerID, status, event.IP)
+	if row, err := p.store.ServerByID(event.ServerID); err == nil {
+		// Die IP-Adresse steht nur im Protokoll der Administratoren, nicht im Verlauf, den alle Mitglieder sehen
+		message, level := user.Username+" hat sich per SFTP an „"+row.Name+"“ angemeldet (Passwort).", "info"
+		switch {
+		case !event.Success:
+			message, level = "Abgelehnte SFTP-Anmeldung als "+user.Username+" an „"+row.Name+"“ (falsches Passwort).", "warn"
+		case event.Method == "publickey":
+			message = user.Username + " hat sich per SFTP an „" + row.Name + "“ angemeldet (SSH-Schlüssel)."
+		}
+		p.emit(row.ProjectID, row.ID, "sftp_login", level, message)
+	}
 }

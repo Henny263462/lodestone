@@ -107,6 +107,14 @@ func checkRoleMatrix(t *testing.T, role string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	trigger, err := p.store.CreateTrigger(ConsoleTrigger{ProjectID: project.ID, Name: "Fehler", Pattern: "ERROR", Level: "warn", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err := p.store.CreateOp(ServerOp{ProjectID: project.ID, ServerID: server.ID, Kind: "clone", Label: "Main → Kopie", Step: "läuft"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	member := newClient(t, web.URL)
 	member.expect(200, "POST", "/api/auth/login", map[string]string{"username": "mitglied", "password": "ein-gutes-passwort"})
@@ -170,7 +178,61 @@ func checkRoleMatrix(t *testing.T, role string) {
 		{"POST", sp + "/backups/x.tar.gz/restore", nil, rankOperator},
 		{"DELETE", sp + "/backups/x.tar.gz", nil, rankOperator},
 		{"POST", sp + "/reinstall", map[string]string{"software": "paper", "version": "1.21.4"}, rankAdmin},
+		// Backups mit externem Ziel
+		{"GET", pp + "/backup-target", nil, rankAdmin},
+		{"PUT", pp + "/backup-target", bad, rankAdmin},
+		{"POST", pp + "/backup-target/test", bad, rankAdmin},
+		{"GET", sp + "/backup-settings", nil, rankViewer},
+		{"PUT", sp + "/backup-settings", bad, rankAdmin},
+		{"POST", sp + "/backups/x.tar.gz/lock", map[string]bool{"locked": true}, rankOperator},
+		{"POST", sp + "/backups/x.tar.gz/upload", nil, rankOperator},
+		{"POST", sp + "/backups/x.tar.gz/restore-remote", nil, rankOperator},
+		// SFTP
+		{"GET", sp + "/sftp", nil, rankOperator},
+		{"PUT", sp + "/sftp", bad, rankAdmin},
+		// Welten und Spieleinstellungen
+		{"GET", sp + "/properties", nil, rankOperator},
+		{"PUT", sp + "/properties", bad, rankAdmin},
+		{"GET", sp + "/worlds", nil, rankOperator},
+		{"POST", sp + "/worlds/world/reset", bad, rankAdmin},
+		{"GET", sp + "/worlds/world/download", nil, rankOperator},
+		{"POST", sp + "/worlds/world/upload", nil, rankAdmin},
+		{"GET", sp + "/worlds/world/datapacks", nil, rankOperator},
+		{"POST", sp + "/worlds/world/datapacks", nil, rankOperator},
+		{"DELETE", sp + "/worlds/world/datapacks/x.zip", nil, rankOperator},
+		{"GET", pp + "/live-players", nil, rankViewer},
+		{"PUT", "/api/me/project-prefs/" + project.ID, bad, rankViewer},
+		// Kopieren, Umziehen, Speicherplatz
+		{"POST", sp + "/clone", bad, rankAdmin},
+		{"POST", pp + "/migrate", bad, rankAdmin},
+		{"GET", pp + "/server-ops", nil, rankViewer},
+		{"GET", "/api/server-ops/" + op.ID, nil, rankViewer},
+		{"POST", "/api/server-ops/" + op.ID + "/cancel", nil, rankAdmin},
+		{"GET", sp + "/storage", nil, rankViewer},
+		{"PUT", sp + "/storage", bad, rankAdmin},
+		{"POST", sp + "/storage/measure", nil, rankOperator},
+		// Automatik
+		{"GET", sp + "/sleep", nil, rankViewer},
+		{"PUT", sp + "/sleep", bad, rankAdmin},
+		{"GET", sp + "/crash-analysis", nil, rankViewer},
+		{"GET", pp + "/console-triggers", nil, rankAdmin},
+		{"POST", pp + "/console-triggers", bad, rankAdmin},
+		{"PATCH", "/api/console-triggers/" + trigger.ID, bad, rankAdmin},
+		{"GET", pp + "/discord", nil, rankAdmin},
+		{"PUT", pp + "/discord", bad, rankAdmin},
+		{"POST", pp + "/discord/register", nil, rankAdmin},
+		// Quellen und Bausteine
+		{"GET", sp + "/sources", nil, rankViewer},
+		{"GET", sp + "/sources/modrinth/search?q=x", nil, rankViewer},
+		{"POST", sp + "/sources/modrinth/install", bad, rankOperator},
+		{"GET", sp + "/blocks", nil, rankViewer},
+		{"PUT", sp + "/blocks/bluemap", bad, rankAdmin},
+		{"GET", pp + "/blocks", nil, rankViewer},
+		{"PUT", pp + "/blocks/geyser", bad, rankAdmin},
 		// zerstörend, darum am Ende
+		{"DELETE", "/api/console-triggers/" + trigger.ID, nil, rankAdmin},
+		{"DELETE", pp + "/discord", nil, rankAdmin},
+		{"DELETE", pp + "/backup-target", nil, rankAdmin},
 		{"DELETE", "/api/schedules/" + schedule.ID, nil, rankAdmin},
 		{"DELETE", "/api/webhooks/" + hook.ID, nil, rankAdmin},
 		{"DELETE", "/api/groups/" + group.ID, nil, rankAdmin},
@@ -377,6 +439,86 @@ func TestSchedulesNeedTheRightsOfTheirSteps(t *testing.T) {
 	c.expect(403, "POST", "/api/schedules/"+other.ID+"/run", nil)
 	c.expect(202, "POST", "/api/schedules/"+created.ID+"/run", nil)
 	time.Sleep(50 * time.Millisecond) // der Lauf im Hintergrund soll vor dem Aufräumen fertig sein
+}
+
+// TestNewFeaturesFollowCustomPermissions prüft an den neuen Funktionen, dass einzelne Rechte (nicht die Rolle) zählen
+// und dass man über Auslöser und Discord nicht mehr anstoßen kann, als man selbst darf.
+func TestNewFeaturesFollowCustomPermissions(t *testing.T) {
+	_, admin, server, projectID, ids, login := rightsProject(t, "lea")
+	members := "/api/projects/" + projectID + "/members/"
+	pp, sp := "/api/projects/"+projectID, "/api/servers/"+server.ID
+	grant := func(perms ...Permission) {
+		admin.expect(200, "PUT", members+ids["lea"], map[string]any{"role": "viewer", "permissions": perms})
+	}
+	c := login("lea")
+	notForbidden := func(method, path string, body any) {
+		t.Helper()
+		if status, data := c.do(method, path, body); status == 403 {
+			t.Errorf("%s %s abgelehnt: %s", method, path, data)
+		}
+	}
+
+	// Backups: Erstellen, Festhalten und Löschen sind getrennte Rechte
+	backup := sp + "/backups/20260101-120000.tar.gz"
+	grant(PermBackupsRead, PermBackupsCreate)
+	notForbidden("POST", sp+"/backups", map[string]string{"label": "x"})
+	if body := string(c.expect(403, "POST", backup+"/lock", map[string]bool{"locked": true})); !strings.Contains(body, "Backups löschen") {
+		t.Errorf("Festhalten ohne „Backups löschen“: %s", body)
+	}
+	c.expect(403, "DELETE", backup, nil)
+	c.expect(403, "POST", backup+"/restore-remote", nil)
+	c.expect(403, "PUT", sp+"/backup-settings", map[string]any{"exclude": []string{}, "remoteKeep": 3})
+	grant(PermBackupsRead, PermBackupsDelete)
+	notForbidden("POST", backup+"/lock", map[string]bool{"locked": true})
+	c.expect(403, "POST", sp+"/backups", nil)
+
+	// SFTP: eigenes Recht plus „Dateien ansehen“, ohne „Dateien ändern“ nur lesend
+	grant(PermSFTP)
+	c.expect(403, "GET", sp+"/sftp", nil)
+	grant(PermSFTP, PermFilesRead)
+	var card SFTPServerDTO
+	_ = json.Unmarshal(c.expect(200, "GET", sp+"/sftp", nil), &card)
+	if !card.ReadOnly || card.CanConfigure {
+		t.Errorf("SFTP-Karte ohne „Dateien ändern“: %+v", card)
+	}
+
+	// Welten: lesen mit „Dateien ansehen“, zurücksetzen nur mit „Einstellungen“ und „Dateien ändern“
+	notForbidden("GET", sp+"/worlds", nil)
+	c.expect(403, "POST", sp+"/worlds/world/datapacks", nil)
+	grant(PermSettings)
+	c.expect(403, "POST", sp+"/worlds/world/reset", map[string]bool{"backup": true})
+	notForbidden("PUT", sp+"/properties", map[string]any{"values": map[string]string{"motd": "Hallo"}})
+	notForbidden("PUT", sp+"/sleep", map[string]any{"enabled": false, "idleMinutes": 10})
+
+	// Discord: Regeln mit Start/Stopp nur mit „Starten und Stoppen“
+	bot := func(actions ...string) map[string]any {
+		return map[string]any{"applicationId": "123456789012345678", "publicKey": strings.Repeat("ab", 32), "enabled": true,
+			"rules": []map[string]any{{"kind": "role", "id": "223456789012345678", "label": "Team", "actions": actions}}}
+	}
+	if body := string(c.expect(403, "PUT", pp+"/discord", bot("status", "stop"))); !strings.Contains(body, "Starten und Stoppen") {
+		t.Errorf("Discord-Regel mit Stopp: %s", body)
+	}
+	c.expect(200, "PUT", pp+"/discord", bot("status", "players"))
+	// Was ein anderer schon vergeben hat, darf bleiben, wenn man den Rest ändert
+	admin.expect(200, "PUT", pp+"/discord", bot("status", "restart"))
+	c.expect(200, "PUT", pp+"/discord", bot("players", "restart"))
+	c.expect(403, "PUT", pp+"/discord", bot("players", "restart", "start"))
+
+	// Konsolen-Auslöser: „Webhooks“, und ein verknüpfter Zeitplan braucht die Rechte seiner Schritte
+	var schedule scheduleDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", pp+"/schedules", map[string]any{"serverId": server.ID, "name": "Ansage", "kind": "daily", "atMinute": 60, "steps": []Step{{Action: "command", Value: "say hallo"}}}), &schedule)
+	c.expect(403, "GET", pp+"/console-triggers", nil)
+	grant(PermWebhooks)
+	trigger := map[string]any{"name": "Fehler", "pattern": "ERROR", "level": "warn", "scheduleId": schedule.ID}
+	if body := string(c.expect(403, "POST", pp+"/console-triggers", trigger)); !strings.Contains(body, "Befehle senden") {
+		t.Errorf("Auslöser mit Zeitplan: %s", body)
+	}
+	delete(trigger, "scheduleId")
+	var created ConsoleTrigger
+	_ = json.Unmarshal(c.expect(201, "POST", pp+"/console-triggers", trigger), &created)
+	c.expect(403, "PATCH", "/api/console-triggers/"+created.ID, map[string]string{"scheduleId": schedule.ID})
+	grant(PermWebhooks, PermConsoleCommand)
+	c.expect(200, "PATCH", "/api/console-triggers/"+created.ID, map[string]string{"scheduleId": schedule.ID})
 }
 
 func TestGlobalAdminHasAllPermissions(t *testing.T) {

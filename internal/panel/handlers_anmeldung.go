@@ -345,7 +345,8 @@ func (p *Panel) createOIDCUser(identity oidcIdentity, ip string) (User, OIDCLink
 // oidcAccount zeigt im Konto, ob und womit es verknüpft ist.
 func (p *Panel) oidcAccount(w http.ResponseWriter, r *http.Request) {
 	user := userFrom(r.Context())
-	result := map[string]any{"configured": false, "hasPassword": user.PasswordHash != "", "passwordLogin": !p.sso.oidcOnly()}
+	result := map[string]any{"configured": false, "hasPassword": user.PasswordHash != "", "passwordLogin": !p.sso.oidcOnly(),
+		"firstPasswordUntil": p.firstPasswordUntil(r, user)}
 	if p.requireOIDC() == nil {
 		result["configured"], result["name"] = true, p.sso.name
 		if link, err := p.store.OIDCLinkByUser(user.ID, p.sso.issuer); err == nil {

@@ -77,7 +77,7 @@ func commandPayload(servers []ServerRow) []map[string]any {
 
 // registerDiscord trägt die Slash-Befehle bei Discord ein (ersetzt die vorhandenen der Anwendung).
 func (p *Panel) registerDiscord(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return

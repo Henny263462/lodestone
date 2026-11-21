@@ -205,7 +205,7 @@ func (p *Panel) serverBlockDTOs(ctx context.Context, row ServerRow, project Proj
 }
 
 func (p *Panel) listServerBlocks(w http.ResponseWriter, r *http.Request) {
-	row, project, _, err := p.requireServer(r, rankViewer)
+	row, project, _, err := p.requireServerPermission(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -313,7 +313,7 @@ func (p *Panel) removeFiles(ctx context.Context, client *NodeClient, row ServerR
 }
 
 func (p *Panel) putServerBlock(w http.ResponseWriter, r *http.Request) {
-	row, project, _, err := p.requireServer(r, rankAdmin)
+	row, project, _, err := p.requireServerPermission(r, PermSettings, PermAddons)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -590,7 +590,7 @@ func (p *Panel) projectBlockDTOs(ctx context.Context, project Project) ([]BlockD
 }
 
 func (p *Panel) listProjectBlocks(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankViewer)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -606,7 +606,7 @@ func (p *Panel) listProjectBlocks(w http.ResponseWriter, r *http.Request) {
 // putProjectBlock schaltet Geyser für ein Netzwerk ein oder aus. Der Proxy bekommt Geyser und Floodgate samt
 // Bedrock-Port (dafür muss er aus sein), die Server dahinter Floodgate und den gemeinsamen Schlüssel.
 func (p *Panel) putProjectBlock(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermNetwork, PermAddons)
 	if err != nil {
 		writeError(w, err)
 		return

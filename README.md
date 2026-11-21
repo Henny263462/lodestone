@@ -21,18 +21,22 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Feine Rechte pro Mitglied:** Die Rolle ist eine Vorlage, unter „Mitglieder → Rechte“ lassen sich 18 Einzelrechte
   (Konsole lesen, Befehle, Starten/Stoppen, Dateien ansehen/ändern, SFTP, Backups ansehen/erstellen/wiederherstellen/löschen,
   Plugins/Mods, Spieler, Einstellungen, Server anlegen/löschen, Zeitpläne, Webhooks, Mitglieder, Netzwerk) dazugeben oder
-  wegnehmen – niemand kann mehr vergeben, als er selbst hat
+  wegnehmen – niemand kann mehr vergeben, als er selbst hat. Alle Funktionen (auch SFTP, Backup-Ziel, Welten, Kopieren und
+  Umziehen, Schlafmodus, Konsolen-Auslöser, Discord-Bot, Bausteine) prüfen die Einzelrechte; die Oberfläche blendet aus,
+  was jemand nicht darf. Wer Auslöser oder Discord-Regeln einrichtet, kann darüber nicht mehr anstoßen, als er selbst darf
 - **Server-Arten:** Paper, Purpur, Folia, Fabric, NeoForge, Forge (ab Minecraft 1.12), Vanilla, Velocity – Version, Download mit
   Prüfsumme und Java-Version werden automatisch bestimmt. Forge und NeoForge laufen nicht hinter Velocity (dafür bräuchte es
   einen Forwarding-Mod und ein Proxy-Plugin, das nicht für alle Versionen zuverlässig geht) – das Panel sagt das beim Anlegen
 - **Konsole live** (Websocket, mit Verlauf und ANSI-Farben), Start/Stopp/Neustart/Kill, CPU-/RAM-Anzeige
 - **Dateien** mit Editor und Syntax-Highlight (JSON, YAML, TOML, XML, Properties, Markdown …), Upload per Drag & Drop,
   Verschieben, Archivieren (`.zip`, `.tar.gz`), Entpacken und Mehrfachauswahl (Verschieben, Archivieren, Löschen)
-- **SFTP-Zugang pro Server** (FileZilla, WinSCP, `sftp`): ab der Rolle Operator, mit eigenem SFTP-Passwort und/oder
+- **SFTP-Zugang pro Server** (FileZilla, WinSCP, `sftp`): mit den Rechten „SFTP-Zugang“ und „Dateien ansehen“ (Vorlage:
+  ab Operator), schreiben nur mit „Dateien ändern“, mit eigenem SFTP-Passwort und/oder
   **SSH-Schlüsseln** unter *Konto*, Passwort-Anmeldung abschaltbar. Benutzername `<benutzer>.<server-kurz-id>`, Host, Port und
   Fingerabdruck stehen mit Kopierknöpfen im Dateien-Tab. Admins können Operatoren eines Servers auf „nur lesen“ stellen.
-  Das Panel entscheidet allein und schiebt die Zugänge zum Node (Änderungen wirken nach wenigen Sekunden, auch auf offene
-  Verbindungen); Anmeldungen stehen im Protokoll und in der Konsole
+  Das Panel entscheidet allein und schiebt die Zugänge zum Node (Änderungen an Mitgliedern, Rechten und Benutzern stoßen
+  den Abgleich sofort an und wirken auch auf offene Verbindungen); Anmeldungen stehen im Protokoll, in der Konsole und als
+  Ereignis „SFTP-Anmeldung“ im Verlauf des Projekts (ohne IP-Adresse, auch für Webhooks wählbar)
 - **Plugins und Mods:** installierte anzeigen (Name, Version), von **Modrinth** suchen und installieren (nur passende
   zu Software und Version, inklusive benötigter Abhängigkeiten), Updates prüfen und einspielen, Jar hochladen,
   aktivieren/deaktivieren. Zu jeder installierten Datei zeigt das Panel **Modrinth-Seite, Version, Lizenz und
@@ -264,7 +268,11 @@ erlaubte Herkunft ist `Schema://Host[:Port]` daraus. Ein Passkey gilt nur für g
 müssen alle ihre Passkeys neu anlegen. Passkeys legst du unter **Konto → Passkeys** an. Die Anmeldung nur mit Passkey verlangt die Prüfung am Gerät
 (PIN, Fingerabdruck) und ersetzt Passwort und zweiten Faktor. Wer einen Passkey hat, braucht nach
 dem Passwort einen zweiten Schritt (Passkey oder Code aus der App). Hat jemand sein Gerät verloren, entfernt ein
-Administrator seine Passkeys mit `DELETE /api/users/<id>/passkeys`.
+Administrator seine Passkeys unter **Benutzer → ⋯ → Passkeys zurücksetzen** (`DELETE /api/users/<id>/passkeys`).
+
+Konten, die über OIDC entstanden sind, haben kein Passwort. Unter **Konto → Passwort festlegen** lässt sich in den ersten
+10 Minuten nach einer Anmeldung über OIDC oder einen Passkey ein erstes setzen (ein aktuelles Passwort gibt es nicht; die
+frische Anmeldung ersetzt die Rückfrage). Danach verlangt jede Änderung wieder das aktuelle Passwort.
 | `LODESTONE_METRICS_TOKEN` | schaltet `GET /metrics` für Prometheus ein; der Abfrager schickt `Authorization: Bearer <Token>` (ohne Variable: 404) |
 | `LODESTONE_CURSEFORGE_KEY` | API-Schlüssel von [console.curseforge.com](https://console.curseforge.com/); schaltet CurseForge als Quelle für Mods frei. Er bleibt im Panel und geht nie an Browser oder Node |
 

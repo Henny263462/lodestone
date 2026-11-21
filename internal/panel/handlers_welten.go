@@ -14,10 +14,10 @@ func (p *Panel) registerWorldRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/servers/{id}/properties", p.authenticate(p.putProperties))
 	mux.HandleFunc("GET /api/servers/{id}/worlds", p.authenticate(p.listWorlds))
 	mux.HandleFunc("POST /api/servers/{id}/worlds/{world}/reset", p.authenticate(p.resetWorld))
-	mux.HandleFunc("GET /api/servers/{id}/worlds/{world}/download", p.authenticate(p.worldPassthrough(rankOperator, "/download")))
-	mux.HandleFunc("POST /api/servers/{id}/worlds/{world}/upload", p.authenticate(p.worldPassthrough(rankAdmin, "/upload")))
-	mux.HandleFunc("GET /api/servers/{id}/worlds/{world}/datapacks", p.authenticate(p.worldPassthrough(rankOperator, "/datapacks")))
-	mux.HandleFunc("POST /api/servers/{id}/worlds/{world}/datapacks", p.authenticate(p.worldPassthrough(rankOperator, "/datapacks")))
+	mux.HandleFunc("GET /api/servers/{id}/worlds/{world}/download", p.authenticate(p.worldPassthrough("/download", PermFilesRead)))
+	mux.HandleFunc("POST /api/servers/{id}/worlds/{world}/upload", p.authenticate(p.worldPassthrough("/upload", PermSettings, PermFilesWrite)))
+	mux.HandleFunc("GET /api/servers/{id}/worlds/{world}/datapacks", p.authenticate(p.worldPassthrough("/datapacks", PermFilesRead)))
+	mux.HandleFunc("POST /api/servers/{id}/worlds/{world}/datapacks", p.authenticate(p.worldPassthrough("/datapacks", PermFilesWrite)))
 	mux.HandleFunc("DELETE /api/servers/{id}/worlds/{world}/datapacks/{name}", p.authenticate(p.deleteDatapack))
 
 	mux.HandleFunc("GET /api/projects/{id}/live-players", p.authenticate(p.projectLivePlayers))
@@ -28,9 +28,10 @@ func (p *Panel) registerWorldRoutes(mux *http.ServeMux) {
 
 // ---------------------------------------------------------------- Welten und server.properties
 
-// requireGameServer ist requireServer für Minecraft-Server mit Welten; ein Velocity-Proxy hat keine.
-func (p *Panel) requireGameServer(r *http.Request, minimum int) (ServerRow, *NodeClient, error) {
-	row, _, _, err := p.requireServer(r, minimum)
+// requireGameServer ist requireServerPermission für Minecraft-Server mit Welten; ein Velocity-Proxy hat keine.
+// Lesen braucht „Dateien ansehen“, Ändern „Dateien ändern“ und, wo es die ganze Welt betrifft, „Einstellungen“.
+func (p *Panel) requireGameServer(r *http.Request, needed ...Permission) (ServerRow, *NodeClient, error) {
+	row, _, _, err := p.requireServerPermission(r, needed...)
 	if err != nil {
 		return ServerRow{}, nil, err
 	}
@@ -54,7 +55,7 @@ func worldName(r *http.Request) (string, error) {
 }
 
 func (p *Panel) getProperties(w http.ResponseWriter, r *http.Request) {
-	row, client, err := p.requireGameServer(r, rankOperator)
+	row, client, err := p.requireGameServer(r, PermFilesRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -74,7 +75,7 @@ func (p *Panel) getProperties(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) putProperties(w http.ResponseWriter, r *http.Request) {
-	row, client, err := p.requireGameServer(r, rankAdmin)
+	row, client, err := p.requireGameServer(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -118,7 +119,7 @@ func (p *Panel) putProperties(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) listWorlds(w http.ResponseWriter, r *http.Request) {
-	row, client, err := p.requireGameServer(r, rankOperator)
+	row, client, err := p.requireGameServer(r, PermFilesRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -132,7 +133,7 @@ func (p *Panel) listWorlds(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) resetWorld(w http.ResponseWriter, r *http.Request) {
-	row, client, err := p.requireGameServer(r, rankAdmin)
+	row, client, err := p.requireGameServer(r, PermSettings, PermFilesWrite)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -169,9 +170,9 @@ func (p *Panel) resetWorld(w http.ResponseWriter, r *http.Request) {
 }
 
 // worldPassthrough reicht Downloads, Uploads und die Datapack-Liste als Strom an den Node durch (nach Rechteprüfung).
-func (p *Panel) worldPassthrough(minimum int, suffix string) func(http.ResponseWriter, *http.Request) {
+func (p *Panel) worldPassthrough(suffix string, needed ...Permission) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		row, client, err := p.requireGameServer(r, minimum)
+		row, client, err := p.requireGameServer(r, needed...)
 		if err != nil {
 			writeError(w, err)
 			return
@@ -189,7 +190,7 @@ func (p *Panel) worldPassthrough(minimum int, suffix string) func(http.ResponseW
 }
 
 func (p *Panel) deleteDatapack(w http.ResponseWriter, r *http.Request) {
-	row, client, err := p.requireGameServer(r, rankOperator)
+	row, client, err := p.requireGameServer(r, PermFilesWrite)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -213,7 +214,7 @@ func (p *Panel) deleteDatapack(w http.ResponseWriter, r *http.Request) {
 
 // projectLivePlayers liefert die Spielerzahl jedes Servers aus der letzten Messung (zum Sortieren der Serverliste).
 func (p *Panel) projectLivePlayers(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankViewer)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -245,7 +246,7 @@ func (p *Panel) visiblePrefs(user User) ([]ProjectPref, error) {
 	}
 	visible := []ProjectPref{}
 	for _, pref := range prefs {
-		if rank, err := p.projectRank(user, pref.ProjectID); err == nil && rank >= rankViewer {
+		if _, err := p.projectAccess(user, pref.ProjectID); err == nil {
 			visible = append(visible, pref)
 		}
 	}
@@ -262,7 +263,7 @@ func (p *Panel) listProjectPrefs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) putProjectPref(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("project"), rankViewer)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("project"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -317,7 +318,7 @@ func (p *Panel) putProjectOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		seen[id] = true
-		if _, err := p.projectRank(user, id); err != nil {
+		if _, err := p.projectAccess(user, id); err != nil {
 			writeError(w, fail(http.StatusBadRequest, "unbekanntes Projekt in der Liste"))
 			return
 		}

@@ -2,14 +2,15 @@
 
 import { Copy, Plus, Send, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button, Card, CardHeader, Checkbox, Switch } from "@/components/ui/primitives";
+import { Button, Card, CardHeader, Checkbox, Switch, cx } from "@/components/ui/primitives";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
-import type { DiscordAction, DiscordConfig, DiscordRule, Project } from "@/lib/types";
+import { can, type DiscordAction, type DiscordConfig, type DiscordRule, type Project } from "@/lib/types";
 
 const actionLabels: Record<DiscordAction, string> = { status: "/status", players: "/spieler", start: "/start", stop: "/stop", restart: "/restart" };
+const powerActions: DiscordAction[] = ["start", "stop", "restart"];
 
 /** Discord-Bot über den Interactions-Endpunkt: Einrichtung, Rechte je Rolle/Benutzer, Befehle eintragen. */
 export function DiscordBotCard({ project }: { project: Project }) {
@@ -22,6 +23,8 @@ export function DiscordBotCard({ project }: { project: Project }) {
   const [origin, setOrigin] = useState("");
   const [busy, setBusy] = useState<"" | "save" | "register">("");
   const [removing, setRemoving] = useState(false);
+  // Start und Stopp über Discord gibt nur weiter, wer selbst starten und stoppen darf (das Backend prüft es auch)
+  const canPower = can(project.myPermissions, "power");
 
   // Die Adresse des Panels gibt es erst im Browser (die Seite wird beim Bauen vorgerendert)
   useEffect(() => setOrigin(window.location.origin), []);
@@ -158,16 +161,22 @@ export function DiscordBotCard({ project }: { project: Project }) {
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                  {(Object.keys(actionLabels) as DiscordAction[]).map((action) => (
-                    <label key={action} className="flex cursor-pointer items-center gap-2 font-mono text-xs">
-                      <Checkbox
-                        checked={rule.actions.includes(action)}
-                        onChange={(on) => updateRule(index, { actions: on ? [...rule.actions, action] : rule.actions.filter((entry) => entry !== action) })}
-                        label={actionLabels[action]}
-                      />
-                      {actionLabels[action]}
-                    </label>
-                  ))}
+                  {(Object.keys(actionLabels) as DiscordAction[]).map((action) => {
+                    const locked = !canPower && powerActions.includes(action) && !rule.actions.includes(action);
+                    return (
+                      <label key={action} className={cx("flex items-center gap-2 font-mono text-xs", locked ? "cursor-not-allowed opacity-50" : "cursor-pointer")} title={locked ? "Dafür fehlt dir das Recht „Starten und Stoppen“" : undefined}>
+                        <Checkbox
+                          checked={rule.actions.includes(action)}
+                          onChange={(on) => {
+                            if (on && locked) return;
+                            updateRule(index, { actions: on ? [...rule.actions, action] : rule.actions.filter((entry) => entry !== action) });
+                          }}
+                          label={actionLabels[action]}
+                        />
+                        {actionLabels[action]}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             ))}

@@ -8,7 +8,8 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import type { ServerSftp } from "@/lib/types";
 
-// Karte „SFTP“ im Dateien-Tab: Zugangsdaten zum Kopieren. Die Zugänge selbst verwaltet das Panel (Rolle + Konto).
+// Karte „SFTP“ im Dateien-Tab: Zugangsdaten zum Kopieren. Die Zugänge selbst verwaltet das Panel (Rechte + Konto).
+// Sichtbar mit den Rechten „sftp“ und „files.read“; ohne „files.write“ ist der Zugang nur lesend.
 export function SftpCard({ serverId }: { serverId: string }) {
   const toast = useToast();
   const { data, error, mutate } = useApi<ServerSftp>(`/servers/${serverId}/sftp`);
@@ -63,7 +64,7 @@ export function SftpCard({ serverId }: { serverId: string }) {
               <div className="flex items-center justify-between gap-4 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
                 <div>
                   <p className="text-sm">Operatoren nur lesend</p>
-                  <p className="text-xs text-muted">Operatoren dürfen über SFTP nur herunterladen. Administratoren und Eigentümer schreiben weiter. Wirkt sofort.</p>
+                  <p className="text-xs text-muted">Operatoren dürfen über SFTP nur herunterladen. Wer die Einstellungen des Servers ändern darf (Admins, Eigentümer), schreibt weiter. Wirkt sofort.</p>
                 </div>
                 <Switch
                   checked={data.operatorsReadOnly}

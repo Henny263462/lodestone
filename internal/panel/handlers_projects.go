@@ -129,12 +129,13 @@ func itoa(n int) string {
 	return string(digits[i:])
 }
 
-func (p *Panel) projectDTO(ctx context.Context, project Project, rank int, full bool) (ProjectDTO, error) {
+// projectDTO baut die Antwort für ein Projekt; Rolle und Rechte kommen aus access (auch angepasste Rechte).
+func (p *Panel) projectDTO(ctx context.Context, project Project, access Access, full bool) (ProjectDTO, error) {
 	rows, err := p.store.ListServers(project.ID)
 	if err != nil {
 		return ProjectDTO{}, err
 	}
-	dto := ProjectDTO{Project: project, MyRole: rankName(rank), MyPermissions: accessFor(rank, nil).List(), Servers: p.serverDTOs(ctx, rows)}
+	dto := ProjectDTO{Project: project, MyRole: rankName(access.Rank), MyPermissions: access.List(), Servers: p.serverDTOs(ctx, rows)}
 	if dto.Groups, err = p.groupDTOs(ctx, project.ID, dto.Servers); err != nil {
 		return ProjectDTO{}, err
 	}
@@ -169,12 +170,11 @@ func (p *Panel) listProjects(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		dto, err := p.projectDTO(r.Context(), project, access.Rank, false)
+		dto, err := p.projectDTO(r.Context(), project, access, false)
 		if err != nil {
 			writeError(w, err)
 			return
 		}
-		dto.MyPermissions = access.List()
 		result = append(result, dto)
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -214,7 +214,7 @@ func (p *Panel) createProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	dto, err := p.projectDTO(r.Context(), project, rankOwner, true)
+	dto, err := p.projectDTO(r.Context(), project, accessFor(rankOwner, nil), true)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -228,12 +228,11 @@ func (p *Panel) getProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	dto, err := p.projectDTO(r.Context(), project, access.Rank, true)
+	dto, err := p.projectDTO(r.Context(), project, access, true)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	dto.MyPermissions = access.List()
 	writeJSON(w, http.StatusOK, dto)
 }
 
@@ -265,12 +264,11 @@ func (p *Panel) updateProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	dto, err := p.projectDTO(r.Context(), project, access.Rank, true)
+	dto, err := p.projectDTO(r.Context(), project, access, true)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	dto.MyPermissions = access.List()
 	writeJSON(w, http.StatusOK, dto)
 }
 
@@ -303,6 +301,7 @@ func (p *Panel) deleteProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	p.sftpWake() // Zugänge zu Servern, die der Node noch kennt, sofort entziehen
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -391,6 +390,7 @@ func (p *Panel) setMember(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	p.sftpWake() // neue Rolle oder Rechte gelten für SFTP sofort, nicht erst beim nächsten Abgleich
 	members, err := p.memberDTOs(project.ID)
 	if err != nil {
 		writeError(w, err)
@@ -432,5 +432,6 @@ func (p *Panel) removeMember(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	p.sftpWake()
 	w.WriteHeader(http.StatusNoContent)
 }

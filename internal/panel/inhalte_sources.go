@@ -150,18 +150,6 @@ func (c *contentSources) get(id, softwareName string) (contentSource, error) {
 	return nil, fail(http.StatusNotFound, "diese Quelle gibt es nicht")
 }
 
-func sourceName(id string) string {
-	switch id {
-	case SourceHangar:
-		return "Hangar"
-	case SourceSpigot:
-		return "Spigot"
-	case SourceCurseForge:
-		return "CurseForge"
-	}
-	return "Modrinth"
-}
-
 // getSourceJSON fragt eine Quelle ab. Fehler sind deutsch und nennen die Quelle, nie Adressen mit Schlüsseln.
 func getSourceJSON(ctx context.Context, client *http.Client, name, address string, header http.Header, into any) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)

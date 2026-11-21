@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import { ago, bytes } from "@/lib/format";
-import { roleRank, type Role, type Server, type StorageInfo } from "@/lib/types";
+import { can, type Server, type ServerAccess, type StorageInfo } from "@/lib/types";
 
 const MB = 1024 ** 2;
 
@@ -19,14 +19,15 @@ function limitText(limitMB: number): string {
 /** Speicherplatz des Servers: Größe des Ordners, Backups, freier Platz der Maschine und das weiche Limit. */
 export function StorageCard({ server }: { server: Server }) {
   const toast = useToast();
-  // Dieselbe Abfrage wie die Serverseite: SWR liefert die Rolle aus dem Zwischenspeicher
-  const { data: me } = useApi<{ server: Server; myRole: Role }>(`/servers/${server.id}`);
+  // Dieselbe Abfrage wie die Serverseite: SWR liefert die Rechte aus dem Zwischenspeicher
+  const { data: me } = useApi<ServerAccess>(`/servers/${server.id}`);
   const { data, error, mutate } = useApi<StorageInfo>(`/servers/${server.id}/storage`, {
     refreshInterval: (latest) => (latest?.measuring ? 2000 : 60000),
   });
   const [limit, setLimit] = useState("");
   const [busy, setBusy] = useState(false);
-  const rank = me ? roleRank[me.myRole] : 0;
+  const canMeasure = can(me?.myPermissions, "files.read");
+  const canLimit = can(me?.myPermissions, "settings");
 
   useEffect(() => {
     if (data) setLimit(limitText(data.limitMB));
@@ -37,7 +38,7 @@ export function StorageCard({ server }: { server: Server }) {
       title="Speicherplatz"
       description="Größe des Serverordners (Welten, Plugins, Configs). Der Node misst ihn alle 5 Minuten im Hintergrund."
       action={
-        rank >= roleRank.operator && (
+        canMeasure && (
           <Button
             size="sm"
             variant="ghost"
@@ -113,7 +114,7 @@ export function StorageCard({ server }: { server: Server }) {
           </>
         )}
 
-        {rank >= roleRank.admin && (
+        {canLimit && (
           <div className="flex flex-wrap items-end gap-3 border-t border-white/[0.06] pt-4">
             <div className="w-56">
               <label className="label">Speicherlimit (GB, leer = keins)</label>

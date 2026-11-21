@@ -743,3 +743,65 @@ func TestOIDCUsernameAndNext(t *testing.T) {
 		}
 	}
 }
+
+// TestFirstPasswordNeedsFreshSignIn: Ein Konto ohne Passwort (aus OIDC) legt ein erstes nur kurz nach einer
+// Anmeldung fest; ein aktuelles Passwort braucht es dann nicht. Danach gilt wieder die normale Rückfrage.
+func TestFirstPasswordNeedsFreshSignIn(t *testing.T) {
+	p, web, _, _ := setupPanel(t)
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+	user, err := p.store.CreateUser("oidc-nutzer", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := "test-sitzung-ohne-passwort"
+	if err := p.store.CreateSession(hashToken(token), user.ID, "test", time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	c := newClient(t, web.URL)
+	cookie := cookieName + "=" + token
+	var account struct {
+		HasPassword        bool  `json:"hasPassword"`
+		FirstPasswordUntil int64 `json:"firstPasswordUntil"`
+	}
+	readAccount := func() {
+		t.Helper()
+		status, data := c.do("GET", "/api/me/oidc", nil, "Cookie", cookie)
+		if status != 200 {
+			t.Fatalf("GET /api/me/oidc: %d %s", status, data)
+		}
+		_ = json.Unmarshal(data, &account)
+	}
+	readAccount()
+	if account.HasPassword || account.FirstPasswordUntil <= time.Now().UnixMilli() {
+		t.Fatalf("frische Sitzung: %+v", account)
+	}
+
+	// Alte Sitzung: kein erstes Passwort, klare Meldung
+	if _, err := p.store.db.Exec("UPDATE sessions SET created_at = ? WHERE token_hash = ?", time.Now().Add(-firstPasswordWindow-time.Minute).UnixMilli(), hashToken(token)); err != nil {
+		t.Fatal(err)
+	}
+	readAccount()
+	if account.FirstPasswordUntil != 0 {
+		t.Fatalf("alte Sitzung: %+v", account)
+	}
+	if status, body := c.do("POST", "/api/me/password", map[string]string{"current": "", "next": "neues-passwort-1"}, "Cookie", cookie); status != 403 || !strings.Contains(string(body), "neu über OIDC") {
+		t.Fatalf("alte Sitzung setzt Passwort: %d %s", status, body)
+	}
+
+	// Frisch angemeldet: erstes Passwort ohne aktuelles
+	if _, err := p.store.db.Exec("UPDATE sessions SET created_at = ? WHERE token_hash = ?", time.Now().UnixMilli(), hashToken(token)); err != nil {
+		t.Fatal(err)
+	}
+	if status, body := c.do("POST", "/api/me/password", map[string]string{"current": "", "next": "neues-passwort-1"}, "Cookie", cookie); status != 204 {
+		t.Fatalf("erstes Passwort: %d %s", status, body)
+	}
+	if stored, _ := p.store.UserByID(user.ID); !CheckPassword("neues-passwort-1", stored.PasswordHash) {
+		t.Fatal("Passwort nicht gespeichert")
+	}
+	// Ab jetzt braucht jede Änderung das aktuelle Passwort
+	fresh := newClient(t, web.URL)
+	fresh.expect(200, "POST", "/api/auth/login", map[string]string{"username": "oidc-nutzer", "password": "neues-passwort-1"})
+	fresh.expect(403, "POST", "/api/me/password", map[string]string{"current": "", "next": "noch-ein-passwort"})
+	fresh.expect(204, "POST", "/api/me/password", map[string]string{"current": "neues-passwort-1", "next": "noch-ein-passwort"})
+}

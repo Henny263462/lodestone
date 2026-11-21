@@ -284,7 +284,7 @@ function NetworkTab({ project, canManage, refresh }: { project: Project; canMana
 
       <VoicechatCard project={project} proxy={proxy} canManage={canManage} refresh={refresh} />
 
-      <GeyserNetworkCard project={project} proxy={proxy} canManage={canManage} refresh={refresh} />
+      <GeyserNetworkCard project={project} proxy={proxy} canManage={canManage && can(project.myPermissions, "addons")} refresh={refresh} />
 
       <MotdCard key={project.settings?.motd ?? ""} project={project} canManage={canManage} refresh={refresh} />
 

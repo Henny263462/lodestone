@@ -528,6 +528,16 @@ func (s *Store) SetSessionIP(hash, ip string) {
 	_, _ = s.db.Exec("UPDATE sessions SET ip = ? WHERE token_hash = ?", ip, hash)
 }
 
+// SessionCreatedAt liefert, wann eine Sitzung begonnen hat (Unix-Millisekunden).
+func (s *Store) SessionCreatedAt(hash string) (int64, error) {
+	var created int64
+	err := s.db.QueryRow("SELECT created_at FROM sessions WHERE token_hash = ?", hash).Scan(&created)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return created, err
+}
+
 // ---------------------------------------------------------------- Projekt- und Server-Zusätze
 
 func (s *Store) SetAutoRestart(serverID string, enabled bool) error {

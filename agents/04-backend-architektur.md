@@ -76,10 +76,14 @@ Regeln:
   Katalog in `web/demo/server.mjs` ergänzen. Im Zweifel die strengere Wahl.
 - **Rang statt Recht** nur für Eigentümer-Dinge (`requireProject(r, id, rankOwner)`: Projekt löschen) und Systemweites
   (`requireAdmin(r)`). `requireProject`/`requireServer` mit Mindeststufe gibt es weiter; neuer Code nimmt die Einzelrechte.
-- Kann ein Handler etwas anstoßen, das weitere Rechte braucht (ein Zeitplan führt Befehle aus, eine Gruppe legt Server an),
-  verlangt er auch diese (`stepPermissions`). Wer anderen Rechte gibt, prüft mit `checkGrant`, dass nichts dazukommt, was er
+- Kann ein Handler etwas anstoßen, das weitere Rechte braucht (ein Zeitplan führt Befehle aus, eine Gruppe legt Server an,
+  ein Konsolen-Auslöser startet einen Zeitplan, eine Discord-Regel erlaubt /stop), verlangt er auch diese (`stepPermissions`,
+  `checkTriggerSchedule`, `discordPermissions`). Wer anderen Rechte gibt, prüft mit `checkGrant`, dass nichts dazukommt, was er
   selbst nicht hat.
 - Fremde Projekte „gibt es nicht“: `errNotFound` (404), nicht 403 (macht `requireProject` schon).
+- Zustand, den das Panel aus den Rechten ableitet und zum Node schiebt (SFTP-Zugänge), rechnet mit den **wirksamen** Rechten
+  (`accessFor` mit angepasster Liste, nicht nur der Rolle). Jede Änderung an Mitgliedern, Rechten oder Benutzern ruft
+  `p.sftpWake()` auf, damit ein Entzug sofort gilt.
 - Fehler immer mit `fail(status, "deutscher Satz mit Ursache")` oder einem vorhandenen Fehler (`ErrNotFound`, `ErrExists`, `errForbidden`).
   Fehler vom Node reichen `writeError`/`NodeError` durch. Keine rohen `err.Error()` aus Bibliotheken an Benutzer, wenn sie Pfade oder
   Geheimnisse enthalten könnten.

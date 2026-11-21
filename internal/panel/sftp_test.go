@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -383,5 +384,120 @@ func TestSFTPTargets(t *testing.T) {
 	}
 	if targets["s2bbbbbbbbbb"].Grants == nil {
 		t.Fatal("leere Liste muss [] sein")
+	}
+}
+
+// TestSFTPTargetsUseCustomPermissions prüft, dass der Abgleich die wirksamen Rechte nimmt, nicht nur die Rolle.
+func TestSFTPTargetsUseCustomPermissions(t *testing.T) {
+	credential := SFTPCredential{PasswordHash: "hash", PasswordLogin: true}
+	snapshot := sftpSnapshot{
+		users:   []User{{ID: "v", Username: "gast"}, {ID: "o", Username: "op"}, {ID: "l", Username: "leser"}, {ID: "s", Username: "chef"}},
+		members: map[string]map[string]string{"p1": {"v": "viewer", "o": "operator", "l": "operator", "s": "viewer"}},
+		custom: map[string]map[string][]Permission{"p1": {
+			"v": {PermSFTP, PermFilesRead, PermFilesWrite},               // Betrachter mit SFTP und Schreiben
+			"o": {PermConsoleRead, PermFilesRead, PermFilesWrite},        // Operator ohne SFTP
+			"l": {PermSFTP, PermFilesRead},                               // Operator ohne „Dateien ändern“
+			"s": {PermSFTP, PermFilesRead, PermFilesWrite, PermSettings}, // darf „nur lesend“ selbst ändern
+		}},
+		credentials: map[string]SFTPCredential{"v": credential, "o": credential, "l": credential, "s": credential},
+		keys:        map[string][]string{},
+		readOnly:    map[string]bool{"s1aaaaaaaaaa": true},
+		servers:     []ServerRow{{ID: "s1aaaaaaaaaa", ProjectID: "p1"}},
+	}
+	grants := map[string]node.SFTPGrant{}
+	for _, grant := range sftpTargets(snapshot)["s1aaaaaaaaaa"].Grants {
+		grants[grant.Username] = grant
+	}
+	if _, ok := grants["op.s1aaaaaa"]; ok {
+		t.Error("Operator ohne Recht „SFTP-Zugang“ kommt hinein")
+	}
+	if grant, ok := grants["gast.s1aaaaaa"]; !ok || !grant.ReadOnly {
+		t.Errorf("Betrachter mit SFTP (Server „nur lesend“): %+v %v", grant, ok)
+	}
+	if grant, ok := grants["leser.s1aaaaaa"]; !ok || !grant.ReadOnly {
+		t.Errorf("ohne „Dateien ändern“ muss SFTP nur lesen: %+v %v", grant, ok)
+	}
+	if grant, ok := grants["chef.s1aaaaaa"]; !ok || grant.ReadOnly {
+		t.Errorf("mit „Einstellungen“ gilt „Operatoren nur lesend“ nicht: %+v %v", grant, ok)
+	}
+	snapshot.readOnly = map[string]bool{}
+	for _, grant := range sftpTargets(snapshot)["s1aaaaaaaaaa"].Grants {
+		if want := grant.Username == "leser.s1aaaaaa"; grant.ReadOnly != want {
+			t.Errorf("ohne „nur lesend“: %+v", grant)
+		}
+	}
+}
+
+// TestSFTPSyncStartsRightAway prüft, dass Änderungen an Mitgliedern und Benutzern den Abgleich sofort anstoßen.
+func TestSFTPSyncStartsRightAway(t *testing.T) {
+	p, admin, _, _, ids, _ := rightsProject(t, "lea", "max")
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Zweites", "kind": "server"}), &project)
+	p.sftp.init()
+	woken := func(what string, call func()) {
+		t.Helper()
+		select {
+		case <-p.sftp.wake:
+		default:
+		}
+		call()
+		select {
+		case <-p.sftp.wake:
+		default:
+			t.Errorf("%s stößt den SFTP-Abgleich nicht an", what)
+		}
+	}
+	members := "/api/projects/" + project.ID + "/members/"
+	woken("Rolle vergeben", func() { admin.expect(200, "PUT", members+ids["lea"], map[string]string{"role": "operator"}) })
+	woken("Rechte anpassen", func() {
+		admin.expect(200, "PUT", members+ids["lea"], map[string]any{"role": "operator", "permissions": []Permission{PermFilesRead}})
+	})
+	woken("Mitglied entfernen", func() { admin.expect(204, "DELETE", members+ids["lea"], nil) })
+	woken("Benutzer sperren", func() { admin.expect(200, "PATCH", "/api/users/"+ids["lea"], map[string]bool{"disabled": true}) })
+	woken("Benutzer löschen", func() { admin.expect(204, "DELETE", "/api/users/"+ids["max"], nil) })
+	woken("Projekt löschen", func() { admin.expect(204, "DELETE", "/api/projects/"+project.ID, nil) })
+}
+
+// TestSFTPLoginsBecomeEvents prüft, dass Anmeldungen im Verlauf des Projekts landen (ohne IP-Adresse).
+func TestSFTPLoginsBecomeEvents(t *testing.T) {
+	p, web, _, _ := setupPanel(t)
+	fake, fakeServer := newFakeSFTPNode(t)
+	sftpNode, err := p.store.CreateNode(Node{Name: "sftp", URL: fakeServer.URL, Token: "token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin := newClient(t, web.URL)
+	admin.expect(201, "POST", "/api/auth/setup", map[string]string{"username": "admin", "password": "ein-gutes-passwort"})
+	var project ProjectDTO
+	_ = json.Unmarshal(admin.expect(201, "POST", "/api/projects", map[string]string{"name": "Survival", "kind": "server"}), &project)
+	row, err := p.store.CreateServer(ServerRow{ProjectID: project.ID, NodeID: sftpNode.ID, Name: "Main", Slug: "main", Role: "standalone", Software: "paper"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	fake.events = []node.SFTPEvent{
+		{Seq: 1, At: 4102444800000, ServerID: row.ID, Username: "admin." + row.ID[:8], IP: "203.0.113.7", Method: "publickey", Success: true},
+		{Seq: 2, At: 4102444800001, ServerID: row.ID, Username: "admin." + row.ID[:8], IP: "203.0.113.8", Method: "password"},
+	}
+	fake.mu.Unlock()
+	p.sftpSync(context.Background(), true)
+
+	var events []Event
+	_ = json.Unmarshal(admin.expect(200, "GET", "/api/projects/"+project.ID+"/events", nil), &events)
+	levels := map[string]string{}
+	for _, event := range events {
+		if event.Kind != "sftp_login" {
+			continue
+		}
+		levels[event.Level] = event.Message
+		if event.ServerID != row.ID || strings.Contains(event.Message, "203.0.113") {
+			t.Errorf("Ereignis: %+v", event)
+		}
+	}
+	if !strings.Contains(levels["info"], "SSH-Schlüssel") || !strings.Contains(levels["warn"], "falsches Passwort") {
+		t.Fatalf("Ereignisse: %+v", events)
+	}
+	if !slices.Contains(eventKinds, "sftp_login") || titles["sftp_login"] == "" {
+		t.Error("Ereignisart fehlt in der Liste für Webhooks")
 	}
 }

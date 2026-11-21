@@ -75,7 +75,7 @@ export function BlocksTab({ server, canManage, offline }: { server: Server; canM
                   {!block.address && !block.url && <span>Eingeschaltet. Die Adresse erscheint, sobald der Node eine öffentliche Adresse hat.</span>}
                 </>
               ) : (
-                <span>{canManage ? "Beim Einschalten lädt Lodestone die Dateien und richtet Port und Konfiguration ein." : "Ein Administrator des Projekts kann den Baustein einschalten."}</span>
+                <span>{canManage ? "Beim Einschalten lädt Lodestone die Dateien und richtet Port und Konfiguration ein." : "Einschalten kann, wer die Rechte „Einstellungen“ und „Plugins und Mods“ hat."}</span>
               )}
             </div>
           </Card>

@@ -5,14 +5,14 @@ import { Copy, KeyRound, LogOut, Plus, ShieldCheck, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, CardHeader, PageHeader } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
-import { Loading } from "@/components/ui/async";
+import { ErrorState, Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
 import { OidcCard, PasskeysCard } from "@/components/account-sign-in";
 import { PixelAvatar } from "@/components/ui/mc";
 import { SftpAccountCard } from "@/components/sftp-account";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
-import type { ApiKeyInfo, Me, SessionInfo } from "@/lib/types";
+import type { ApiKeyInfo, Me, OidcAccount, SessionInfo } from "@/lib/types";
 
 export default function AccountPage() {
   const user = useUser();
@@ -39,34 +39,81 @@ export default function AccountPage() {
   );
 }
 
+// Konten aus OIDC haben anfangs kein Passwort. Ein erstes legt man nur kurz nach einer Anmeldung über OIDC oder einen
+// Passkey fest (das Backend prüft es); sonst steht hier, wie es geht.
 function PasswordCard() {
   const toast = useToast();
+  const { data: account, error, mutate } = useApi<OidcAccount>("/me/oidc");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [repeat, setRepeat] = useState("");
   const [busy, setBusy] = useState(false);
   const mismatch = repeat !== "" && next !== repeat;
+  const first = account ? !account.hasPassword : false;
+
+  if (error)
+    return (
+      <Card>
+        <CardHeader title="Passwort" />
+        <ErrorState error={error} retry={() => mutate()} />
+      </Card>
+    );
+  if (!account)
+    return (
+      <Card>
+        <CardHeader title="Passwort" />
+        <Loading />
+      </Card>
+    );
+  const provider = account.name ?? "deinen Anbieter";
+  if (first && !account.passwordLogin)
+    return (
+      <Card>
+        <CardHeader title="Passwort" description="Dein Konto hat kein Passwort. Du meldest dich über OIDC oder einen Passkey an." />
+        <p className="px-5 py-4 text-xs text-muted">Die Anmeldung mit Passwort ist auf diesem Panel abgeschaltet. Ein Passwort brauchst du deshalb nicht.</p>
+      </Card>
+    );
+  if (first && account.firstPasswordUntil <= Date.now())
+    return (
+      <Card>
+        <CardHeader title="Passwort festlegen" description="Dein Konto hat noch kein Passwort. Du meldest dich über OIDC oder einen Passkey an." />
+        <p className="px-5 py-4 text-xs text-muted">
+          Ein erstes Passwort kannst du in den ersten 10 Minuten nach einer Anmeldung festlegen. Melde dich ab und neu über {provider} oder einen Passkey an, dann kommst du hierher zurück.
+        </p>
+      </Card>
+    );
+
   return (
     <Card>
-      <CardHeader title="Passwort ändern" description="Danach musst du dich auf anderen Geräten neu anmelden." />
+      <CardHeader
+        title={first ? "Passwort festlegen" : "Passwort ändern"}
+        description={
+          first
+            ? `Dein Konto hat noch kein Passwort. Mit einem Passwort kommst du auch ohne ${provider} herein. Möglich bis ${dateTime(account.firstPasswordUntil)}.`
+            : "Danach musst du dich auf anderen Geräten neu anmelden."
+        }
+      />
       <form
         className="space-y-4 px-5 py-4"
         onSubmit={async (event) => {
           event.preventDefault();
           setBusy(true);
-          const ok = await toast.run(() => api.post("/me/password", { current, next }), "Passwort geändert");
+          const ok = await toast.run(() => api.post("/me/password", { current: first ? "" : current, next }), first ? "Passwort festgelegt" : "Passwort geändert");
           setBusy(false);
           if (ok) {
             setCurrent("");
             setNext("");
             setRepeat("");
+            mutate();
           }
         }}
       >
-        <div>
-          <label className="label">Aktuelles Passwort</label>
-          <input className="field" type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} required />
-        </div>
+        {!first && (
+          <div>
+            <label className="label">Aktuelles Passwort</label>
+            <input className="field" type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} required />
+          </div>
+        )}
         <div>
           <label className="label">Neues Passwort (mindestens 8 Zeichen)</label>
           <input className="field" type="password" autoComplete="new-password" value={next} onChange={(event) => setNext(event.target.value)} required minLength={8} />
@@ -76,8 +123,8 @@ function PasswordCard() {
           <input className="field" type="password" autoComplete="new-password" value={repeat} onChange={(event) => setRepeat(event.target.value)} required />
           {mismatch && <p className="mt-1 text-xs text-bad">Die Passwörter stimmen nicht überein.</p>}
         </div>
-        <Button type="submit" variant="primary" loading={busy} disabled={!current || next.length < 8 || next !== repeat}>
-          Passwort ändern
+        <Button type="submit" variant="primary" loading={busy} disabled={(!first && !current) || next.length < 8 || next !== repeat}>
+          {first ? "Passwort festlegen" : "Passwort ändern"}
         </Button>
       </form>
     </Card>

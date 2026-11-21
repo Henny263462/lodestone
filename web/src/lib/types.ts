@@ -282,14 +282,6 @@ export interface Addon {
   sha1: string;
 }
 
-export interface Backup {
-  name: string;
-  label?: string;
-  size: number;
-  created: number;
-  creating?: boolean;
-}
-
 export interface PlayerInfo {
   online: number;
   max: number;
@@ -614,6 +606,8 @@ export interface OidcAccount {
   link?: OidcLink;
   hasPassword: boolean;
   passwordLogin: boolean;
+  /** Bis wann (Unix-ms) ein Konto ohne Passwort ein erstes festlegen darf (kurz nach der Anmeldung); 0 = nicht. */
+  firstPasswordUntil: number;
 }
 
 interface PasskeyDescriptor {

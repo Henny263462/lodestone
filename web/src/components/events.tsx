@@ -28,6 +28,7 @@ export const eventLabels: Record<string, string> = {
   console_match: "Konsolen-Auslöser",
   sleep: "Server schläft ein",
   wake: "Server wacht auf",
+  sftp_login: "SFTP-Anmeldung",
 };
 
 const defaults = ["crash", "crashloop", "backup_failed", "schedule_failed", "node_offline", "lowmemory", "storage"];

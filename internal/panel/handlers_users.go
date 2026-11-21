@@ -3,7 +3,33 @@ package panel
 import (
 	"net/http"
 	"strings"
+	"time"
 )
+
+// firstPasswordWindow ist die Zeit nach einer Anmeldung, in der ein Konto ohne Passwort (angelegt über OIDC) ein
+// erstes festlegen darf. Ein aktuelles Passwort gibt es nicht; die frische Anmeldung über OIDC oder einen Passkey
+// ersetzt die Rückfrage, damit niemand an einer vergessenen offenen Sitzung ein Passwort setzt.
+const firstPasswordWindow = 10 * time.Minute
+
+// firstPasswordUntil sagt, bis wann (Unix-Millisekunden) die laufende Sitzung ein erstes Passwort festlegen darf;
+// 0 heißt: gar nicht (das Konto hat schon ein Passwort oder die Anmeldung liegt zu lange zurück).
+func (p *Panel) firstPasswordUntil(r *http.Request, user User) int64 {
+	if user.PasswordHash != "" {
+		return 0
+	}
+	cookie, err := r.Cookie(cookieName)
+	if err != nil {
+		return 0
+	}
+	created, err := p.store.SessionCreatedAt(hashToken(cookie.Value))
+	if err != nil {
+		return 0
+	}
+	if until := created + firstPasswordWindow.Milliseconds(); until > time.Now().UnixMilli() {
+		return until
+	}
+	return 0
+}
 
 type credentials struct {
 	Username string `json:"username"`
@@ -138,7 +164,11 @@ func (p *Panel) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := userFrom(r.Context())
-	if !CheckPassword(body.Current, user.PasswordHash) {
+	switch {
+	case user.PasswordHash == "" && p.firstPasswordUntil(r, user) == 0:
+		writeError(w, fail(http.StatusForbidden, "dein Konto hat noch kein Passwort. Melde dich ab und neu über OIDC oder einen Passkey an; danach kannst du 10 Minuten lang ein erstes Passwort festlegen"))
+		return
+	case user.PasswordHash != "" && !CheckPassword(body.Current, user.PasswordHash):
 		writeError(w, fail(http.StatusForbidden, "das aktuelle Passwort stimmt nicht"))
 		return
 	}
@@ -262,6 +292,7 @@ func (p *Panel) updateUser(w http.ResponseWriter, r *http.Request) {
 	if disabled {
 		_ = p.store.DeleteUserSessions(user.ID)
 	}
+	p.sftpWake() // Sperren und Administratorrechte gelten für SFTP sofort
 	user.IsAdmin, user.Disabled = admin, disabled
 	writeJSON(w, http.StatusOK, user)
 }
@@ -294,6 +325,7 @@ func (p *Panel) deleteUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	p.sftpWake()
 	w.WriteHeader(http.StatusNoContent)
 }
 

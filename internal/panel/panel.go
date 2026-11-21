@@ -316,36 +316,18 @@ const (
 
 var roleRanks = map[string]int{"viewer": rankViewer, "operator": rankOperator, "admin": rankAdmin, "owner": rankOwner}
 
-// projectRank ist die Stufe des Benutzers im Projekt. Globale Administratoren sind überall Eigentümer.
-func (p *Panel) projectRank(user User, projectID string) (int, error) {
-	if user.IsAdmin {
-		if _, err := p.store.ProjectByID(projectID); err != nil {
-			return rankNone, err
-		}
-		return rankOwner, nil
-	}
-	role, err := p.store.MemberRole(projectID, user.ID)
-	if errors.Is(err, ErrNotFound) {
-		return rankNone, errNotFound // Projekte, die man nicht sieht, gibt es nicht
-	}
-	if err != nil {
-		return rankNone, err
-	}
-	return roleRanks[role], nil
-}
-
-// requireProject prüft die Mindeststufe und liefert das Projekt.
+// requireProject prüft die Mindeststufe der Rolle und liefert das Projekt. Neuer Code nimmt die Einzelrechte
+// (requireProjectPermission); die Stufe zählt nur für Eigentümer-Dinge wie das Löschen des Projekts.
 func (p *Panel) requireProject(r *http.Request, projectID string, minimum int) (Project, int, error) {
-	user := userFrom(r.Context())
-	rank, err := p.projectRank(user, projectID)
+	access, err := p.projectAccess(userFrom(r.Context()), projectID)
 	if err != nil {
 		return Project{}, 0, err
 	}
-	if rank < minimum {
+	if access.Rank < minimum {
 		return Project{}, 0, errForbidden
 	}
 	project, err := p.store.ProjectByID(projectID)
-	return project, rank, err
+	return project, access.Rank, err
 }
 
 // requireServer löst {id} auf und prüft die Mindeststufe im Projekt des Servers.

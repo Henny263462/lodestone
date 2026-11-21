@@ -8,7 +8,7 @@ import { TransferCard } from "@/components/server/transfer";
 import { SleepCard } from "@/components/server/sleep";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
-import type { Server } from "@/lib/types";
+import { can, type Permission, type Server } from "@/lib/types";
 
 const memoryOptions = [256, 512, 1024, 2048, 3072, 4096, 6144, 8192, 12288, 16384];
 
@@ -29,9 +29,12 @@ function textToEnv(text: string): Record<string, string> {
   return env;
 }
 
-// canEdit braucht das Recht „Einstellungen“, canDelete „Server anlegen und löschen“.
-export function SettingsTab({ server, canEdit = true, canDelete = true, onChanged, onDeleted }: { server: Server; canEdit?: boolean; canDelete?: boolean; onChanged: () => void; onDeleted: () => void }) {
+// Die Karten erscheinen nach Rechten: Einstellungen (auch Auto-Restart, Schlafmodus, Adresse, Version) mit „Einstellungen“,
+// Kopieren/Umziehen und Löschen mit „Server anlegen und löschen“.
+export function SettingsTab({ server, permissions, onChanged, onDeleted }: { server: Server; permissions: Permission[]; onChanged: () => void; onDeleted: () => void }) {
   const toast = useToast();
+  const canEdit = can(permissions, "settings");
+  const canServers = can(permissions, "servers");
   const view = server.view;
   const offline = view?.state === "offline";
 
@@ -55,7 +58,13 @@ export function SettingsTab({ server, canEdit = true, canDelete = true, onChange
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, view?.memoryMB, view?.cpu, view?.backupKeep, view?.startup]);
 
-  if (!canEdit) return canDelete ? <DeleteServer server={server} onDeleted={onDeleted} /> : null;
+  if (!canEdit)
+    return (
+      <div className="space-y-5">
+        {canServers && <TransferCard server={server} permissions={permissions} />}
+        {canServers && <DeleteServer server={server} onDeleted={onDeleted} />}
+      </div>
+    );
 
   async function save() {
     setBusy(true);
@@ -139,11 +148,11 @@ export function SettingsTab({ server, canEdit = true, canDelete = true, onChange
       <AutoRestart server={server} onDone={onChanged} />
       <SleepCard server={server} />
       <PublicAddress server={server} onDone={onChanged} />
-      <TransferCard server={server} />
+      {canServers && <TransferCard server={server} permissions={permissions} />}
 
       <Reinstall server={server} offline={!!offline} onDone={onChanged} />
 
-      {canDelete && <DeleteServer server={server} onDeleted={onDeleted} />}
+      {canServers && <DeleteServer server={server} onDeleted={onDeleted} />}
     </div>
   );
 }

@@ -95,7 +95,11 @@ So ist es umgesetzt (`internal/panel/rechte.go`):
   die Vorlage zurück; eine Liste gleich der Vorlage wird als Vorlage gespeichert. Eigentümer haben immer alles.
 - **Eskalationsschutz:** Wer Mitglieder verwaltet (`members`), kann nur Rechte dazugeben, die er selbst hat, keine höhere Rolle
   vergeben und keine höher gestellten Mitglieder ändern. Wegnehmen geht immer. Zeitpläne prüfen zusätzlich die Rechte ihrer
-  Schritte (Befehl, Starten/Stoppen, Backup).
+  Schritte (Befehl, Starten/Stoppen, Backup), Konsolen-Auslöser die ihres Zeitplans, Discord-Regeln mit /start, /stop oder
+  /restart verlangen „Starten und Stoppen“.
+- **Alle Funktionen** (SFTP, Backups mit Ziel, Welten, Kopieren/Umziehen, Speicherplatz, Automatik, Bausteine) prüfen
+  Einzelrechte. Der SFTP-Abgleich rechnet mit den wirksamen Rechten (`sftp` + `files.read`, schreiben mit `files.write`) und
+  läuft nach jeder Änderung an Mitgliedern, Rechten oder Benutzern sofort an.
 - **An die Rolle gebunden** bleiben: Projekt löschen und Eigentum vergeben (Eigentümer), Benutzer, Nodes und Protokoll
   (globaler Administrator).
 - Die API liefert `myPermissions` bei Projekt und Server, `permissions`/`customPermissions` bei jedem Mitglied und den Katalog

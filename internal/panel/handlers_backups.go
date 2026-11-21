@@ -154,7 +154,7 @@ func (p *Panel) backupTarget(projectID string) (s3Target, error) {
 }
 
 func (p *Panel) getBackupTarget(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -188,7 +188,7 @@ func (p *Panel) mergeSecret(projectID string, target *s3Target) error {
 }
 
 func (p *Panel) putBackupTarget(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -226,7 +226,7 @@ func (p *Panel) putBackupTarget(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) deleteBackupTarget(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -240,7 +240,7 @@ func (p *Panel) deleteBackupTarget(w http.ResponseWriter, r *http.Request) {
 
 // testBackupTarget prüft die eingegebenen (noch nicht gespeicherten) Werte.
 func (p *Panel) testBackupTarget(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -272,7 +272,7 @@ func (p *Panel) testBackupTarget(w http.ResponseWriter, r *http.Request) {
 type backupSettingsDTO struct {
 	Exclude    []string `json:"exclude"`
 	RemoteKeep int      `json:"remoteKeep"`
-	// TargetConfigured sagt, ob das Projekt ein Backup-Ziel hat (nur lesen; das Ziel selbst sehen nur Admins).
+	// TargetConfigured sagt, ob das Projekt ein Backup-Ziel hat (nur lesen; das Ziel selbst sieht nur, wer „Einstellungen“ hat).
 	TargetConfigured bool `json:"targetConfigured"`
 }
 
@@ -303,7 +303,7 @@ func cleanExcludes(patterns []string) ([]string, error) {
 }
 
 func (p *Panel) getBackupSettings(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r, PermBackupsRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -318,7 +318,7 @@ func (p *Panel) getBackupSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) putBackupSettings(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -503,7 +503,7 @@ func (p *Panel) targetIdentity(projectID string) string {
 }
 
 func (p *Panel) listServerBackups(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r, PermBackupsRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -759,7 +759,7 @@ func (p *Panel) pruneRemote(ctx context.Context, row ServerRow, target s3Target)
 }
 
 func (p *Panel) createServerBackup(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankOperator)
+	row, _, _, err := p.requireServerPermission(r, PermBackupsCreate)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -803,9 +803,9 @@ func findLocal(list []node.Backup, name string) (node.Backup, bool) {
 	return node.Backup{}, false
 }
 
-// backupContext lädt Server, lokale Liste und Eintrag zu {name}.
-func (p *Panel) backupContext(r *http.Request, minimum int) (ServerRow, string, node.Backup, bool, BackupRecord, bool, error) {
-	row, _, _, err := p.requireServer(r, minimum)
+// backupContext prüft die Rechte und lädt Server, lokale Liste und Eintrag zu {name}.
+func (p *Panel) backupContext(r *http.Request, needed ...Permission) (ServerRow, string, node.Backup, bool, BackupRecord, bool, error) {
+	row, _, _, err := p.requireServerPermission(r, needed...)
 	if err != nil {
 		return ServerRow{}, "", node.Backup{}, false, BackupRecord{}, false, err
 	}
@@ -830,7 +830,7 @@ func (p *Panel) backupContext(r *http.Request, minimum int) (ServerRow, string, 
 }
 
 func (p *Panel) uploadServerBackup(w http.ResponseWriter, r *http.Request) {
-	row, name, backup, hasLocal, record, hasRecord, err := p.backupContext(r, rankOperator)
+	row, name, backup, hasLocal, record, hasRecord, err := p.backupContext(r, PermBackupsCreate)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -876,8 +876,10 @@ func (p *Panel) uploadServerBackup(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+// lockServerBackup hält ein Backup fest oder entsperrt es. Beides entscheidet darüber, ob es gelöscht werden kann
+// (von Hand oder durch die Aufbewahrung), und braucht deshalb „Backups löschen“.
 func (p *Panel) lockServerBackup(w http.ResponseWriter, r *http.Request) {
-	row, name, backup, hasLocal, _, hasRecord, err := p.backupContext(r, rankOperator)
+	row, name, backup, hasLocal, _, hasRecord, err := p.backupContext(r, PermBackupsDelete)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -914,7 +916,7 @@ func (p *Panel) lockServerBackup(w http.ResponseWriter, r *http.Request) {
 
 // deleteServerBackup löscht lokal (?where=local), extern (?where=remote) oder beides (Standard).
 func (p *Panel) deleteServerBackup(w http.ResponseWriter, r *http.Request) {
-	row, name, backup, hasLocal, record, hasRecord, err := p.backupContext(r, rankOperator)
+	row, name, backup, hasLocal, record, hasRecord, err := p.backupContext(r, PermBackupsDelete)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -971,7 +973,7 @@ func (p *Panel) deleteServerBackup(w http.ResponseWriter, r *http.Request) {
 
 // restoreRemoteBackup lädt ein externes Backup auf den Node und spielt es ein. Der Server muss aus sein.
 func (p *Panel) restoreRemoteBackup(w http.ResponseWriter, r *http.Request) {
-	row, name, _, _, record, hasRecord, err := p.backupContext(r, rankOperator)
+	row, name, _, _, record, hasRecord, err := p.backupContext(r, PermBackupsRestore)
 	if err != nil {
 		writeError(w, err)
 		return

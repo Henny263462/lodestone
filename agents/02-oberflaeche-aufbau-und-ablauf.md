@@ -90,6 +90,21 @@ prüft deshalb **Rechte, nicht den Rang**: `can(project.myPermissions, "files.wr
 | Konsole lesen / Backups ansehen | `console.read` / `backups.read` | Betrachter |
 | Befehle, Start/Stopp, Dateien, SFTP, Backups erstellen/wiederherstellen/löschen, Plugins/Mods, Spieler verwalten | `console.command`, `power`, `files.*`, `sftp`, `backups.*`, `addons`, `players` | Operator |
 | Einstellungen, Server anlegen/löschen, Zeitpläne, Webhooks, Mitglieder, Netzwerk (Gruppen: Netzwerk + Server) | `settings`, `servers`, `schedules`, `webhooks`, `members`, `network` | Admin |
+
+Zusammengesetzte Fälle (Backend und Oberfläche prüfen gleich):
+
+| Funktion | Rechte |
+| --- | --- |
+| SFTP-Karte und -Zugang | `sftp` + `files.read`; schreiben zusätzlich `files.write`; „Operatoren nur lesend“ gilt für alle ohne `settings` |
+| Backups: erstellen/extern hochladen · wiederherstellen · löschen/festhalten · herunterladen · Ausschlüsse | `backups.create` · `backups.restore` · `backups.delete` · `backups.read` + `files.read` · `settings` |
+| Welten/server.properties ansehen, herunterladen · Datapacks ändern · Spieleinstellungen · Welt zurücksetzen/ersetzen | `files.read` · `files.write` · `settings` · `settings` + `files.write` |
+| Kopieren · Umziehen · Vorgang abbrechen | `servers` + `files.read` · `servers` + `power` · `servers` |
+| Speicher neu messen · Speicherlimit · Schlafmodus · Backup-Ziel · Discord-Bot | `files.read` · `settings` · `settings` · `settings` · `settings` (Regeln mit /start, /stop, /restart neu vergeben: zusätzlich `power`) |
+| Konsolen-Auslöser | `webhooks`; mit verknüpftem Zeitplan zusätzlich die Rechte seiner Schritte |
+| Bausteine (BlueMap, Geyser am Server) · Geyser im Netzwerk | `settings` + `addons` · `network` + `addons` |
+
+Komponenten bekommen die Rechte als Liste (`permissions={myPermissions}`) oder als einzelne Schalter aus `allowed(…)`; nie
+aus `myRole`.
 | Projekt löschen | Rolle Eigentümer | Eigentümer |
 | Benutzer, Protokoll, Nodes anlegen | globaler Administrator | – |
 

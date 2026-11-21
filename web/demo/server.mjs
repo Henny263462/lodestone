@@ -445,7 +445,7 @@ async function api(req, res, url) {
     if (!c) {
       if (method === "DELETE") { project.servers.splice(project.servers.indexOf(server), 1); return send(res, 204); }
       if (method === "PATCH") return send(res, 200, server);
-      return send(res, 200, { server, myRole: "owner" });
+      return send(res, 200, { server, myRole: "owner", myPermissions: allPermissions });
     }
     if (c === "power") {
       const action = body.action;
@@ -616,19 +616,19 @@ const permissionCatalog = [
   ["console.read", "Konsole", "Konsole lesen", "Sieht die Ausgabe der Konsole und das Protokoll des Servers.", "viewer"],
   ["console.command", "Konsole", "Befehle senden", "Schickt Befehle an die Konsole, zum Beispiel „op“ oder „stop“.", "operator"],
   ["power", "Konsole", "Starten und Stoppen", "Startet, stoppt und startet Server neu, auch Instanzen einer Gruppe.", "operator"],
-  ["files.read", "Dateien", "Dateien ansehen", "Öffnet und lädt Dateien des Servers herunter.", "operator"],
+  ["files.read", "Dateien", "Dateien ansehen", "Öffnet und lädt Dateien des Servers herunter, auch Welten, Datapacks und server.properties.", "operator"],
   ["files.write", "Dateien", "Dateien ändern", "Bearbeitet, lädt hoch, benennt um und löscht Dateien. Auch Plugins/Mods hochladen, abschalten und löschen läuft darüber.", "operator"],
-  ["sftp", "Dateien", "SFTP-Zugang", "Darf per SFTP auf die Dateien zugreifen.", "operator"],
+  ["sftp", "Dateien", "SFTP-Zugang", "Darf per SFTP auf die Dateien zugreifen, zusammen mit „Dateien ansehen“. Schreiben geht nur mit „Dateien ändern“.", "operator"],
   ["backups.read", "Backups", "Backups ansehen", "Sieht die Liste der Backups. Herunterladen braucht zusätzlich „Dateien ansehen“.", "viewer"],
-  ["backups.create", "Backups", "Backups erstellen", "Erstellt neue Backups.", "operator"],
+  ["backups.create", "Backups", "Backups erstellen", "Erstellt neue Backups und lädt sie zum Backup-Ziel hoch.", "operator"],
   ["backups.restore", "Backups", "Backups wiederherstellen", "Ersetzt alle Dateien des Servers durch ein Backup.", "operator"],
-  ["backups.delete", "Backups", "Backups löschen", "Löscht Backups unwiderruflich.", "operator"],
-  ["addons", "Server", "Plugins und Mods", "Installiert, aktualisiert und wechselt Plugins/Mods über Modrinth.", "operator"],
+  ["backups.delete", "Backups", "Backups löschen", "Löscht Backups unwiderruflich und hält sie fest oder entsperrt sie.", "operator"],
+  ["addons", "Server", "Plugins und Mods", "Installiert, aktualisiert und wechselt Plugins/Mods über Modrinth und die anderen Quellen. Bausteine wie BlueMap brauchen zusätzlich „Einstellungen“.", "operator"],
   ["players", "Server", "Spieler verwalten", "Sieht Whitelist, Operatoren und Banns und kickt, bannt oder whitelistet Spieler.", "operator"],
-  ["settings", "Server", "Einstellungen", "Ändert Name, Arbeitsspeicher, Startzeile, Version, Auto-Restart, öffentliche Adresse, Projektname und Statusseite.", "admin"],
-  ["servers", "Server", "Server anlegen und löschen", "Legt neue Server an und löscht Server samt Welten und Backups.", "admin"],
+  ["settings", "Server", "Einstellungen", "Ändert Name, Arbeitsspeicher, Startzeile, Version, Auto-Restart, Schlafmodus, Speicherlimit, Spieleinstellungen, Welten, Backup-Ausschlüsse, öffentliche Adresse, Projektname, Statusseite, Backup-Ziel und Discord-Bot.", "admin"],
+  ["servers", "Server", "Server anlegen und löschen", "Legt neue Server an, kopiert sie, zieht sie auf einen anderen Node um und löscht Server samt Welten und Backups.", "admin"],
   ["schedules", "Projekt", "Zeitpläne", "Legt Zeitpläne an, ändert und löscht sie. Schritte gehen nur mit den passenden Rechten (Befehle, Starten, Backups).", "admin"],
-  ["webhooks", "Projekt", "Webhooks", "Verwaltet Webhooks, etwa für Discord.", "admin"],
+  ["webhooks", "Projekt", "Webhooks", "Verwaltet Webhooks, etwa für Discord, und Konsolen-Auslöser.", "admin"],
   ["members", "Projekt", "Mitglieder", "Fügt Mitglieder hinzu, entfernt sie und vergibt Rollen und Rechte – nie mehr, als man selbst hat.", "admin"],
   ["network", "Projekt", "Netzwerk", "Ändert Reihenfolge, Forced Hosts, MOTD, Voicechat, Tunnel und Gruppen (mit „Server anlegen und löschen“) des Netzwerks.", "admin"],
 ].map(([id, group, label, description, role]) => ({ id, group, label, description, role }));
@@ -896,7 +896,7 @@ function anmeldungDemo(res, method, body, parts) {
     else if (method === "DELETE") {
       demoOidcLink = null;
       send(res, 204);
-    } else send(res, 200, { configured: true, name: "Authentik", link: demoOidcLink ?? undefined, hasPassword: true, passwordLogin: true });
+    } else send(res, 200, { configured: true, name: "Authentik", link: demoOidcLink ?? undefined, hasPassword: true, passwordLogin: true, firstPasswordUntil: 0 });
     return true;
   }
   if (a === "users" && c === "passkeys" && method === "DELETE") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, Plus, ShieldCheck, Trash2, UserX } from "lucide-react";
+import { Fingerprint, KeyRound, Plus, ShieldCheck, Trash2, UserX } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, PageHeader, RowMenu, Switch } from "@/components/ui/primitives";
 import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
@@ -18,6 +18,7 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState<User | null>(null);
   const [removing, setRemoving] = useState<User | null>(null);
+  const [passkeys, setPasskeys] = useState<User | null>(null);
 
   if (!me.isAdmin) return <ErrorState error={new Error("Dafür braucht es einen Administrator.")} />;
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
@@ -61,6 +62,7 @@ export default function UsersPage() {
             <RowMenu
               items={[
                 { label: "Passwort zurücksetzen", icon: <KeyRound className="h-3.5 w-3.5" />, onClick: () => setResetting(user) },
+                { label: "Passkeys zurücksetzen", icon: <Fingerprint className="h-3.5 w-3.5" />, onClick: () => setPasskeys(user) },
                 { label: user.isAdmin ? "Administratorrechte entziehen" : "Zum Administrator machen", icon: <ShieldCheck className="h-3.5 w-3.5" />, disabled: user.id === me.id, onClick: () => patch(user, { isAdmin: !user.isAdmin }, "Gespeichert") },
                 { label: user.disabled ? "Entsperren" : "Sperren", icon: <UserX className="h-3.5 w-3.5" />, disabled: user.id === me.id, onClick: () => patch(user, { disabled: !user.disabled }, user.disabled ? "Entsperrt" : "Gesperrt") },
                 "separator",
@@ -73,6 +75,18 @@ export default function UsersPage() {
 
       <CreateDialog open={creating} onClose={() => setCreating(false)} onDone={() => mutate()} />
       <ResetDialog user={resetting} onClose={() => setResetting(null)} />
+      <ConfirmDialog
+        open={!!passkeys}
+        onClose={() => setPasskeys(null)}
+        title={`Passkeys von „${passkeys?.username}“ zurücksetzen?`}
+        text="Alle Passkeys des Benutzers werden gelöscht. Er meldet sich danach mit Passwort oder über OIDC an und kann neue Passkeys unter Konto hinzufügen. Hat er beides nicht, kommt er erst wieder herein, wenn du sein Passwort zurücksetzt."
+        confirm="Zurücksetzen"
+        danger
+        onConfirm={async () => {
+          if (!passkeys) return;
+          await toast.run(() => api.delete(`/users/${passkeys.id}/passkeys`), "Passkeys zurückgesetzt");
+        }}
+      />
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}

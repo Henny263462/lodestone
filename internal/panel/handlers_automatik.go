@@ -51,7 +51,7 @@ func sleepAllowed(row ServerRow) (bool, string) {
 }
 
 func (p *Panel) getSleep(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -71,7 +71,7 @@ func (p *Panel) getSleep(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) putSleep(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -109,8 +109,9 @@ func (p *Panel) putSleep(w http.ResponseWriter, r *http.Request) {
 
 // ---------------------------------------------------------------- Absturzanalyse
 
+// getCrashAnalysis zeigt Auszüge aus Absturzbericht und Protokoll und braucht deshalb „Konsole lesen“.
 func (p *Panel) getCrashAnalysis(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r, PermConsoleRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -196,8 +197,26 @@ func (p *Panel) applyTrigger(trigger *ConsoleTrigger, body triggerRequest) error
 	return nil
 }
 
+// checkTriggerSchedule verlangt die Rechte der Schritte, wenn der Auslöser einen Zeitplan startet – sonst könnte man
+// über einen Auslöser mehr tun, als man selbst darf (wie beim Starten eines Zeitplans von Hand).
+func (p *Panel) checkTriggerSchedule(access Access, trigger ConsoleTrigger) error {
+	if trigger.ScheduleID == "" {
+		return nil
+	}
+	schedule, err := p.store.ScheduleByID(trigger.ScheduleID)
+	if err != nil {
+		return fail(http.StatusBadRequest, "diesen Zeitplan gibt es im Projekt nicht")
+	}
+	if missing := access.missing(stepPermissions(schedule.Steps)); len(missing) > 0 {
+		return errMissing(missing)
+	}
+	return nil
+}
+
+// Konsolen-Auslöser machen aus Zeilen der Konsole Ereignisse (für Verlauf und Webhooks); sie hängen deshalb am Recht
+// „Webhooks“.
 func (p *Panel) listTriggers(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermWebhooks)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -211,7 +230,7 @@ func (p *Panel) listTriggers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) createTrigger(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, access, err := p.requireProjectPermission(r, r.PathValue("id"), PermWebhooks)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -235,6 +254,10 @@ func (p *Panel) createTrigger(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if err := p.checkTriggerSchedule(access, trigger); err != nil {
+		writeError(w, err)
+		return
+	}
 	created, err := p.store.CreateTrigger(trigger)
 	if err != nil {
 		writeError(w, err)
@@ -243,19 +266,20 @@ func (p *Panel) createTrigger(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (p *Panel) requireTrigger(r *http.Request) (ConsoleTrigger, error) {
+func (p *Panel) requireTrigger(r *http.Request) (ConsoleTrigger, Access, error) {
 	trigger, err := p.store.TriggerByID(r.PathValue("id"))
 	if err != nil {
-		return ConsoleTrigger{}, errNotFound
+		return ConsoleTrigger{}, Access{}, errNotFound
 	}
-	if _, _, err := p.requireProject(r, trigger.ProjectID, rankAdmin); err != nil {
-		return ConsoleTrigger{}, err
+	_, access, err := p.requireProjectPermission(r, trigger.ProjectID, PermWebhooks)
+	if err != nil {
+		return ConsoleTrigger{}, Access{}, err
 	}
-	return trigger, nil
+	return trigger, access, nil
 }
 
 func (p *Panel) updateTrigger(w http.ResponseWriter, r *http.Request) {
-	trigger, err := p.requireTrigger(r)
+	trigger, access, err := p.requireTrigger(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -269,6 +293,10 @@ func (p *Panel) updateTrigger(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if err := p.checkTriggerSchedule(access, trigger); err != nil {
+		writeError(w, err)
+		return
+	}
 	if err := p.store.UpdateTrigger(trigger); err != nil {
 		writeError(w, err)
 		return
@@ -277,7 +305,7 @@ func (p *Panel) updateTrigger(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) deleteTrigger(w http.ResponseWriter, r *http.Request) {
-	trigger, err := p.requireTrigger(r)
+	trigger, _, err := p.requireTrigger(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -299,6 +327,30 @@ var (
 )
 
 const maxDiscordRules = 25
+
+// discordPermissions sind die Rechte, die neu vergebene Befehle der Regeln im Panel bräuchten: Wer /start, /stop
+// oder /restart an eine Rolle oder einen Benutzer gibt, der es vorher nicht hatte, braucht „Starten und Stoppen“.
+// Was schon vergeben war, darf bleiben (wie beim Wegnehmen von Rechten unter Mitglieder).
+func discordPermissions(before, after []DiscordRule) []Permission {
+	power := func(rules []DiscordRule) map[string]bool {
+		result := map[string]bool{}
+		for _, rule := range rules {
+			for _, action := range rule.Actions {
+				if action == "start" || action == "stop" || action == "restart" {
+					result[rule.Kind+":"+rule.ID+":"+action] = true
+				}
+			}
+		}
+		return result
+	}
+	old := power(before)
+	for grant := range power(after) {
+		if !old[grant] {
+			return []Permission{PermPower}
+		}
+	}
+	return nil
+}
 
 type discordDTO struct {
 	Configured    bool          `json:"configured"`
@@ -323,8 +375,10 @@ func discordView(projectID string, bot DiscordBot, configured bool) discordDTO {
 	}
 }
 
+// Den Discord-Bot richtet ein, wer die Einstellungen des Projekts ändern darf. Regeln, die Server starten oder
+// stoppen, gibt nur weiter, wer selbst „Starten und Stoppen“ hat.
 func (p *Panel) getDiscord(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -376,7 +430,7 @@ func validateRules(rules []DiscordRule) ([]DiscordRule, error) {
 }
 
 func (p *Panel) putDiscord(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, access, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -414,6 +468,10 @@ func (p *Panel) putDiscord(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if missing := access.missing(discordPermissions(bot.Rules, rules)); len(missing) > 0 {
+		writeError(w, errMissing(missing))
+		return
+	}
 	bot.Rules = rules
 	if body.BotToken != nil && strings.TrimSpace(*body.BotToken) != "" {
 		token := strings.TrimSpace(*body.BotToken)
@@ -441,7 +499,7 @@ func (p *Panel) putDiscord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) deleteDiscord(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return

@@ -157,15 +157,16 @@ func (s *Store) LatestSFTPAudit() int64 {
 // sftpSnapshot ist alles, was der Abgleich der Zugänge braucht, in wenigen Abfragen gelesen.
 type sftpSnapshot struct {
 	users       []User
-	members     map[string]map[string]string // Projekt → Benutzer → Rolle
-	credentials map[string]SFTPCredential    // Benutzer → Passwort
-	keys        map[string][]string          // Benutzer → öffentliche Schlüssel
-	readOnly    map[string]bool              // Server → Operatoren nur lesend
+	members     map[string]map[string]string       // Projekt → Benutzer → Rolle
+	custom      map[string]map[string][]Permission // Projekt → Benutzer → angepasste Rechte (fehlt = Vorlage der Rolle)
+	credentials map[string]SFTPCredential          // Benutzer → Passwort
+	keys        map[string][]string                // Benutzer → öffentliche Schlüssel
+	readOnly    map[string]bool                    // Server → Operatoren nur lesend
 	servers     []ServerRow
 }
 
 func (s *Store) sftpSnapshot() (sftpSnapshot, error) {
-	snapshot := sftpSnapshot{members: map[string]map[string]string{}, credentials: map[string]SFTPCredential{}, keys: map[string][]string{}, readOnly: map[string]bool{}}
+	snapshot := sftpSnapshot{members: map[string]map[string]string{}, custom: map[string]map[string][]Permission{}, credentials: map[string]SFTPCredential{}, keys: map[string][]string{}, readOnly: map[string]bool{}}
 	var err error
 	if snapshot.users, err = s.ListUsers(); err != nil {
 		return snapshot, err
@@ -173,13 +174,13 @@ func (s *Store) sftpSnapshot() (sftpSnapshot, error) {
 	if snapshot.servers, err = s.ListServers(""); err != nil {
 		return snapshot, err
 	}
-	rows, err := s.db.Query("SELECT project_id, user_id, role FROM members")
+	rows, err := s.db.Query("SELECT project_id, user_id, role, permissions FROM members")
 	if err != nil {
 		return snapshot, err
 	}
 	for rows.Next() {
-		var project, user, role string
-		if err := rows.Scan(&project, &user, &role); err != nil {
+		var project, user, role, perms string
+		if err := rows.Scan(&project, &user, &role, &perms); err != nil {
 			rows.Close()
 			return snapshot, err
 		}
@@ -187,6 +188,12 @@ func (s *Store) sftpSnapshot() (sftpSnapshot, error) {
 			snapshot.members[project] = map[string]string{}
 		}
 		snapshot.members[project][user] = role
+		if custom := decodePermissions(perms); custom != nil {
+			if snapshot.custom[project] == nil {
+				snapshot.custom[project] = map[string][]Permission{}
+			}
+			snapshot.custom[project][user] = custom
+		}
 	}
 	rows.Close()
 	rows, err = s.db.Query("SELECT user_id, password_hash, password_login FROM sftp_credentials")

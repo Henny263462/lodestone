@@ -24,8 +24,9 @@ func (p *Panel) registerServerOpsRoutes(mux *http.ServeMux) {
 
 // ---------------------------------------------------------------- Klonen und Umzug
 
+// cloneServer legt eine Kopie an: einen neuen Server mit allen Dateien des alten.
 func (p *Panel) cloneServer(w http.ResponseWriter, r *http.Request) {
-	row, project, _, err := p.requireServer(r, rankAdmin)
+	row, project, _, err := p.requireServerPermission(r, PermServers, PermFilesRead)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -92,8 +93,9 @@ func (p *Panel) cloneServer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, created)
 }
 
+// migrateProject zieht die Server um; dafür werden sie gestoppt und auf dem neuen Node wieder gestartet.
 func (p *Panel) migrateProject(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankAdmin)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"), PermServers, PermPower)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -121,7 +123,7 @@ func (p *Panel) migrateProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) listServerOps(w http.ResponseWriter, r *http.Request) {
-	project, _, err := p.requireProject(r, r.PathValue("id"), rankViewer)
+	project, _, err := p.requireProjectPermission(r, r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -134,20 +136,20 @@ func (p *Panel) listServerOps(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ops)
 }
 
-// requireOp lädt einen Vorgang und prüft die Stufe im Projekt (fremde Vorgänge gibt es nicht).
-func (p *Panel) requireOp(r *http.Request, minimum int) (ServerOp, error) {
+// requireOp lädt einen Vorgang und prüft die Rechte im Projekt (fremde Vorgänge gibt es nicht).
+func (p *Panel) requireOp(r *http.Request, needed ...Permission) (ServerOp, error) {
 	op, err := p.store.OpByID(r.PathValue("id"))
 	if err != nil {
 		return ServerOp{}, errNotFound
 	}
-	if _, _, err := p.requireProject(r, op.ProjectID, minimum); err != nil {
+	if _, _, err := p.requireProjectPermission(r, op.ProjectID, needed...); err != nil {
 		return ServerOp{}, err
 	}
 	return op, nil
 }
 
 func (p *Panel) getServerOp(w http.ResponseWriter, r *http.Request) {
-	op, err := p.requireOp(r, rankViewer)
+	op, err := p.requireOp(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -156,7 +158,7 @@ func (p *Panel) getServerOp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) cancelServerOp(w http.ResponseWriter, r *http.Request) {
-	op, err := p.requireOp(r, rankAdmin)
+	op, err := p.requireOp(r, PermServers)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -176,7 +178,7 @@ func (p *Panel) cancelServerOp(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- Speicherplatz
 
 func (p *Panel) serverStorage(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankViewer)
+	row, _, _, err := p.requireServerPermission(r)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -185,7 +187,7 @@ func (p *Panel) serverStorage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) putServerStorage(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankAdmin)
+	row, _, _, err := p.requireServerPermission(r, PermSettings)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -205,7 +207,7 @@ func (p *Panel) putServerStorage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Panel) measureServerStorage(w http.ResponseWriter, r *http.Request) {
-	row, _, _, err := p.requireServer(r, rankOperator)
+	row, _, _, err := p.requireServerPermission(r, PermFilesRead)
 	if err != nil {
 		writeError(w, err)
 		return

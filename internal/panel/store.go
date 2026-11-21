@@ -539,11 +539,6 @@ func (s *Store) MemberRole(projectID, userID string) (string, error) {
 	return role, err
 }
 
-func (s *Store) SetMember(projectID, userID, role string) error {
-	_, err := s.db.Exec("INSERT INTO members (project_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role", projectID, userID, role)
-	return err
-}
-
 func (s *Store) RemoveMember(projectID, userID string) error {
 	_, err := s.db.Exec("DELETE FROM members WHERE project_id = ? AND user_id = ?", projectID, userID)
 	return err

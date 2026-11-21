@@ -8,7 +8,7 @@ import { Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import { ago, bytes } from "@/lib/format";
-import { roleRank, type NodeInfo, type NodeStorage, type Project, type Server, type ServerOp, type ServerOpState } from "@/lib/types";
+import { can, type NodeInfo, type NodeStorage, type Permission, type Project, type Server, type ServerOp, type ServerOpState } from "@/lib/types";
 
 const stateBadge: Record<ServerOpState, { tone: "info" | "good" | "bad" | "neutral"; label: string }> = {
   running: { tone: "info", label: "Läuft" },
@@ -17,12 +17,14 @@ const stateBadge: Record<ServerOpState, { tone: "info" | "good" | "bad" | "neutr
   canceled: { tone: "neutral", label: "Abgebrochen" },
 };
 
-/** Kopieren und Umziehen eines Servers (Server → Einstellungen). */
-export function TransferCard({ server }: { server: Server }) {
+/** Kopieren und Umziehen eines Servers (Server → Einstellungen). Kopieren braucht zusätzlich „Dateien ansehen“, Umziehen „Starten und Stoppen“. */
+export function TransferCard({ server, permissions }: { server: Server; permissions: Permission[] }) {
   const { data: project } = useApi<Project>(`/projects/${server.projectId}`);
   const [cloning, setCloning] = useState(false);
   const [moving, setMoving] = useState(false);
   const network = project?.kind === "network";
+  const canClone = can(permissions, "servers", "files.read");
+  const canMove = can(permissions, "servers", "power");
   const cloneBlocked = server.groupId ? "Instanzen einer Gruppe legt der Autoscaler selbst an." : server.role === "proxy" ? "Ein Netzwerk hat genau einen Proxy." : "";
 
   return (
@@ -33,11 +35,11 @@ export function TransferCard({ server }: { server: Server }) {
       />
       <div className="space-y-3 px-5 py-4">
         <div className="flex flex-wrap gap-2">
-          <Button disabled={!project || !!cloneBlocked} title={cloneBlocked || undefined} onClick={() => setCloning(true)}>
+          <Button disabled={!project || !!cloneBlocked || !canClone} title={cloneBlocked || (canClone ? undefined : "Dafür fehlt dir das Recht „Dateien ansehen“")} onClick={() => setCloning(true)}>
             <Copy className="h-4 w-4" />
             Kopieren
           </Button>
-          <Button disabled={!project} onClick={() => setMoving(true)}>
+          <Button disabled={!project || !canMove} title={canMove ? undefined : "Dafür fehlt dir das Recht „Starten und Stoppen“"} onClick={() => setMoving(true)}>
             <Truck className="h-4 w-4" />
             {network ? "Netzwerk umziehen" : "Auf anderen Node umziehen"}
           </Button>
@@ -56,6 +58,7 @@ export function TransferCard({ server }: { server: Server }) {
 export function ProjectTransferCard({ project }: { project: Project }) {
   const [moving, setMoving] = useState(false);
   const nodes = [...new Set(project.servers.map((server) => server.nodeName))];
+  const canMove = can(project.myPermissions, "servers", "power");
   return (
     <Card>
       <CardHeader
@@ -66,7 +69,7 @@ export function ProjectTransferCard({ project }: { project: Project }) {
             : "Der Server zieht samt Welten, Plugins und Einstellungen auf eine andere Maschine."
         }
         action={
-          <Button size="sm" disabled={project.servers.length === 0} onClick={() => setMoving(true)}>
+          <Button size="sm" disabled={project.servers.length === 0 || !canMove} title={canMove ? undefined : "Dafür fehlen dir die Rechte „Server anlegen und löschen“ und „Starten und Stoppen“"} onClick={() => setMoving(true)}>
             <Truck className="h-3.5 w-3.5" />
             Umziehen
           </Button>
@@ -232,7 +235,7 @@ function OpsList({ project }: { project: Project }) {
   const { data, error, mutate } = useApi<ServerOp[]>(`/projects/${project.id}/server-ops`, {
     refreshInterval: (latest) => (latest?.some((op) => op.state === "running") ? 1500 : 15000),
   });
-  const canCancel = roleRank[project.myRole] >= roleRank.admin;
+  const canCancel = can(project.myPermissions, "servers");
 
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!data) return <Loading />;

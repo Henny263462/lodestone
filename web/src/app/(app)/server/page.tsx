@@ -172,18 +172,18 @@ function ServerView() {
         {active === "files" && (
           <div className="space-y-4">
             <FilesTab serverId={server.id} canWrite={allowed("files.write")} />
-            {allowed("sftp") && <SftpCard serverId={server.id} />}
+            {allowed("sftp", "files.read") && <SftpCard serverId={server.id} />}
           </div>
         )}
         {active === "addons" && extensions && (
-          <AddonsTab serverId={server.id} canWrite={allowed("addons")} canFiles={allowed("files.write")} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} blocks={<BlocksTab server={server} canManage={allowed("settings")} offline={state === "offline"} />} />
+          <AddonsTab serverId={server.id} canWrite={allowed("addons")} canFiles={allowed("files.write")} noun={extensions as "Plugins" | "Mods"} running={state === "running" || state === "starting"} blocks={<BlocksTab server={server} canManage={allowed("settings", "addons")} offline={state === "offline"} />} />
         )}
         {active === "players" && <PlayersTab server={server} canOperate={allowed("players")} />}
-        {active === "backups" && <BackupsTab serverId={server.id} canWrite={allowed("backups.create")} canManage={allowed("settings")} offline={state === "offline"} />}
-        {active === "worlds" && <WorldsTab server={server} canManage={allowed("settings")} canOperate={allowed("files.write")} />}
+        {active === "backups" && <BackupsTab serverId={server.id} permissions={myPermissions} offline={state === "offline"} />}
+        {active === "worlds" && <WorldsTab server={server} canManage={allowed("settings", "files.write")} canOperate={allowed("files.write")} />}
         {active === "properties" && <PropertiesTab server={server} canWrite={allowed("settings")} />}
         {active === "settings" && (
-          <SettingsTab server={server} canEdit={allowed("settings")} canDelete={allowed("servers")} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />
+          <SettingsTab server={server} permissions={myPermissions} onChanged={() => mutate()} onDeleted={() => router.replace(`/project/?id=${server.projectId}`)} />
         )}
       </div>
     </>

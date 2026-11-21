@@ -7,12 +7,18 @@ import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, downloadUrl, useApi } from "@/lib/api";
 import { ago, bytes, dateTime } from "@/lib/format";
-import type { BackupSettings, ServerBackup } from "@/lib/types";
+import { can, type BackupSettings, type Permission, type ServerBackup } from "@/lib/types";
 
 type Removal = { backup: ServerBackup; where: "" | "local" | "remote" };
 
-export function BackupsTab({ serverId, canWrite, canManage, offline }: { serverId: string; canWrite: boolean; canManage: boolean; offline: boolean }) {
+// Jede Aktion hängt an ihrem eigenen Recht: Erstellen und Hochladen „backups.create“, Wiederherstellen „backups.restore“,
+// Löschen und Festhalten „backups.delete“, Herunterladen zusätzlich „files.read“, Ausschlüsse „settings“.
+export function BackupsTab({ serverId, permissions, offline }: { serverId: string; permissions: Permission[]; offline: boolean }) {
   const toast = useToast();
+  const canCreate = can(permissions, "backups.create");
+  const canRestore = can(permissions, "backups.restore");
+  const canDelete = can(permissions, "backups.delete");
+  const canDownload = can(permissions, "files.read");
   const { data, error, mutate } = useApi<ServerBackup[]>(`/servers/${serverId}/backups`, {
     // Solange etwas entsteht oder hochlädt, regelmäßig nachsehen
     refreshInterval: (latest) => (latest?.some((backup) => backup.status === "running" || backup.upload === "running") ? 2000 : 0),
@@ -41,9 +47,10 @@ export function BackupsTab({ serverId, canWrite, canManage, offline }: { serverI
   function menu(backup: ServerBackup): (MenuItem | "separator")[] {
     const lockedHint = backup.locked ? "Erst entsperren" : undefined;
     const items: (MenuItem | "separator")[] = [];
-    if (backup.local && !backup.remote && targetConfigured && backup.upload !== "running") {
+    if (canCreate && backup.local && !backup.remote && targetConfigured && backup.upload !== "running") {
       items.push({ label: backup.upload === "failed" ? "Erneut hochladen" : "Extern hochladen", icon: <CloudUpload className="h-3.5 w-3.5" />, onClick: () => upload(backup) });
     }
+    if (!canDelete) return items;
     if (backup.local || backup.remote) {
       items.push(
         backup.locked
@@ -67,7 +74,7 @@ export function BackupsTab({ serverId, canWrite, canManage, offline }: { serverI
           title="Backups"
           description="Archive des Serverordners, lokal auf dem Node und auf Wunsch zusätzlich im Backup-Ziel des Projekts. Läuft der Server, wird er für die Sicherung kurz am Speichern gehindert, damit sie stimmig ist."
           action={
-            canWrite && (
+            canCreate && (
               <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
                 <Plus className="h-3.5 w-3.5" />
                 Backup erstellen
@@ -76,12 +83,13 @@ export function BackupsTab({ serverId, canWrite, canManage, offline }: { serverI
           }
         />
         {data.length === 0 ? (
-          <EmptyState icon={<Archive className="h-6 w-6" />} title="Noch keine Backups" text={canWrite ? "Erstelle ein Backup oder lege unter Zeitpläne ein nächtliches an." : "Hier erscheinen die Backups dieses Servers."} />
+          <EmptyState icon={<Archive className="h-6 w-6" />} title="Noch keine Backups" text={canCreate ? "Erstelle ein Backup oder lege unter Zeitpläne ein nächtliches an." : "Hier erscheinen die Backups dieses Servers."} />
         ) : (
           <div className="divide-y divide-white/[0.05]">
             {data.map((backup) => {
               const running = backup.status === "running";
-              const restorable = backup.status === "done" && (backup.local || (backup.remote && !backup.otherTarget));
+              const restorable = canRestore && backup.status === "done" && (backup.local || (backup.remote && !backup.otherTarget));
+              const items = menu(backup);
               return (
                 <div key={backup.name} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
                   {running ? <Loader2 className="h-4 w-4 animate-spin text-muted" /> : backup.locked ? <Lock className="h-4 w-4 text-muted" aria-label="Festgehalten" /> : <Archive className="h-4 w-4 text-muted" />}
@@ -102,7 +110,7 @@ export function BackupsTab({ serverId, canWrite, canManage, offline }: { serverI
                     {backup.remote && <Badge tone={backup.otherTarget ? "warn" : "accent"}>{backup.otherTarget ? "Früheres Ziel" : "Extern"}</Badge>}
                     {backup.locked && <Badge>Festgehalten</Badge>}
                   </div>
-                  {canWrite && !running && (
+                  {!running && (
                     <div className="flex items-center gap-1">
                       {restorable && (
                         <Button size="sm" disabled={!offline} title={offline ? undefined : "Der Server muss aus sein"} onClick={() => setRestore(backup)}>
@@ -110,12 +118,12 @@ export function BackupsTab({ serverId, canWrite, canManage, offline }: { serverI
                           Wiederherstellen
                         </Button>
                       )}
-                      {backup.local && (
+                      {backup.local && canDownload && (
                         <Button variant="ghost" size="icon-sm" aria-label="Herunterladen" onClick={() => window.open(downloadUrl(`${path(backup)}/download`))}>
                           <Download className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <RowMenu items={menu(backup)} />
+                      {items.length > 0 && <RowMenu items={items} />}
                     </div>
                   )}
                 </div>
@@ -201,7 +209,7 @@ export function BackupsTab({ serverId, canWrite, canManage, offline }: { serverI
         />
       </Card>
 
-      <BackupSettingsCard serverId={serverId} canManage={canManage} />
+      <BackupSettingsCard serverId={serverId} canManage={can(permissions, "settings")} />
     </div>
   );
 }
