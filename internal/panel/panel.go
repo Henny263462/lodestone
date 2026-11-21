@@ -91,6 +91,8 @@ type Panel struct {
 
 	// content sind die weiteren Quellen für Plugins und Mods (Hangar, Spigot, CurseForge) und GeyserMC.
 	content *contentSources
+	// link hält die Verbindungen der Nodes, die sich selbst zum Panel verbinden (nodelink.go).
+	link *linkHub
 }
 
 type viewEntry struct {
@@ -101,7 +103,7 @@ type viewEntry struct {
 
 // New baut das Panel. web ist die Oberfläche (kann nil sein).
 func New(cfg Config, store *Store, logger *slog.Logger, web http.Handler) *Panel {
-	return &Panel{
+	p := &Panel{
 		cfg: cfg, store: store, log: logger, web: web,
 		throttle: newThrottle(), sw: software.NewResolver(), modrinth: NewModrinth(),
 		views: map[string]viewEntry{}, nodeClient: newNodeClient, content: newContentSources(cfg.CurseForgeKey),
@@ -109,6 +111,8 @@ func New(cfg Config, store *Store, logger *slog.Logger, web http.Handler) *Panel
 		runningSchedules: map[string]bool{}, warnedKeys: map[string]bool{}, totpUsed: map[string]int64{}, statusCache: map[string]publicStatus{},
 		live: map[string]liveInfo{}, scaleLast: map[string]time.Time{}, idleSince: map[string]time.Time{}, restarts: map[string][]time.Time{},
 	}
+	p.initNodeLink()
+	return p
 }
 
 // Handler liefert alle Routen.
@@ -158,6 +162,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("GET /api/modpacks/{project}", p.authenticate(p.modpackVersions))
 	mux.HandleFunc("GET /api/software", p.authenticate(p.listSoftware))
 	mux.HandleFunc("GET /api/software/{id}/versions", p.authenticate(p.softwareVersions))
+	p.registerNodeLinkRoutes(mux)
 
 	// Projekte
 	mux.HandleFunc("GET /api/projects", p.authenticate(p.listProjects))

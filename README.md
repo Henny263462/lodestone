@@ -6,8 +6,9 @@
 Ein Hosting-Panel für Minecraft, zum Selbsthosten. Es verwaltet Server und ganze Netzwerke als **Projekte** auf einer
 oder mehreren Maschinen (Nodes), mit Docker als Isolation, mehreren Benutzern und Rollen pro Projekt.
 
-> **Stand: Version 0.1.** Fertig sind Node-Daemon, Panel-Backend, Weboberfläche und die Netzwerk-Autoconfig. Gruppen mit
-> Autoscaling und die Verbindung der Node „nach außen“ kommen später, siehe [docs/architecture.md](docs/architecture.md).
+> **Stand: Version 0.1.** Fertig sind Node-Daemon, Panel-Backend, Weboberfläche und die Netzwerk-Autoconfig. Nodes können sich
+> selbst zum Panel verbinden (auch hinter NAT). Gruppen mit Autoscaling kommen später, siehe
+> [docs/architecture.md](docs/architecture.md).
 
 ```
 Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──HTTP + Token──►  Node-Daemon (Go)  ──►  Docker  ──►  Server
@@ -45,6 +46,11 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
 - **Modpacks:** Beim Anlegen eines Servers ein **Modrinth-Modpack** (Fabric, NeoForge oder Forge, `.mrpack`) suchen und
   Version wählen. Mods und Konfiguration werden mit Prüfsummen geladen, bei NeoForge und Forge genau die Loader-Version
   des Modpacks, der Fortschritt steht im Server. Quilt-Modpacks gehen nicht (Quilt gibt es nicht als Server-Software)
+- **Nodes hinter NAT:** Unter **Nodes → Node hinzufügen** erzeugt das Panel ein einmaliges Join-Token und zeigt den
+  fertigen `docker run`- bzw. Compose-Befehl. Der Node verbindet sich dann **selbst** per Websocket zum Panel
+  (Anfragen, Datei-Down- und -Uploads und die Konsole laufen gebündelt durch diese eine Verbindung) und braucht
+  keinen offenen Port. Bricht sie ab, verbindet er sich mit wachsendem Abstand neu. Direkter Zugriff per Adresse und
+  Token bleibt möglich
 - **playit.gg:** Der Node startet den playit-Agenten (Schlüssel unter **Nodes** eintragen), die Tunnel-Adresse
   speichert man beim Server unter *Einstellungen → Öffentliche Adresse*. Keine Portfreigabe im Router nötig
 - **Backups** (tar.gz, bei laufendem Server mit `save-off`), Wiederherstellen (sicher, nur bei ausgeschaltetem Server),
@@ -186,8 +192,14 @@ die Serverordner über den Pfad des Hosts in die Minecraft-Container bindet. Die
 nicht veröffentlicht. Die Minecraft-Ports kommen aus `LODESTONE_PORT_RANGE` – wähle sie so, dass sie keine anderen
 Dienste stören, und öffne sie in der Firewall.
 
-Weitere Maschinen: Node-Container (`Dockerfile.node`) dort starten, die API mit TLS oder über VPN erreichbar machen und
-im Panel unter **Nodes** mit Adresse und Token eintragen. Alle Server eines Netzwerks liegen auf *einem* Node.
+Weitere Maschinen: Im Panel unter **Nodes → Node hinzufügen** Name und öffentliche Adresse angeben. Das Panel zeigt
+einen fertigen `docker run`- oder Compose-Befehl mit einem Join-Token (24 Stunden gültig, nur einmal benutzbar). Auf der
+neuen Maschine ausführen – der Node verbindet sich selbst zum Panel, ein offener Port oder eine Portfreigabe ist nicht
+nötig. Beim ersten Start tauscht er das Join-Token gegen ein eigenes Geheimnis (`panel-link.json` im Datenordner, das
+Panel speichert nur den Hash). **Nutze dafür `https://`** (Reverse-Proxy mit TLS vor dem Panel); mit `http://` gehen
+Token und Geheimnis im Klartext über das Netz, das Panel warnt dann. Wer den Node lieber direkt anspricht, startet den
+Container mit `LODESTONE_NODE_TOKEN`, macht die API über TLS oder VPN erreichbar und trägt Adresse und Token ein. Alle
+Server eines Netzwerks liegen auf *einem* Node.
 
 ### Ohne Docker bauen
 
@@ -261,7 +273,9 @@ Node-Daemon: `LODESTONE_NODE_TOKEN`, `_LISTEN`, `_DATA_DIR`, `_PUBLIC_HOST`, `_P
 `_SFTP_LISTEN` (Adresse des SFTP-Zugangs, Standard `:2022`; leer oder `off` schaltet SFTP ab),
 `_SLEEP_MODE` (`on`/`off`; leer = an, außer der Node läuft in einem Docker-Container mit eigenem Netz – dort erreicht
 den Listener des Schlafmodus niemand)
-– oder `config.json` (siehe unten). Der Host-Schlüssel für SFTP wird beim ersten Start im Datenordner des Nodes angelegt
+– oder `config.json` (siehe unten). Für die Verbindung nach außen: `LODESTONE_NODE_PANEL_URL` (Adresse des Panels,
+`https://…` empfohlen) und `LODESTONE_NODE_JOIN_TOKEN` (einmaliges Token aus dem Panel, nur bis zur ersten Kopplung
+nötig). Mit `LODESTONE_NODE_PANEL_URL` braucht der Node kein `LODESTONE_NODE_TOKEN`. Der Host-Schlüssel für SFTP wird beim ersten Start im Datenordner des Nodes angelegt
 (`sftp_host_ed25519_key`) und danach nie geändert. Im Compose-Setup ist der Port über `LODESTONE_SFTP_PORT` (Standard 2022)
 veröffentlicht; zum Abschalten `LODESTONE_NODE_SFTP_LISTEN: ""` setzen und den `ports`-Eintrag des Nodes entfernen. Lässt sich
 SFTP nicht starten (Port belegt, Schlüssel nicht schreibbar), läuft der Node ohne SFTP weiter und schreibt den Grund ins Log.
@@ -293,6 +307,10 @@ scrape_configs:
 - SFTP: nur das Subsystem `sftp` (keine Shell, keine Befehle, keine Weiterleitungen), Zugriff strikt im Serverordner über
   `os.Root` (auch Symlinks), keine neuen Symlinks, Upload-Grenze wie im Panel, Passwörter nur als argon2id-Hash, Drosselung
   nach 8 Fehlversuchen je Adresse in 10 Minuten
+- Nodes, die sich selbst verbinden: Join-Token einmalig und 24 Stunden gültig, danach ein eigenes Geheimnis je Node
+  (im Panel nur als SHA-256-Hash), Prüfung in konstanter Zeit, Drosselung nach Fehlversuchen. Ein Node beantwortet nur
+  Anfragen für sich selbst und kann über die Verbindung nichts am Panel aufrufen; Nachrichten über 1 MiB beenden die
+  Verbindung
 - Container laufen ohne Root-Rechte des Hosts, mit `no-new-privileges`, abgeschalteten Capabilities, Prozess-,
   Speicher- und CPU-Limit; Dateizugriffe bleiben im Serverordner (`os.Root`, auch über Symlinks hinweg)
 - **Java2Shell/Java4Shell (CVE-2026-114938):** Jeder Server bekommt `JAVA_TOOL_OPTIONS=-XX:-UseBASE64Intrinsics`

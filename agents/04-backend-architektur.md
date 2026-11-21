@@ -15,9 +15,10 @@ Browser ──HTTP──▶ Panel (cmd/lodestone-panel, internal/panel) ──HT
 | `internal/panel` | Benutzer, Rechte, Projekte, Netzwerke, Gruppen, Zeitpläne, Ereignisse, Weboberfläche; spricht **nur über `NodeClient`** mit Nodes | Docker oder Server-Dateien direkt anfassen |
 | `internal/node` | Docker-Container, Server-Dateien (`os.Root`), Backups, Modpacks, playit, Speicherprüfung; kennt weder Benutzer noch Projekte | auf die Panel-Datenbank zugreifen, Rechte entscheiden |
 | `internal/software` | Software-Katalog, Versionslisten, Prüfsummen, Java-Wahl | von `panel` oder `node` importieren |
+| `internal/nodelink` | Protokoll der Verbindung, die ein Node selbst zum Panel aufbaut (Websocket + yamux, Kopfzeilen, Limits) | Benutzer, Docker oder Fachlogik kennen; von `panel` oder `node` importieren |
 | `cmd/*` | Start, Umgebungsvariablen, Verdrahtung | Fachlogik |
 
-Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `software`. `panel` importiert aus `node` nur **Datentypen** der Schnittstelle
+Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `software`/`nodelink`. `panel` importiert aus `node` nur **Datentypen** der Schnittstelle
 (`node.View`, `node.PlayitStatus` …), nie Logik.
 
 ## 2. Dateien im Panel (wo gehört was hin)
@@ -32,6 +33,7 @@ Abhängigkeiten laufen nur in eine Richtung: `cmd` → `panel`/`node` → `softw
 | `store.go` (Kern + Schema), `store_ext.go`, `store_more.go`, `store_backups.go` | Datenbank: Tabellen, Abfragen. **Nur hier steht SQL.** |
 | `handlers_backups.go`, `s3.go` | Backups mit externem Ziel: Handler und Abläufe bzw. S3-Client (Signatur V4, vorsignierte Adressen) |
 | `nodeclient.go` | HTTP-Client zum Node (`Do`, `Raw`, `Proxy`, `DialWS`) |
+| `nodelink.go`, `handlers_nodelink.go`, `store_nodelink.go` | Nodes, die sich selbst verbinden: Tunnel-Transport je Node, Koppeln/Verbinden, Join-Tokens. Ein Node ohne Adresse (`url = ''`) läuft immer über den Tunnel; neue Node-Funktionen brauchen dafür nichts Eigenes |
 | `network.go` | Autoconfig-Erzeugung für Velocity/Paper/Fabric (reine Funktionen, gut testbar) |
 | `groups.go`, `scheduler.go`, `events.go`, `metrics.go`, `maintain.go` | Hintergrundschleifen und ihre Logik |
 | `modrinth.go` | Modrinth-Client (mit Cache) |
@@ -112,6 +114,7 @@ Regeln:
 - **Arbeitsspeicher**: Start eines Servers geht nur nach `checkMemory` (Reserve `LODESTONE_NODE_MEMORY_RESERVE_MB`). Neue speicherhungrige
   Funktionen müssen diese Prüfung benutzen.
 - Konfiguration über Umgebungsvariablen `LODESTONE_NODE_*` (`config.go`); jede neue Variable dort **und** in README/`.env.example` eintragen.
+  Ausnahme: Die Verbindung zum Panel (`LODESTONE_NODE_PANEL_URL`, `_JOIN_TOKEN`) liest `LinkConfigFromEnv` in `nodelink.go`.
 
 ## 6. Hintergrundschleifen (Panel)
 

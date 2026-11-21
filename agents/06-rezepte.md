@@ -60,6 +60,10 @@ Dauert die Aktion lange und betrifft mehrere Schritte oder Nodes (Kopie, Umzug):
 (`startOp`/`runOp`, Tabelle `server_ops` mit Lebenszeichen und Abbruch) und `components/server/transfer.tsx` (`OpsList`).
 Daten zwischen Nodes immer als Strom durch das Panel reichen (`NodeClient.send`, `longClient`), nie ganz in den Speicher laden.
 
+Gilt auch für Nodes, die sich selbst zum Panel verbinden: Alles, was über `NodeClient` läuft, geht automatisch durch
+ihren Tunnel (`internal/panel/nodelink.go`). Im Test genügt `fakeNode`; einen Tunnel-Test mit Strömen und Konsole zeigt
+`internal/panel/nodelink_test.go`.
+
 ## D. Neue Hauptseite
 
 Siehe `03` §6. Vorbild: `app/(app)/audit/page.tsx` (Liste mit Filter) oder `nodes/page.tsx` (Karten).

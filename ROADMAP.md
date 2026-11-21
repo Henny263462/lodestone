@@ -40,7 +40,7 @@ Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
   - *Erledigt:* Speicher-Prüfung vor dem Start im Node, Zusage-gegen-Belegung auf der Nodes-Seite, Warnung bei wenig freiem RAM.
 - [x] **Zwei-Faktor-Anmeldung, API-Schlüssel, Audit-Log (M).** TOTP, persönliche Zugriffsschlüssel (für Skripte und die CLI), Protokoll „wer hat wann was geändert“, Liste der aktiven Sitzungen mit Abmelden. 
   - *Erledigt:* TOTP mit Wiederherstellungscodes, API-Schlüssel, Sitzungsliste, Protokoll (90 Tage).
-- [ ] **Node per Code koppeln (M).** Statt URL und Token zu kopieren: Einmal-Code im Panel erzeugen, auf der neuen Maschine `curl … | bash -s CODE`. Danach die Verbindung **vom Node nach außen** (Websocket), damit Nodes hinter NAT und ohne offenen Port funktionieren.
+- [x] **Node per Code koppeln (M).** Join-Token im Panel erzeugen, fertiger `docker run`-/Compose-Befehl; der Node verbindet sich **nach außen** (Websocket + yamux) und funktioniert hinter NAT ohne offenen Port. Offen: Einzeiler `curl … | bash -s CODE` ohne Docker.
 - [ ] **Netzwerke über mehrere Nodes (L).** Heute liegt ein Netzwerk auf *einem* Node. Mit öffentlichen oder VPN-Adressen (WireGuard/Tailscale) lassen sich Backends auf anderen Maschinen anbinden.
 
 ## P2 – Komfort und Alleinstellung

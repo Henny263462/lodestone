@@ -26,6 +26,8 @@ type nodeDTO struct {
 	MemoryAvailable int64 `json:"memoryAvailable,omitempty"`
 	// MemoryCommitted ist der Arbeitsspeicher, den die laufenden Server auf dem Node als Limit haben (Bytes).
 	MemoryCommitted int64 `json:"memoryCommitted,omitempty"`
+	// Linked meldet einen Node, der sich selbst zum Panel verbindet (ohne Adresse).
+	Linked bool `json:"linked,omitempty"`
 }
 
 func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +40,7 @@ func (p *Panel) listNodes(w http.ResponseWriter, r *http.Request) {
 	result := make([]nodeDTO, len(nodes))
 	var group sync.WaitGroup
 	for i, n := range nodes {
-		result[i] = nodeDTO{ID: n.ID, Name: n.Name, PublicHost: n.PublicHost}
+		result[i] = nodeDTO{ID: n.ID, Name: n.Name, PublicHost: n.PublicHost, Linked: n.linked()}
 		if admin {
 			result[i].URL = n.URL
 		}
@@ -153,19 +155,20 @@ func (p *Panel) updateNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	linked := n.linked() // Adresse und Token gibt es bei Nodes, die sich selbst verbinden, nicht
 	if body.Name != nil {
 		n.Name = strings.TrimSpace(*body.Name)
 	}
-	if body.URL != nil {
+	if body.URL != nil && !linked {
 		n.URL = strings.TrimRight(strings.TrimSpace(*body.URL), "/")
 	}
-	if body.Token != nil && strings.TrimSpace(*body.Token) != "" {
+	if body.Token != nil && strings.TrimSpace(*body.Token) != "" && !linked {
 		n.Token = strings.TrimSpace(*body.Token)
 	}
 	if body.PublicHost != nil {
 		n.PublicHost = strings.TrimSpace(*body.PublicHost)
 	}
-	if n.Name == "" || len(n.Name) > 48 || !validNodeURL(n.URL) {
+	if n.Name == "" || len(n.Name) > 48 || (!linked && !validNodeURL(n.URL)) {
 		writeError(w, fail(http.StatusBadRequest, "Name und Adresse sind ungültig"))
 		return
 	}
@@ -196,6 +199,7 @@ func (p *Panel) deleteNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	p.link.drop(id)
 	p.invalidate(id)
 	w.WriteHeader(http.StatusNoContent)
 }

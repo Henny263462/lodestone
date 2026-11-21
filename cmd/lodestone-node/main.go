@@ -81,6 +81,13 @@ func run(configPath string, logger *slog.Logger) error {
 			logger.Error("SFTP läuft nicht", "error", err)
 		}
 	}()
+	if linkConfig, ok := node.LinkConfigFromEnv(config); ok {
+		link, err := node.NewLink(linkConfig, config.Token, api.Handler(), logger, version)
+		if err != nil {
+			return err
+		}
+		go link.Run(ctx)
+	}
 	server := &http.Server{
 		Addr:              config.Listen,
 		Handler:           api.Handler(),

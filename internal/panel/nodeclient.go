@@ -31,6 +31,8 @@ var ErrNodeOffline = errors.New("der Node ist nicht erreichbar")
 type NodeClient struct {
 	node Node
 	http *http.Client
+	// transport ersetzt den Standard-Transport (für Nodes, die sich selbst zum Panel verbinden); nil = direkt per HTTP.
+	transport http.RoundTripper
 }
 
 func newNodeClient(node Node) *NodeClient {
@@ -130,6 +132,7 @@ func (c *NodeClient) Proxy(w http.ResponseWriter, r *http.Request, path string) 
 			out.Out.Header.Set("Authorization", "Bearer "+c.node.Token)
 		},
 		FlushInterval: -1,
+		Transport:     c.transport,
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "der Node " + c.node.Name + " ist nicht erreichbar"})
 		},
@@ -140,9 +143,13 @@ func (c *NodeClient) Proxy(w http.ResponseWriter, r *http.Request, path string) 
 // DialWS verbindet sich mit dem Websocket eines Servers auf dem Node.
 func (c *NodeClient) DialWS(ctx context.Context, path string) (*websocket.Conn, error) {
 	address := strings.Replace(strings.Replace(c.url(path), "https://", "wss://", 1), "http://", "ws://", 1)
-	conn, _, err := websocket.Dial(ctx, address, &websocket.DialOptions{
+	options := &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": []string{"Bearer " + c.node.Token}},
-	})
+	}
+	if c.transport != nil {
+		options.HTTPClient = &http.Client{Transport: c.transport}
+	}
+	conn, _, err := websocket.Dial(ctx, address, options)
 	if err != nil {
 		return nil, fmt.Errorf("%w (%s): %v", ErrNodeOffline, c.node.Name, err)
 	}

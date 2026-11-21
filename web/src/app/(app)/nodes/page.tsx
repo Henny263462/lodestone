@@ -7,13 +7,16 @@ import { ConfirmDialog, Dialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { useUser } from "@/components/layout/shell";
 import { NodeStorageCard } from "@/components/node-storage";
+import { AddNodeDialog, NodeLinkCard } from "@/components/node-link";
 import { api, useApi } from "@/lib/api";
 import { bytes } from "@/lib/format";
-import type { NodeInfo, PlayitStatus } from "@/lib/types";
+import type { NodeInfo, NodeLink, PlayitStatus } from "@/lib/types";
 
 export default function NodesPage() {
   const user = useUser();
   const { data, error, mutate } = useApi<NodeInfo[]>("/nodes", { refreshInterval: 10000 });
+  const links = useApi<NodeLink[]>(user.isAdmin ? "/nodes/link" : null, { refreshInterval: 10000 });
+  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<NodeInfo | "new" | null>(null);
   const [removing, setRemoving] = useState<NodeInfo | null>(null);
   const toast = useToast();
@@ -28,7 +31,7 @@ export default function NodesPage() {
         description="Maschinen mit Docker, auf denen die Server laufen. Auf jeder läuft der Lodestone-Node-Daemon."
         action={
           user.isAdmin && (
-            <Button variant="primary" onClick={() => setEditing("new")}>
+            <Button variant="primary" onClick={() => setAdding(true)}>
               <Plus className="h-4 w-4" />
               Node hinzufügen
             </Button>
@@ -37,7 +40,7 @@ export default function NodesPage() {
       />
       {data.length === 0 ? (
         <Card>
-          <EmptyState icon={<Cpu className="h-6 w-6" />} title="Noch kein Node" text={user.isAdmin ? "Starte den Node-Daemon auf einer Maschine und trage hier Adresse und Token ein." : "Ein Administrator muss einen Node einrichten."} />
+          <EmptyState icon={<Cpu className="h-6 w-6" />} title="Noch kein Node" text={user.isAdmin ? "Füge einen Node hinzu: Du bekommst einen Startbefehl, mit dem sich der Node selbst zum Panel verbindet." : "Ein Administrator muss einen Node einrichten."} />
         </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -74,14 +77,15 @@ export default function NodesPage() {
                   <dd>{node.serverCount}</dd>
                 </dl>
               ) : (
-                node.error && <p className="mt-4 rounded-md border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">{node.error}</p>
+                node.error && !(user.isAdmin && node.linked && !links.data?.find((link) => link.nodeId === node.id)?.connected) && <p className="mt-4 rounded-md border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">{node.error}</p>
               )}
               {node.online && node.system && <MemoryPlanner node={node} />}
               {node.online && <NodeStorageCard node={node} />}
+              {user.isAdmin && node.linked && <NodeLinkCard node={node} link={links.data?.find((link) => link.nodeId === node.id)} error={links.error} retry={() => links.mutate()} onChanged={() => links.mutate()} />}
               {user.isAdmin && node.online && <PlayitCard node={node} />}
               {user.isAdmin && (
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
-                  <span className="truncate font-mono text-[11px] text-muted">{node.url}</span>
+                  <span className="truncate font-mono text-[11px] text-muted">{node.linked ? "verbindet sich selbst zum Panel" : node.url}</span>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon-sm" onClick={() => setEditing(node)} aria-label="Bearbeiten">
                       <Pencil className="h-3.5 w-3.5" />
@@ -97,6 +101,18 @@ export default function NodesPage() {
         </div>
       )}
       <NodeDialog node={editing} onClose={() => setEditing(null)} onDone={() => mutate()} />
+      <AddNodeDialog
+        open={adding}
+        onClose={() => setAdding(false)}
+        onDirect={() => {
+          setAdding(false);
+          setEditing("new");
+        }}
+        onDone={() => {
+          mutate();
+          links.mutate();
+        }}
+      />
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
@@ -244,6 +260,7 @@ function PlayitCard({ node }: { node: NodeInfo }) {
 function NodeDialog({ node, onClose, onDone }: { node: NodeInfo | "new" | null; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
   const existing = node && node !== "new" ? node : null;
+  const linked = !!existing?.linked; // verbindet sich selbst: keine Adresse, kein Token
   const [form, setForm] = useState({ name: "", url: "", token: "", publicHost: "" });
   const [busy, setBusy] = useState(false);
   const [seen, setSeen] = useState<NodeInfo | "new" | null>(null);
@@ -268,7 +285,7 @@ function NodeDialog({ node, onClose, onDone }: { node: NodeInfo | "new" | null; 
           <Button
             variant="primary"
             loading={busy}
-            disabled={!form.name.trim() || !form.url.trim() || (!existing && !form.token.trim())}
+            disabled={!form.name.trim() || (!linked && !form.url.trim()) || (!existing && !form.token.trim())}
             onClick={async () => {
               setBusy(true);
               const ok = await toast.run(() => (existing ? api.patch(`/nodes/${existing.id}`, form) : api.post("/nodes", form)), existing ? "Gespeichert" : "Node hinzugefügt");
@@ -288,14 +305,18 @@ function NodeDialog({ node, onClose, onDone }: { node: NodeInfo | "new" | null; 
         <label className="label">Name</label>
         <input className="field" value={form.name} onChange={set("name")} placeholder="home" maxLength={48} autoFocus />
       </div>
-      <div>
-        <label className="label">Adresse des Daemons</label>
-        <input className="field font-mono text-xs" value={form.url} onChange={set("url")} placeholder="http://node.example.org:8480" />
-      </div>
-      <div>
-        <label className="label">Token {existing && "(leer lassen, um es zu behalten)"}</label>
-        <input className="field font-mono text-xs" type="password" value={form.token} onChange={set("token")} autoComplete="off" />
-      </div>
+      {!linked && (
+        <>
+          <div>
+            <label className="label">Adresse des Daemons</label>
+            <input className="field font-mono text-xs" value={form.url} onChange={set("url")} placeholder="http://node.example.org:8480" />
+          </div>
+          <div>
+            <label className="label">Token {existing && "(leer lassen, um es zu behalten)"}</label>
+            <input className="field font-mono text-xs" type="password" value={form.token} onChange={set("token")} autoComplete="off" />
+          </div>
+        </>
+      )}
       <div>
         <label className="label">Öffentliche Adresse (für Spieler)</label>
         <input className="field" value={form.publicHost} onChange={set("publicHost")} placeholder="mc.example.org" />
