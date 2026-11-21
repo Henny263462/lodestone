@@ -47,6 +47,8 @@ func (p *Panel) authStatus(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(cookieName); err == nil {
 		if user, err := p.store.SessionUser(hashToken(cookie.Value)); err == nil {
 			result["user"] = user
+			// Die Oberfläche stellt damit gleich nach der Anmeldeprüfung die Sprache ein ("" = wie der Browser).
+			result["language"], _ = p.store.UserLanguage(user.ID)
 		}
 	}
 	writeJSON(w, http.StatusOK, result)

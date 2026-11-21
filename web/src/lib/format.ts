@@ -1,56 +1,69 @@
+import { formatNumber, locale, t } from "@/lib/i18n";
+
 export function bytes(value?: number | null): string {
   if (!value || isNaN(value)) return "0 MB";
-  if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
-  if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(value >= 100 * 1024 ** 2 ? 0 : 1).replace(".", ",")} MB`;
+  if (value >= 1024 ** 3) return `${formatNumber(value / 1024 ** 3, 1)} GB`;
+  if (value >= 1024 ** 2) return `${formatNumber(value / 1024 ** 2, value >= 100 * 1024 ** 2 ? 0 : 1)} MB`;
   if (value >= 1024) return `${Math.round(value / 1024)} KB`;
   return `${value} B`;
 }
 
 export function megabytes(value: number): string {
-  return value >= 1024 ? `${(value / 1024).toFixed(value % 1024 === 0 ? 0 : 1).replace(".", ",")} GB` : `${value} MB`;
+  return value >= 1024 ? `${formatNumber(value / 1024, value % 1024 === 0 ? 0 : 1)} GB` : `${value} MB`;
 }
 
 export function dateTime(timestamp?: number | null): string {
   if (!timestamp || isNaN(timestamp)) return "–";
-  return new Date(timestamp).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+  return new Date(timestamp).toLocaleString(locale(), { dateStyle: "short", timeStyle: "short" });
 }
 
 export function ago(timestamp?: number | null): string {
-  if (!timestamp || isNaN(timestamp)) return "nie";
+  if (!timestamp || isNaN(timestamp)) return t("nie");
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  if (seconds < 10) return "gerade eben";
-  if (seconds < 60) return `vor ${seconds} Sek`;
+  if (seconds < 10) return t("gerade eben");
+  if (seconds < 60) return t("vor {seconds} Sek", { seconds });
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `vor ${minutes} Min`;
+  if (minutes < 60) return t("vor {minutes} Min", { minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `vor ${hours} Std`;
-  return `vor ${Math.round(hours / 24)} Tagen`;
+  if (hours < 48) return t("vor {hours} Std", { hours });
+  return t("vor {days} Tagen", { days: Math.round(hours / 24) });
 }
 
 export function uptime(since?: number | null): string {
   if (!since) return "–";
   const minutes = Math.floor((Date.now() - since) / 60_000);
-  if (minutes < 1) return "gerade gestartet";
-  if (minutes < 60) return `${minutes} Min`;
+  if (minutes < 1) return t("gerade gestartet");
+  if (minutes < 60) return t("{minutes} Min", { minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours} Std ${minutes % 60} Min`;
-  return `${Math.floor(hours / 24)} Tage`;
+  if (hours < 48) return t("{hours} Std {minutes} Min", { hours, minutes: minutes % 60 });
+  return t("{days} Tage", { days: Math.floor(hours / 24) });
 }
 
 export function compact(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(".", ",")} Mio.`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1).replace(".", ",")} Tsd.`;
+  if (value >= 1_000_000) return t("{value} Mio.", { value: formatNumber(value / 1_000_000, 1) });
+  if (value >= 1_000) return t("{value} Tsd.", { value: formatNumber(value / 1_000, 1) });
   return String(value);
 }
 
-export const stateLabel: Record<string, string> = {
-  installing: "Wird installiert",
-  offline: "Aus",
-  starting: "Startet",
-  running: "Läuft",
-  stopping: "Stoppt",
-  restoring: "Wird wiederhergestellt",
-};
+/** stateLabel ist die Beschriftung eines Serverzustands in der gültigen Sprache. */
+export function stateLabel(state: string): string {
+  switch (state) {
+    case "installing":
+      return t("Wird installiert");
+    case "offline":
+      return t("Aus");
+    case "starting":
+      return t("Startet");
+    case "running":
+      return t("Läuft");
+    case "stopping":
+      return t("Stoppt");
+    case "restoring":
+      return t("Wird wiederhergestellt");
+    default:
+      return state;
+  }
+}
 
 export function stateTone(state?: string): "good" | "bad" | "warn" | "neutral" {
   switch (state) {

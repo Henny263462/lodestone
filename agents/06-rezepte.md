@@ -152,10 +152,21 @@ Vorbild: Backups (`internal/panel/handlers_backups.go` → `p.publish(Update{Top
    Fall in `affects` (Frontend) und, wenn das Lesen ein Recht braucht, in `updatePermission` (Backend). Test in `updates_test.go`.
 3. In der Komponente `refreshInterval: usePoll(lang, kurz)` statt eines festen Intervalls; Demo (`publish` in `web/demo/server.mjs`).
 
+## K. Neuer Text in der Oberfläche (beide Sprachen)
+
+Vorbild: jede Komponente, z. B. `components/server/backups.tsx`; Regeln in `03` §9.
+
+1. Text deutsch schreiben (Wörterliste in `02` §7) und in `t("…")` packen; Zahlen und Namen als Platzhalter `{name}`, Mehrzahl über
+   `tp(…)` mit Eintrag in `lib/messages/plurals.ts` (beide Sprachen).
+2. `npx tsc --noEmit` zeigt den fehlenden Schlüssel. Englische Fassung in `lib/messages/en.ts` unter der Datei eintragen, in
+   der der Text zuerst vorkommt.
+3. Kommt der Text vom Backend (Fehler, Grund): deutsch im Backend lassen, englische Fassung in `lib/messages/backend-en.ts`.
+4. `node scripts/i18n-check.mjs` und `npx next build` laufen sauber.
+
 ## Mini-Checkliste vor dem Absenden jeder Antwort
 
 - Habe ich ein Vorbild geöffnet und befolgt?
-- Nur vorhandene Bausteine/Farben/Bibliotheken? Deutsch, du?
+- Nur vorhandene Bausteine/Farben/Bibliotheken? Deutsch, du? Jeder sichtbare Text über `t()`, Englisch in `lib/messages/`?
 - Rechte im Backend? Test geschrieben? Datenbank additiv?
 - Vier Zustände? Rückmeldung per Toast? Gefährliches mit Rückfrage?
 - Typen, Demo, Doku mitgezogen? Befehle wirklich ausgeführt und Ergebnis korrekt berichtet?

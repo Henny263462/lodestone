@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { cx } from "./primitives";
+import { locale, t } from "@/lib/i18n";
 
 /** Farben für Datenreihen; die letzte (grau) ist für "Weitere" reserviert. */
 export const seriesColors = ["#3b82f6", "#f97316", "#10b981", "#eab308", "#ec4899", "#8b5cf6"];
@@ -27,11 +28,11 @@ export function niceMax(value: number): number {
 }
 
 function clock(time: number): string {
-  return new Date(time).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return new Date(time).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 }
 
 function dayAndClock(time: number): string {
-  return new Date(time).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return new Date(time).toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 /** Weicher Linienzug ohne Überschwinger (waagerechte Tangenten an den Messpunkten). */
@@ -212,7 +213,7 @@ export function SeriesChart({
                 ))}
                 {stacked && series.length > 1 && (
                   <p className="mt-1 flex justify-between gap-4 border-t border-white/[0.08] pt-1.5 font-medium">
-                    <span className="text-muted">Gesamt</span>
+                    <span className="text-muted">{t("Gesamt")}</span>
                     <span className="tabular-nums">{format(hoverTotal)}</span>
                   </p>
                 )}
@@ -224,7 +225,7 @@ export function SeriesChart({
         <div className="relative h-7 text-[11px] tabular-nums text-muted">
           {xTicks.map((index) => (
             <span key={index} className="absolute top-2 -translate-x-1/2" style={{ left: `${(index / (count - 1)) * 100}%` }}>
-              {long ? new Date(times[index]).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + " " + clock(times[index]) : clock(times[index])}
+              {long ? new Date(times[index]).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" }) + " " + clock(times[index]) : clock(times[index])}
             </span>
           ))}
         </div>

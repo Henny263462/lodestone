@@ -143,6 +143,12 @@ Browser ──►  Panel (Go, SQLite, eingebettete Next.js-Oberfläche)  ──H
   (nur bei ausgeschaltetem Server) und **Datapacks** pro Welt (Liste, Hochladen mit Prüfung auf `pack.mcmeta`, Löschen)
 - **Eigene Ordnung:** Projekte anheften, Reihenfolge in Seitenleiste und Übersicht selbst festlegen und mit
   Schlagwörtern filtern – pro Benutzer gespeichert. Server eines Projekts nach Name, Zustand oder Spielern sortieren
+- **Deutsch und Englisch:** Die Oberfläche gibt es auf Deutsch (Standard) und Englisch. Die Sprache wählt jeder Benutzer
+  unter *Konto → Sprache* (gilt auf allen Geräten, „wie der Browser“ ist die Voreinstellung); vor der Anmeldung gilt die
+  Sprache des Browsers, auf der Anmeldeseite gibt es einen Umschalter, öffentliche Statusseiten folgen immer dem Browser.
+  Datum und Zahlen richten sich nach der Sprache. Meldungen des Panels kommen deutsch; die bekannten übersetzt die
+  Oberfläche ins Englische (über den Text oder die Kennung `code` im Fehler-JSON), unbekannte bleiben deutsch. Das
+  englische Wörterbuch lädt der Browser nur, wenn jemand Englisch nutzt
 
 ## Schnellstart (1-Klick Installer für Linux)
 
@@ -421,6 +427,8 @@ schickt der Client `{"type":"command","data":"say hi"}`.
 ```bash
 go test ./...                              # ohne Docker (Docker wird durch eine Attrappe ersetzt)
 go test -tags docker ./internal/node -run Docker -v   # gegen ein echtes Docker, überspringt sich ohne
+cd web && npx tsc --noEmit                 # Typen; meldet auch Texte in t("…") ohne englische Übersetzung
+cd web && node scripts/i18n-check.mjs      # Übersetzung: fehlende/ungenutzte Einträge, Platzhalter, Text ohne t()
 ```
 
 ## Lizenz

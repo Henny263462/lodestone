@@ -8,6 +8,7 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import { dateTime } from "@/lib/format";
 import type { BackupTarget, Project } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 interface Form {
   endpoint: string;
@@ -52,7 +53,7 @@ export function BackupTargetCard({ project }: { project: Project }) {
 
   async function run(kind: "save" | "test") {
     setBusy(kind);
-    const ok = await toast.run(() => (kind === "save" ? api.put(path, form) : api.post(`${path}/test`, form)), kind === "save" ? "Backup-Ziel gespeichert" : "Verbindung klappt");
+    const ok = await toast.run(() => (kind === "save" ? api.put(path, form) : api.post(`${path}/test`, form)), kind === "save" ? t("Backup-Ziel gespeichert") : t("Verbindung klappt"));
     setBusy("");
     if (ok && kind === "save") mutate();
   }
@@ -60,9 +61,9 @@ export function BackupTargetCard({ project }: { project: Project }) {
   return (
     <Card>
       <CardHeader
-        title="Backup-Ziel"
-        description="S3-kompatibler Speicher für externe Backups, etwa AWS, Cloudflare R2, Backblaze B2, Hetzner oder MinIO."
-        action={data.configured ? <Badge tone="good">Eingerichtet</Badge> : <Badge>Nicht eingerichtet</Badge>}
+        title={t("Backup-Ziel")}
+        description={t("S3-kompatibler Speicher für externe Backups, etwa AWS, Cloudflare R2, Backblaze B2, Hetzner oder MinIO.")}
+        action={data.configured ? <Badge tone="good">{t("Eingerichtet")}</Badge> : <Badge>{t("Nicht eingerichtet")}</Badge>}
       />
       <div className="space-y-4 px-5 py-4">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -79,8 +80,8 @@ export function BackupTargetCard({ project }: { project: Project }) {
             <input className="field" value={form.bucket} onChange={(event) => patch({ bucket: event.target.value })} placeholder="lodestone-backups" spellCheck={false} />
           </div>
           <div>
-            <label className="label">Präfix (optional)</label>
-            <input className="field" value={form.prefix} onChange={(event) => patch({ prefix: event.target.value })} placeholder="mein-netzwerk/" spellCheck={false} />
+            <label className="label">{t("Präfix (optional)")}</label>
+            <input className="field" value={form.prefix} onChange={(event) => patch({ prefix: event.target.value })} placeholder={t("mein-netzwerk/")} spellCheck={false} />
           </div>
           <div>
             <label className="label">Access Key</label>
@@ -94,54 +95,54 @@ export function BackupTargetCard({ project }: { project: Project }) {
               value={form.secretKey}
               onChange={(event) => patch({ secretKey: event.target.value })}
               autoComplete="new-password"
-              placeholder={data.hasSecret ? "Gespeichert – leer lassen, um es zu behalten" : ""}
+              placeholder={data.hasSecret ? t("Gespeichert – leer lassen, um es zu behalten") : ""}
             />
-            <p className="mt-1 text-xs text-muted">Wird verschlüsselt gespeichert und nie wieder angezeigt.</p>
+            <p className="mt-1 text-xs text-muted">{t("Wird verschlüsselt gespeichert und nie wieder angezeigt.")}</p>
           </div>
         </div>
         <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-sm">
-          <Checkbox checked={form.pathStyle} onChange={(value) => patch({ pathStyle: value })} label="Pfad-Adressen" />
+          <Checkbox checked={form.pathStyle} onChange={(value) => patch({ pathStyle: value })} label={t("Pfad-Adressen")} />
           <span>
-            Pfad-Adressen <span className="text-xs text-muted">(Endpoint/Bucket/… statt Bucket.Endpoint/…; für MinIO nötig, bei den anderen Anbietern meist egal)</span>
+            {t("Pfad-Adressen")} <span className="text-xs text-muted">{t("(Endpoint/Bucket/… statt Bucket.Endpoint/…; für MinIO nötig, bei den anderen Anbietern meist egal)")}</span>
           </span>
         </label>
         <div className="space-y-1 text-xs text-muted">
-          <p>Beispiele für den Endpoint:</p>
+          <p>{t("Beispiele für den Endpoint:")}</p>
           <ul className="space-y-0.5">
             {examples.map((example) => (
               <li key={example.name}>
-                {example.name}: <code className="break-all rounded bg-black/30 px-1.5 py-0.5">{example.endpoint}</code> · Region <code className="rounded bg-black/30 px-1.5 py-0.5">{example.region}</code>
+                {example.name}: <code className="break-all rounded bg-black/30 px-1.5 py-0.5">{example.endpoint}</code> {t("· Region")} <code className="rounded bg-black/30 px-1.5 py-0.5">{example.region}</code>
               </li>
             ))}
           </ul>
-          <p>Ziele im internen Netz (z. B. MinIO im LAN) muss der Betreiber mit LODESTONE_BACKUP_ALLOW_INTERNAL=true freigeben.</p>
-          {data.configured && data.updatedAt ? <p>Zuletzt geändert: {dateTime(data.updatedAt)}</p> : null}
+          <p>{t("Ziele im internen Netz (z. B. MinIO im LAN) muss der Betreiber mit LODESTONE_BACKUP_ALLOW_INTERNAL=true freigeben.")}</p>
+          {data.configured && data.updatedAt ? <p>{t("Zuletzt geändert:")} {dateTime(data.updatedAt)}</p> : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-white/[0.06] px-5 py-3">
         {data.configured && (
           <Button variant="ghost" size="sm" className="mr-auto" onClick={() => setRemoving(true)}>
             <Trash2 className="h-3.5 w-3.5" />
-            Entfernen
+            {t("Entfernen")}
           </Button>
         )}
         <Button size="sm" loading={busy === "test"} disabled={!complete || busy !== ""} onClick={() => run("test")}>
           <PlugZap className="h-3.5 w-3.5" />
-          Verbindung testen
+          {t("Verbindung testen")}
         </Button>
         <Button variant="primary" size="sm" loading={busy === "save"} disabled={!complete || busy !== ""} onClick={() => run("save")}>
-          Speichern
+          {t("Speichern")}
         </Button>
       </div>
       <ConfirmDialog
         open={removing}
         onClose={() => setRemoving(false)}
-        title="Backup-Ziel entfernen?"
-        text="Das Panel vergisst Endpoint und Zugangsdaten. Externe Backups bleiben im Bucket liegen, lassen sich aber erst wieder laden, wenn du dasselbe Ziel erneut einrichtest. Zeitpläne mit „auch extern hochladen“ schlagen bis dahin fehl."
-        confirm="Entfernen"
+        title={t("Backup-Ziel entfernen?")}
+        text={t("Das Panel vergisst Endpoint und Zugangsdaten. Externe Backups bleiben im Bucket liegen, lassen sich aber erst wieder laden, wenn du dasselbe Ziel erneut einrichtest. Zeitpläne mit „auch extern hochladen“ schlagen bis dahin fehl.")}
+        confirm={t("Entfernen")}
         danger
         onConfirm={async () => {
-          if (await toast.run(() => api.delete(path), "Backup-Ziel entfernt")) mutate();
+          if (await toast.run(() => api.delete(path), t("Backup-Ziel entfernt"))) mutate();
         }}
       />
     </Card>

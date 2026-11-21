@@ -10,6 +10,7 @@ import { PixelAvatar } from "@/components/ui/mc";
 import { api, useApi } from "@/lib/api";
 import { dateTime } from "@/lib/format";
 import type { User } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export default function UsersPage() {
   const me = useUser();
@@ -20,7 +21,7 @@ export default function UsersPage() {
   const [removing, setRemoving] = useState<User | null>(null);
   const [passkeys, setPasskeys] = useState<User | null>(null);
 
-  if (!me.isAdmin) return <ErrorState error={new Error("Dafür braucht es einen Administrator.")} />;
+  if (!me.isAdmin) return <ErrorState error={new Error(t("Dafür braucht es einen Administrator."))} />;
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!data) return <Loading />;
 
@@ -32,12 +33,12 @@ export default function UsersPage() {
   return (
     <>
       <PageHeader
-        title="Benutzer"
-        description="Wer sich am Panel anmelden darf. Zugriff auf Projekte vergibst du im jeweiligen Projekt unter „Mitglieder“."
+        title={t("Benutzer")}
+        description={t("Wer sich am Panel anmelden darf. Zugriff auf Projekte vergibst du im jeweiligen Projekt unter „Mitglieder“.")}
         action={
           <Button variant="primary" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
-            Benutzer anlegen
+            {t("Benutzer anlegen")}
           </Button>
         }
       />
@@ -48,25 +49,25 @@ export default function UsersPage() {
             <div className="min-w-[160px] flex-1">
               <p className="text-sm font-medium">
                 {user.username}
-                {user.id === me.id && <span className="ml-2 text-xs text-muted">(du)</span>}
+                {user.id === me.id && <span className="ml-2 text-xs text-muted">{t("(du)")}</span>}
               </p>
-              <p className="text-xs text-muted">Seit {dateTime(user.createdAt)}</p>
+              <p className="text-xs text-muted">{t("Seit")} {dateTime(user.createdAt)}</p>
             </div>
             {user.isAdmin && (
               <Badge tone="accent">
                 <ShieldCheck className="h-3 w-3" />
-                Administrator
+                {t("Administrator")}
               </Badge>
             )}
-            {user.disabled && <Badge tone="bad">Gesperrt</Badge>}
+            {user.disabled && <Badge tone="bad">{t("Gesperrt")}</Badge>}
             <RowMenu
               items={[
-                { label: "Passwort zurücksetzen", icon: <KeyRound className="h-3.5 w-3.5" />, onClick: () => setResetting(user) },
-                { label: "Passkeys zurücksetzen", icon: <Fingerprint className="h-3.5 w-3.5" />, onClick: () => setPasskeys(user) },
-                { label: user.isAdmin ? "Administratorrechte entziehen" : "Zum Administrator machen", icon: <ShieldCheck className="h-3.5 w-3.5" />, disabled: user.id === me.id, onClick: () => patch(user, { isAdmin: !user.isAdmin }, "Gespeichert") },
-                { label: user.disabled ? "Entsperren" : "Sperren", icon: <UserX className="h-3.5 w-3.5" />, disabled: user.id === me.id, onClick: () => patch(user, { disabled: !user.disabled }, user.disabled ? "Entsperrt" : "Gesperrt") },
+                { label: t("Passwort zurücksetzen"), icon: <KeyRound className="h-3.5 w-3.5" />, onClick: () => setResetting(user) },
+                { label: t("Passkeys zurücksetzen"), icon: <Fingerprint className="h-3.5 w-3.5" />, onClick: () => setPasskeys(user) },
+                { label: user.isAdmin ? t("Administratorrechte entziehen") : t("Zum Administrator machen"), icon: <ShieldCheck className="h-3.5 w-3.5" />, disabled: user.id === me.id, onClick: () => patch(user, { isAdmin: !user.isAdmin }, t("Gespeichert")) },
+                { label: user.disabled ? t("Entsperren") : t("Sperren"), icon: <UserX className="h-3.5 w-3.5" />, disabled: user.id === me.id, onClick: () => patch(user, { disabled: !user.disabled }, user.disabled ? t("Entsperrt") : t("Gesperrt")) },
                 "separator",
-                { label: "Löschen", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, disabled: user.id === me.id, onClick: () => setRemoving(user) },
+                { label: t("Löschen"), icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, disabled: user.id === me.id, onClick: () => setRemoving(user) },
               ]}
             />
           </div>
@@ -78,25 +79,25 @@ export default function UsersPage() {
       <ConfirmDialog
         open={!!passkeys}
         onClose={() => setPasskeys(null)}
-        title={`Passkeys von „${passkeys?.username}“ zurücksetzen?`}
-        text="Alle Passkeys des Benutzers werden gelöscht. Er meldet sich danach mit Passwort oder über OIDC an und kann neue Passkeys unter Konto hinzufügen. Hat er beides nicht, kommt er erst wieder herein, wenn du sein Passwort zurücksetzt."
-        confirm="Zurücksetzen"
+        title={t("Passkeys von „{username}“ zurücksetzen?", { username: passkeys?.username })}
+        text={t("Alle Passkeys des Benutzers werden gelöscht. Er meldet sich danach mit Passwort oder über OIDC an und kann neue Passkeys unter Konto hinzufügen. Hat er beides nicht, kommt er erst wieder herein, wenn du sein Passwort zurücksetzt.")}
+        confirm={t("Zurücksetzen")}
         danger
         onConfirm={async () => {
           if (!passkeys) return;
-          await toast.run(() => api.delete(`/users/${passkeys.id}/passkeys`), "Passkeys zurückgesetzt");
+          await toast.run(() => api.delete(`/users/${passkeys.id}/passkeys`), t("Passkeys zurückgesetzt"));
         }}
       />
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
-        title={`„${removing?.username}“ löschen?`}
-        text="Der Benutzer und seine Mitgliedschaften werden gelöscht. Projekte bleiben bestehen."
-        confirm="Löschen"
+        title={t("„{username}“ löschen?", { username: removing?.username })}
+        text={t("Der Benutzer und seine Mitgliedschaften werden gelöscht. Projekte bleiben bestehen.")}
+        confirm={t("Löschen")}
         danger
         onConfirm={async () => {
           if (!removing) return;
-          await toast.run(() => api.delete(`/users/${removing.id}`), "Benutzer gelöscht");
+          await toast.run(() => api.delete(`/users/${removing.id}`), t("Benutzer gelöscht"));
           mutate();
         }}
       />
@@ -113,17 +114,17 @@ function CreateDialog({ open, onClose, onDone }: { open: boolean; onClose: () =>
     <Dialog
       open={open}
       onClose={onClose}
-      title="Benutzer anlegen"
+      title={t("Benutzer anlegen")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button
             variant="primary"
             disabled={username.trim().length < 3 || password.length < 8}
             onClick={async () => {
-              if (await toast.run(() => api.post("/users", { username: username.trim(), password, isAdmin }), "Benutzer angelegt")) {
+              if (await toast.run(() => api.post("/users", { username: username.trim(), password, isAdmin }), t("Benutzer angelegt"))) {
                 setUsername("");
                 setPassword("");
                 setIsAdmin(false);
@@ -132,21 +133,21 @@ function CreateDialog({ open, onClose, onDone }: { open: boolean; onClose: () =>
               }
             }}
           >
-            Anlegen
+            {t("Anlegen")}
           </Button>
         </>
       }
     >
       <div>
-        <label className="label">Benutzername</label>
+        <label className="label">{t("Benutzername")}</label>
         <input className="field" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="off" autoFocus />
       </div>
       <div>
-        <label className="label">Startpasswort (mindestens 8 Zeichen)</label>
+        <label className="label">{t("Startpasswort (mindestens 8 Zeichen)")}</label>
         <input className="field" type="text" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="off" />
       </div>
       <label className="flex items-center justify-between gap-3 text-sm">
-        <span>Administrator (voller Zugriff auf alles)</span>
+        <span>{t("Administrator (voller Zugriff auf alles)")}</span>
         <Switch checked={isAdmin} onChange={setIsAdmin} />
       </label>
     </Dialog>
@@ -160,30 +161,30 @@ function ResetDialog({ user, onClose }: { user: User | null; onClose: () => void
     <Dialog
       open={!!user}
       onClose={onClose}
-      title={`Passwort von ${user?.username} zurücksetzen`}
-      description="Alle Sitzungen des Benutzers enden."
+      title={t("Passwort von {username} zurücksetzen", { username: user?.username })}
+      description={t("Alle Sitzungen des Benutzers enden.")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button
             variant="primary"
             disabled={password.length < 8}
             onClick={async () => {
-              if (user && (await toast.run(() => api.post(`/users/${user.id}/password`, { password }), "Passwort geändert"))) {
+              if (user && (await toast.run(() => api.post(`/users/${user.id}/password`, { password }), t("Passwort geändert")))) {
                 setPassword("");
                 onClose();
               }
             }}
           >
-            Setzen
+            {t("Setzen")}
           </Button>
         </>
       }
     >
       <div>
-        <label className="label">Neues Passwort (mindestens 8 Zeichen)</label>
+        <label className="label">{t("Neues Passwort (mindestens 8 Zeichen)")}</label>
         <input className="field" type="text" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="off" autoFocus />
       </div>
     </Dialog>

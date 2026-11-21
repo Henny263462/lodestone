@@ -131,6 +131,7 @@ func (p *Panel) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth/totp", p.totpLogin)
 	mux.HandleFunc("GET /api/me", p.authenticate(p.meDetails))
 	mux.HandleFunc("POST /api/me/password", p.authenticate(p.sessionOnly(p.changeOwnPassword)))
+	mux.HandleFunc("PUT /api/me/language", p.authenticate(p.sessionOnly(p.putMyLanguage)))
 	mux.HandleFunc("POST /api/me/totp/setup", p.authenticate(p.sessionOnly(p.totpSetup)))
 	mux.HandleFunc("POST /api/me/totp/enable", p.authenticate(p.sessionOnly(p.totpEnable)))
 	mux.HandleFunc("POST /api/me/totp/disable", p.authenticate(p.sessionOnly(p.totpDisable)))
@@ -263,39 +264,69 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 type httpError struct {
 	status  int
 	message string
+	// code ist eine stabile Kennung neben der deutschen Meldung, mit der die Oberfläche übersetzt (leer: aus dem Status).
+	code string
 }
 
 func (e *httpError) Error() string { return e.message }
 
-func fail(status int, message string) error { return &httpError{status, message} }
+func fail(status int, message string) error { return &httpError{status: status, message: message} }
+
+// failCode ist fail mit eigener Kennung für die Oberfläche.
+func failCode(status int, code, message string) error {
+	return &httpError{status: status, message: message, code: code}
+}
 
 var (
-	errForbidden = fail(http.StatusForbidden, "dafür fehlt dir die Berechtigung")
-	errNotFound  = fail(http.StatusNotFound, "nicht gefunden")
+	errForbidden = failCode(http.StatusForbidden, "forbidden", "dafür fehlt dir die Berechtigung")
+	errNotFound  = failCode(http.StatusNotFound, "not_found", "nicht gefunden")
 )
+
+// statusCodes sind die Fehlerkennungen, die schon der Status eindeutig sagt. Andere Fehler bekommen eine Kennung nur über
+// failCode; ohne Kennung übersetzt die Oberfläche nach der Meldung selbst (web/src/lib/messages/backend-en.ts).
+var statusCodes = map[int]string{
+	http.StatusUnauthorized:        "unauthorized",
+	http.StatusForbidden:           "forbidden",
+	http.StatusNotFound:            "not_found",
+	http.StatusTooManyRequests:     "too_many_requests",
+	http.StatusInternalServerError: "internal",
+}
+
+// writeErrorBody schreibt {"error": Meldung, "code": Kennung}; die Kennung fehlt, wenn es keine gibt.
+func writeErrorBody(w http.ResponseWriter, status int, code, message string) {
+	body := map[string]string{"error": message}
+	if code != "" {
+		body["code"] = code
+	}
+	writeJSON(w, status, body)
+}
 
 func writeError(w http.ResponseWriter, err error) {
 	var httpErr *httpError
 	var nodeErr *NodeError
 	switch {
 	case errors.As(err, &httpErr):
-		writeJSON(w, httpErr.status, map[string]string{"error": httpErr.message})
+		code := httpErr.code
+		if code == "" {
+			code = statusCodes[httpErr.status]
+		}
+		writeErrorBody(w, httpErr.status, code, httpErr.message)
 	case errors.As(err, &nodeErr):
 		status := nodeErr.Status
 		if status == http.StatusUnauthorized {
 			status = http.StatusBadGateway
 		}
-		writeJSON(w, status, map[string]string{"error": nodeErr.Message})
+		writeErrorBody(w, status, "", nodeErr.Message)
 	case errors.Is(err, ErrNotFound):
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "nicht gefunden"})
+		writeErrorBody(w, http.StatusNotFound, "not_found", "nicht gefunden")
 	case errors.Is(err, ErrExists):
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		writeErrorBody(w, http.StatusConflict, "", err.Error())
 	case errors.Is(err, ErrNodeOffline):
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		writeErrorBody(w, http.StatusBadGateway, "node_offline", err.Error())
 	case errors.Is(err, fs.ErrNotExist):
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "nicht gefunden"})
+		writeErrorBody(w, http.StatusNotFound, "not_found", "nicht gefunden")
 	default:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "interner Fehler: " + err.Error()})
+		writeErrorBody(w, http.StatusInternalServerError, "internal", "interner Fehler: "+err.Error())
 	}
 }
 
@@ -303,7 +334,7 @@ func decode(r *http.Request, into any) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(into); err != nil {
-		return fail(http.StatusBadRequest, "ungültige Anfrage: "+err.Error())
+		return failCode(http.StatusBadRequest, "invalid_request", "ungültige Anfrage: "+err.Error())
 	}
 	return nil
 }

@@ -7,6 +7,9 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
    Bezeichner im Code (Variablen, Funktionen, Typen, Dateinamen) sind **Englisch**.
 2. Kurze, konkrete Sätze. Fehlermeldungen sagen, **was los ist und was man tun kann**: „Der Port ist schon belegt. Prüfe unter
    Einstellungen die Anschlüsse.“ Nie „Fehler“, „Ein Fehler ist aufgetreten“ oder englische Systemtexte zeigen.
+2a. Die Oberfläche gibt es auf **Deutsch und Englisch**. Texte entstehen deutsch und gehen **immer über `t("…")`** aus
+   `@/lib/i18n` (der deutsche Text ist der Schlüssel). Jeder neue Text braucht seine englische Fassung in
+   `web/src/lib/messages/en.ts` – sonst schlägt `npx tsc --noEmit` fehl. Englisch steht nur dort, nie im Code einer Seite.
 3. Keine Emojis in der Oberfläche. Symbole kommen aus `lucide-react`.
 
 ## Aussehen (Details: `01`)
@@ -51,7 +54,7 @@ Eine Seite. Jede Regel hat einen Grund und steht in den anderen Dokumenten genau
 ## Arbeit und Ehrlichkeit (Details: `05`)
 19. Erst ein Vorbild im Code suchen, dann bauen. Kleinste Änderung, die die Aufgabe löst. Keine Umbauten „nebenbei“.
 20. Fertig heißt: `gofmt`, `go vet ./...`, `go test ./...`, `npx tsc --noEmit` (in `web/`) laufen sauber; bei UI-Änderungen
-    `npx next build`. Demo-Backend (`web/demo/server.mjs`) für neue Endpunkte ergänzen. Doku mitziehen.
+    `npx next build` und `node scripts/i18n-check.mjs`. Demo-Backend (`web/demo/server.mjs`) für neue Endpunkte ergänzen. Doku mitziehen.
 21. Berichte ehrlich: was gebaut, was **getestet**, was **nicht** getestet, was offen ist. Nie „sollte funktionieren“ als „funktioniert“.
 22. **Nicht anfassen:** Pelican/Wings-Server des Besitzers (Ports 25565–25575, 25595), Geheimnisse, Dokploy-Umgebungswerte.
     **Nicht tun ohne Auftrag:** committen, pushen, taggen, auf den Server deployen.

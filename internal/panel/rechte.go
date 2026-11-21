@@ -37,10 +37,13 @@ const (
 
 // PermissionInfo beschreibt ein Recht für die Oberfläche.
 type PermissionInfo struct {
-	ID          Permission `json:"id"`
-	Group       string     `json:"group"`
-	Label       string     `json:"label"`
-	Description string     `json:"description"`
+	ID Permission `json:"id"`
+	// GroupID ist die stabile Kennung der Gruppe (console, files, backups, server, project) zum Übersetzen in der
+	// Oberfläche; Group ist ihr deutscher Name.
+	GroupID     string `json:"groupId"`
+	Group       string `json:"group"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
 	// Role ist die kleinste Rolle, deren Vorlage das Recht enthält.
 	Role string `json:"role"`
 	rank int
@@ -49,24 +52,24 @@ type PermissionInfo struct {
 // permissionCatalog ist die Liste aller Rechte in der Reihenfolge der Oberfläche. Die Mindestrolle entspricht genau
 // der Stufe, die die Handler vor den Einzelrechten verlangt haben; rechte_test.go prüft das an jeder Route.
 var permissionCatalog = []PermissionInfo{
-	{ID: PermConsoleRead, Group: "Konsole", Label: "Konsole lesen", Description: "Sieht die Ausgabe der Konsole und das Protokoll des Servers.", rank: rankViewer},
-	{ID: PermConsoleCommand, Group: "Konsole", Label: "Befehle senden", Description: "Schickt Befehle an die Konsole, zum Beispiel „op“ oder „stop“.", rank: rankOperator},
-	{ID: PermPower, Group: "Konsole", Label: "Starten und Stoppen", Description: "Startet, stoppt und startet Server neu, auch Instanzen einer Gruppe.", rank: rankOperator},
-	{ID: PermFilesRead, Group: "Dateien", Label: "Dateien ansehen", Description: "Öffnet und lädt Dateien des Servers herunter, auch Welten, Datapacks und server.properties.", rank: rankOperator},
-	{ID: PermFilesWrite, Group: "Dateien", Label: "Dateien ändern", Description: "Bearbeitet, lädt hoch, benennt um und löscht Dateien. Auch Plugins/Mods hochladen, abschalten und löschen läuft darüber.", rank: rankOperator},
-	{ID: PermSFTP, Group: "Dateien", Label: "SFTP-Zugang", Description: "Darf per SFTP auf die Dateien zugreifen, zusammen mit „Dateien ansehen“. Schreiben geht nur mit „Dateien ändern“.", rank: rankOperator},
-	{ID: PermBackupsRead, Group: "Backups", Label: "Backups ansehen", Description: "Sieht die Liste der Backups. Herunterladen braucht zusätzlich „Dateien ansehen“.", rank: rankViewer},
-	{ID: PermBackupsCreate, Group: "Backups", Label: "Backups erstellen", Description: "Erstellt neue Backups und lädt sie zum Backup-Ziel hoch.", rank: rankOperator},
-	{ID: PermBackupsRestore, Group: "Backups", Label: "Backups wiederherstellen", Description: "Ersetzt alle Dateien des Servers durch ein Backup.", rank: rankOperator},
-	{ID: PermBackupsDelete, Group: "Backups", Label: "Backups löschen", Description: "Löscht Backups unwiderruflich und hält sie fest oder entsperrt sie.", rank: rankOperator},
-	{ID: PermAddons, Group: "Server", Label: "Plugins und Mods", Description: "Installiert, aktualisiert und wechselt Plugins/Mods über Modrinth und die anderen Quellen. Bausteine wie BlueMap brauchen zusätzlich „Einstellungen“.", rank: rankOperator},
-	{ID: PermPlayers, Group: "Server", Label: "Spieler verwalten", Description: "Sieht Whitelist, Operatoren und Banns und kickt, bannt oder whitelistet Spieler.", rank: rankOperator},
-	{ID: PermSettings, Group: "Server", Label: "Einstellungen", Description: "Ändert Name, Arbeitsspeicher, Startzeile, Version, Auto-Restart, Schlafmodus, Speicherlimit, Spieleinstellungen, Welten, Backup-Ausschlüsse, öffentliche Adresse, Projektname, Statusseite, Backup-Ziel und Discord-Bot.", rank: rankAdmin},
-	{ID: PermServers, Group: "Server", Label: "Server anlegen und löschen", Description: "Legt neue Server an, kopiert sie, zieht sie auf einen anderen Node um und löscht Server samt Welten und Backups.", rank: rankAdmin},
-	{ID: PermSchedules, Group: "Projekt", Label: "Zeitpläne", Description: "Legt Zeitpläne an, ändert und löscht sie. Schritte gehen nur mit den passenden Rechten (Befehle, Starten, Backups).", rank: rankAdmin},
-	{ID: PermWebhooks, Group: "Projekt", Label: "Webhooks", Description: "Verwaltet Webhooks, etwa für Discord, und Konsolen-Auslöser.", rank: rankAdmin},
-	{ID: PermMembers, Group: "Projekt", Label: "Mitglieder", Description: "Fügt Mitglieder hinzu, entfernt sie und vergibt Rollen und Rechte – nie mehr, als man selbst hat.", rank: rankAdmin},
-	{ID: PermNetwork, Group: "Projekt", Label: "Netzwerk", Description: "Ändert Reihenfolge, Forced Hosts, MOTD, Voicechat, Tunnel und Gruppen (mit „Server anlegen und löschen“) des Netzwerks.", rank: rankAdmin},
+	{ID: PermConsoleRead, GroupID: "console", Group: "Konsole", Label: "Konsole lesen", Description: "Sieht die Ausgabe der Konsole und das Protokoll des Servers.", rank: rankViewer},
+	{ID: PermConsoleCommand, GroupID: "console", Group: "Konsole", Label: "Befehle senden", Description: "Schickt Befehle an die Konsole, zum Beispiel „op“ oder „stop“.", rank: rankOperator},
+	{ID: PermPower, GroupID: "console", Group: "Konsole", Label: "Starten und Stoppen", Description: "Startet, stoppt und startet Server neu, auch Instanzen einer Gruppe.", rank: rankOperator},
+	{ID: PermFilesRead, GroupID: "files", Group: "Dateien", Label: "Dateien ansehen", Description: "Öffnet und lädt Dateien des Servers herunter, auch Welten, Datapacks und server.properties.", rank: rankOperator},
+	{ID: PermFilesWrite, GroupID: "files", Group: "Dateien", Label: "Dateien ändern", Description: "Bearbeitet, lädt hoch, benennt um und löscht Dateien. Auch Plugins/Mods hochladen, abschalten und löschen läuft darüber.", rank: rankOperator},
+	{ID: PermSFTP, GroupID: "files", Group: "Dateien", Label: "SFTP-Zugang", Description: "Darf per SFTP auf die Dateien zugreifen, zusammen mit „Dateien ansehen“. Schreiben geht nur mit „Dateien ändern“.", rank: rankOperator},
+	{ID: PermBackupsRead, GroupID: "backups", Group: "Backups", Label: "Backups ansehen", Description: "Sieht die Liste der Backups. Herunterladen braucht zusätzlich „Dateien ansehen“.", rank: rankViewer},
+	{ID: PermBackupsCreate, GroupID: "backups", Group: "Backups", Label: "Backups erstellen", Description: "Erstellt neue Backups und lädt sie zum Backup-Ziel hoch.", rank: rankOperator},
+	{ID: PermBackupsRestore, GroupID: "backups", Group: "Backups", Label: "Backups wiederherstellen", Description: "Ersetzt alle Dateien des Servers durch ein Backup.", rank: rankOperator},
+	{ID: PermBackupsDelete, GroupID: "backups", Group: "Backups", Label: "Backups löschen", Description: "Löscht Backups unwiderruflich und hält sie fest oder entsperrt sie.", rank: rankOperator},
+	{ID: PermAddons, GroupID: "server", Group: "Server", Label: "Plugins und Mods", Description: "Installiert, aktualisiert und wechselt Plugins/Mods über Modrinth und die anderen Quellen. Bausteine wie BlueMap brauchen zusätzlich „Einstellungen“.", rank: rankOperator},
+	{ID: PermPlayers, GroupID: "server", Group: "Server", Label: "Spieler verwalten", Description: "Sieht Whitelist, Operatoren und Banns und kickt, bannt oder whitelistet Spieler.", rank: rankOperator},
+	{ID: PermSettings, GroupID: "server", Group: "Server", Label: "Einstellungen", Description: "Ändert Name, Arbeitsspeicher, Startzeile, Version, Auto-Restart, Schlafmodus, Speicherlimit, Spieleinstellungen, Welten, Backup-Ausschlüsse, öffentliche Adresse, Projektname, Statusseite, Backup-Ziel und Discord-Bot.", rank: rankAdmin},
+	{ID: PermServers, GroupID: "server", Group: "Server", Label: "Server anlegen und löschen", Description: "Legt neue Server an, kopiert sie, zieht sie auf einen anderen Node um und löscht Server samt Welten und Backups.", rank: rankAdmin},
+	{ID: PermSchedules, GroupID: "project", Group: "Projekt", Label: "Zeitpläne", Description: "Legt Zeitpläne an, ändert und löscht sie. Schritte gehen nur mit den passenden Rechten (Befehle, Starten, Backups).", rank: rankAdmin},
+	{ID: PermWebhooks, GroupID: "project", Group: "Projekt", Label: "Webhooks", Description: "Verwaltet Webhooks, etwa für Discord, und Konsolen-Auslöser.", rank: rankAdmin},
+	{ID: PermMembers, GroupID: "project", Group: "Projekt", Label: "Mitglieder", Description: "Fügt Mitglieder hinzu, entfernt sie und vergibt Rollen und Rechte – nie mehr, als man selbst hat.", rank: rankAdmin},
+	{ID: PermNetwork, GroupID: "project", Group: "Projekt", Label: "Netzwerk", Description: "Ändert Reihenfolge, Forced Hosts, MOTD, Voicechat, Tunnel und Gruppen (mit „Server anlegen und löschen“) des Netzwerks.", rank: rankAdmin},
 }
 
 var permissionByID = func() map[Permission]PermissionInfo {

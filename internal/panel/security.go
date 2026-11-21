@@ -224,10 +224,35 @@ func (p *Panel) readTicket(ticket string) (string, bool) {
 func (p *Panel) meDetails(w http.ResponseWriter, r *http.Request) {
 	user := userFrom(r.Context())
 	_, enabled, recovery, _ := p.store.TotpState(user.ID)
+	language, _ := p.store.UserLanguage(user.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": user.ID, "username": user.Username, "isAdmin": user.IsAdmin, "disabled": user.Disabled, "createdAt": user.CreatedAt,
-		"totpEnabled": enabled, "recoveryCodes": len(recovery),
+		"totpEnabled": enabled, "recoveryCodes": len(recovery), "language": language,
 	})
+}
+
+// uiLanguages sind die Sprachen der Oberfläche; "" heißt: wie der Browser.
+var uiLanguages = map[string]bool{"": true, "de": true, "en": true}
+
+// putMyLanguage speichert die Sprache der Oberfläche für den angemeldeten Benutzer.
+func (p *Panel) putMyLanguage(w http.ResponseWriter, r *http.Request) {
+	user := userFrom(r.Context())
+	var body struct {
+		Language string `json:"language"`
+	}
+	if err := decode(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	if !uiLanguages[body.Language] {
+		writeError(w, fail(http.StatusBadRequest, "diese Sprache gibt es nicht (erlaubt: de, en oder leer für die Sprache des Browsers)"))
+		return
+	}
+	if err := p.store.SetUserLanguage(user.ID, body.Language); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"language": body.Language})
 }
 
 func (p *Panel) totpSetup(w http.ResponseWriter, r *http.Request) {

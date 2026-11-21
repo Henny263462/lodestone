@@ -2,6 +2,7 @@
 
 import { Check, Loader2, Search } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ComponentType, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { t } from "@/lib/i18n";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -393,7 +394,7 @@ export interface MenuItem {
 }
 
 /** Kleines Aufklappmenü (⋯) für Zeilenaktionen. */
-export function RowMenu({ items, label = "Aktionen" }: { items: (MenuItem | "separator")[]; label?: string }) {
+export function RowMenu({ items, label = t("Aktionen") }: { items: (MenuItem | "separator")[]; label?: string }) {
   const [open, setOpen] = useState(false);
   const { mounted, leaving } = usePresence(open, 120);
   const ref = useRef<HTMLDivElement>(null);

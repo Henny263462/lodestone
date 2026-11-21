@@ -13,6 +13,7 @@ import {
   Globe,
   HardDriveUpload,
   KeyRound,
+  Languages,
   LayoutDashboard,
   Network,
   Plus,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import { cx, usePresence } from "@/components/ui/primitives";
 import { can, type Permission, type Project, type User } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 interface Entry {
   key: string;
@@ -47,19 +49,19 @@ const MAX_SHOWN = 20;
 function serverTargets(project: Project, server: Project["servers"][number]): Entry[] {
   const allowed = (...needed: Permission[]) => can(project.myPermissions, ...needed);
   const base = `/server/?id=${server.id}`;
-  const hint = `${server.name} · Server in ${project.name}`;
+  const hint = t("{name} · Server in {name2}", { name: server.name, name2: project.name });
   const worlds = server.role !== "proxy" && server.software !== "velocity";
   const noun = server.software === "fabric" || server.software === "neoforge" || server.software === "forge" ? "Mods" : server.software === "vanilla" ? null : "Plugins";
   const list: [boolean, string, string, LucideIcon][] = [
-    [allowed("console.read"), "console", "Konsole", Terminal],
-    [allowed("files.read"), "files", "Dateien", FolderOpen],
-    [allowed("sftp", "files.read"), "files", "SFTP-Zugang", HardDriveUpload],
+    [allowed("console.read"), "console", t("Konsole"), Terminal],
+    [allowed("files.read"), "files", t("Dateien"), FolderOpen],
+    [allowed("sftp", "files.read"), "files", t("SFTP-Zugang"), HardDriveUpload],
     [!!noun, "addons", noun ?? "", Puzzle],
-    [true, "players", "Spieler", Users],
+    [true, "players", t("Spieler"), Users],
     [allowed("backups.read"), "backups", "Backups", Archive],
-    [allowed("files.read") && worlds, "worlds", "Welten", Globe],
-    [allowed("files.read") && worlds, "properties", "Spieleinstellungen", SlidersHorizontal],
-    [allowed("settings") || allowed("servers"), "settings", "Einstellungen", Settings],
+    [allowed("files.read") && worlds, "worlds", t("Welten"), Globe],
+    [allowed("files.read") && worlds, "properties", t("Spieleinstellungen"), SlidersHorizontal],
+    [allowed("settings") || allowed("servers"), "settings", t("Einstellungen"), Settings],
   ];
   return list
     .filter(([ok]) => ok)
@@ -68,13 +70,13 @@ function serverTargets(project: Project, server: Project["servers"][number]): En
 
 function projectTargets(project: Project): Entry[] {
   const base = `/project/?id=${project.id}`;
-  const hint = `${project.kind === "network" ? "Netzwerk" : "Projekt"} ${project.name}`;
+  const hint = `${project.kind === "network" ? t("Netzwerk") : t("Projekt")} ${project.name}`;
   const list: [boolean, string, string, LucideIcon][] = [
-    [project.kind === "network", "network", "Netzwerk", Network],
-    [true, "schedules", "Zeitpläne", CalendarClock],
-    [true, "events", "Ereignisse", Bell],
-    [true, "members", "Mitglieder", Users],
-    [can(project.myPermissions, "settings"), "settings", "Einstellungen", Settings],
+    [project.kind === "network", "network", t("Netzwerk"), Network],
+    [true, "schedules", t("Zeitpläne"), CalendarClock],
+    [true, "events", t("Ereignisse"), Bell],
+    [true, "members", t("Mitglieder"), Users],
+    [can(project.myPermissions, "settings"), "settings", t("Einstellungen"), Settings],
   ];
   return list.filter(([ok]) => ok).map(([, tab, label, icon]) => ({ key: `p-${project.id}-${tab}`, label, hint, href: `${base}&tab=${tab}`, icon, deep: true }));
 }
@@ -88,34 +90,35 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
   const { mounted, leaving } = usePresence(open, 120);
 
   const entries = useMemo<Entry[]>(() => {
-    const list: Entry[] = [{ key: "home", label: "Übersicht", hint: "Seite", href: "/", icon: LayoutDashboard }];
+    const list: Entry[] = [{ key: "home", label: t("Übersicht"), hint: t("Seite"), href: "/", icon: LayoutDashboard }];
     const deep: Entry[] = [];
     for (const project of projects ?? []) {
-      list.push({ key: `p-${project.id}`, label: project.name, hint: project.kind === "network" ? "Netzwerk" : "Projekt", href: `/project/?id=${project.id}`, icon: project.kind === "network" ? Network : Server });
+      list.push({ key: `p-${project.id}`, label: project.name, hint: project.kind === "network" ? t("Netzwerk") : t("Projekt"), href: `/project/?id=${project.id}`, icon: project.kind === "network" ? Network : Server });
       deep.push(...projectTargets(project));
       for (const server of project.servers) {
-        list.push({ key: `s-${server.id}`, label: server.name, hint: `Server in ${project.name}`, href: `/server/?id=${server.id}`, icon: Server });
+        list.push({ key: `s-${server.id}`, label: server.name, hint: t("Server in {name}", { name: project.name }), href: `/server/?id=${server.id}`, icon: Server });
         deep.push(...serverTargets(project, server));
       }
     }
-    list.push({ key: "nodes", label: "Nodes", hint: "Seite", href: "/nodes/", icon: Cpu });
+    list.push({ key: "nodes", label: t("Nodes"), hint: t("Seite"), href: "/nodes/", icon: Cpu });
     if (user.isAdmin) {
-      list.push({ key: "users", label: "Benutzer", hint: "Seite", href: "/users/", icon: Users });
-      list.push({ key: "audit", label: "Protokoll", hint: "Seite", href: "/audit/", icon: ScrollText });
+      list.push({ key: "users", label: t("Benutzer"), hint: t("Seite"), href: "/users/", icon: Users });
+      list.push({ key: "audit", label: t("Protokoll"), hint: t("Seite"), href: "/audit/", icon: ScrollText });
     }
-    list.push({ key: "account", label: "Konto", hint: "Seite", href: "/account/", icon: UserCog });
-    list.push({ key: "new-project", label: "Neues Projekt", hint: "Aktion", href: "/?new=1", icon: FolderPlus });
-    if (user.isAdmin) list.push({ key: "add-node", label: "Node hinzufügen", hint: "Aktion", href: "/nodes/?add=1", icon: Plus });
+    list.push({ key: "account", label: t("Konto"), hint: t("Seite"), href: "/account/", icon: UserCog });
+    list.push({ key: "new-project", label: t("Neues Projekt"), hint: t("Aktion"), href: "/?new=1", icon: FolderPlus });
+    if (user.isAdmin) list.push({ key: "add-node", label: t("Node hinzufügen"), hint: t("Aktion"), href: "/nodes/?add=1", icon: Plus });
     const account: [string, string, LucideIcon][] = [
-      ["password", "Passwort ändern", KeyRound],
-      ["totp", "Zwei-Faktor-Anmeldung", ShieldCheck],
+      ["password", t("Passwort ändern"), KeyRound],
+      ["totp", t("Zwei-Faktor-Anmeldung"), ShieldCheck],
       ["passkeys", "Passkeys", ShieldCheck],
-      ["oidc", "Anmeldung über OIDC", ShieldCheck],
-      ["keys", "API-Schlüssel", KeyRound],
-      ["sftp", "SFTP-Passwort und SSH-Schlüssel", HardDriveUpload],
-      ["sessions", "Angemeldete Geräte", UserCog],
+      ["oidc", t("Anmeldung über OIDC"), ShieldCheck],
+      ["keys", t("API-Schlüssel"), KeyRound],
+      ["sftp", t("SFTP-Passwort und SSH-Schlüssel"), HardDriveUpload],
+      ["sessions", t("Angemeldete Geräte"), UserCog],
+      ["language", t("Sprache"), Languages],
     ];
-    for (const [section, label, icon] of account) deep.push({ key: `account-${section}`, label, hint: "Konto", href: `/account/?section=${section}`, icon, deep: true });
+    for (const [section, label, icon] of account) deep.push({ key: `account-${section}`, label, hint: t("Konto"), href: `/account/?section=${section}`, icon, deep: true });
     return [...list, ...deep];
   }, [projects, user.isAdmin]);
 
@@ -160,7 +163,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
       <div
         className={cx("mx-auto w-full max-w-lg overflow-hidden rounded-xl border border-white/[0.1] bg-surface shadow-2xl", leaving ? "animate-pop-out" : "animate-pop-in")}
         role="dialog"
-        aria-label="Schnellsuche"
+        aria-label={t("Schnellsuche")}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-white/[0.07] px-4">
@@ -183,14 +186,14 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
                 onClose();
               }
             }}
-            placeholder="Projekt, Server, Bereich oder Seite suchen"
-            aria-label="Suchbegriff"
+            placeholder={t("Projekt, Server, Bereich oder Seite suchen")}
+            aria-label={t("Suchbegriff")}
             className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
           />
           <kbd className="hidden rounded border border-white/[0.1] px-1.5 py-0.5 text-[10px] text-muted sm:inline">Esc</kbd>
         </div>
         <div className="max-h-80 overflow-y-auto p-1.5">
-          {shown.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted">Nichts gefunden. Versuche einen Teil des Namens, z. B. „Backups“ oder den Servernamen.</p>}
+          {shown.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted">{t("Nichts gefunden. Versuche einen Teil des Namens, z. B. „Backups“ oder den Servernamen.")}</p>}
           {shown.map((entry, position) => (
             <button
               key={entry.key}
@@ -204,7 +207,7 @@ export function CommandPalette({ projects, user, open, onClose }: { projects: Pr
             </button>
           ))}
         </div>
-        {query === "" && <p className="border-t border-white/[0.07] px-4 py-2 text-[11px] text-muted">Tipp: Servername und „Backups“ springt direkt zu den Backups dieses Servers.</p>}
+        {query === "" && <p className="border-t border-white/[0.07] px-4 py-2 text-[11px] text-muted">{t("Tipp: Servername und „Backups“ springt direkt zu den Backups dieses Servers.")}</p>}
       </div>
     </div>,
     document.body,

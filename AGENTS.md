@@ -38,6 +38,8 @@ weil er dir nicht gefällt: Das Design ist mit dem Besitzer abgestimmt.
 ## Unverhandelbar (Auszug, vollständig in `agents/00-kurzfassung.md`)
 
 - Sprache der Oberfläche, Kommentare und Fehlermeldungen: **Deutsch**, Anrede **du**. Bezeichner im Code: Englisch.
+  Die Oberfläche gibt es zusätzlich auf Englisch: Jeder sichtbare Text geht über `t("…")`, die englische Fassung steht in
+  `web/src/lib/messages/en.ts` (siehe `agents/03-frontend-architektur.md` §9).
 - Nur die Bausteine aus `web/src/components/ui/` und die Farben aus den Design-Variablen benutzen. Keine neuen Farben,
   keine neuen UI-Bibliotheken, keine eigenen Button- oder Karten-Varianten.
 - Rechte werden **im Backend bei jeder Anfrage** geprüft, nie nur in der Oberfläche versteckt.

@@ -9,6 +9,7 @@ import { StateBadge } from "@/components/status";
 import { api, useApi } from "@/lib/api";
 import { megabytes } from "@/lib/format";
 import { can, type Group, type Project, type SoftwareInfo } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 const memoryOptions = [512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192];
 const backendSoftware = ["paper", "purpur", "folia", "fabric"];
@@ -26,24 +27,22 @@ export function GroupsTab({ project, refresh }: { project: Project; refresh: () 
     <div className="space-y-5">
       <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
         <div className="max-w-2xl">
-          <p className="text-sm font-semibold">Gruppen skalieren sich selbst</p>
+          <p className="text-sm font-semibold">{t("Gruppen skalieren sich selbst")}</p>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Eine Gruppe ist eine Vorlage für gleiche Server (z. B. Lobby). Das Panel hält zwischen Minimum und Maximum Instanzen am Laufen: Sind die Server zu
-            80 % voll, kommt eine dazu; sind sie lange leer, wird eine überzählige gestoppt. Neue Instanzen tragen sich selbst im Proxy ein (Beitrittsreihenfolge
-            und Forced Hosts wie bei allen Servern).
+            {t("Eine Gruppe ist eine Vorlage für gleiche Server (z. B. Lobby). Das Panel hält zwischen Minimum und Maximum Instanzen am Laufen: Sind die Server zu 80 % voll, kommt eine dazu; sind sie lange leer, wird eine überzählige gestoppt. Neue Instanzen tragen sich selbst im Proxy ein (Beitrittsreihenfolge und Forced Hosts wie bei allen Servern).")}
           </p>
         </div>
         {canManage && (
-          <Button variant="primary" onClick={() => setEditing("new")} disabled={!hasProxy} title={hasProxy ? undefined : "Lege zuerst den Proxy an"}>
+          <Button variant="primary" onClick={() => setEditing("new")} disabled={!hasProxy} title={hasProxy ? undefined : t("Lege zuerst den Proxy an")}>
             <Plus className="h-4 w-4" />
-            Gruppe anlegen
+            {t("Gruppe anlegen")}
           </Button>
         )}
       </Card>
 
       {project.groups.length === 0 ? (
         <Card>
-          <EmptyState icon={<Layers className="h-6 w-6" />} title="Noch keine Gruppe" text={hasProxy ? "Lege eine Gruppe an, z. B. „Lobby“ mit 1 bis 4 Instanzen." : "Lege zuerst den Proxy an, dann kannst du Gruppen anlegen."} />
+          <EmptyState icon={<Layers className="h-6 w-6" />} title={t("Noch keine Gruppe")} text={hasProxy ? t("Lege eine Gruppe an, z. B. „Lobby“ mit 1 bis 4 Instanzen.") : t("Lege zuerst den Proxy an, dann kannst du Gruppen anlegen.")} />
         </Card>
       ) : (
         project.groups.map((group) => {
@@ -59,34 +58,34 @@ export function GroupsTab({ project, refresh }: { project: Project; refresh: () 
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{group.name}</p>
                     <p className="truncate text-xs text-muted">
-                      {group.software} {group.version} · {megabytes(group.memoryMB)} je Instanz · {group.dynamic ? "dynamisch" : "statisch"}
+                      {group.software} {group.version} · {megabytes(group.memoryMB)} {t("je Instanz ·")} {group.dynamic ? t("dynamisch") : t("statisch")}
                     </p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={group.active > 0 ? "good" : "neutral"}>
-                    {group.active} aktiv · {group.minInstances}–{group.maxInstances}
+                    {group.active} {t("aktiv ·")} {group.minInstances}–{group.maxInstances}
                   </Badge>
-                  <Badge tone="info">{group.players} Spieler</Badge>
+                  <Badge tone="info">{group.players} {t("Spieler")}</Badge>
                   {canOperate && (
                     <Button
                       size="sm"
                       disabled={instances.length >= group.maxInstances}
                       onClick={async () => {
-                        await toast.run(() => api.post(`/groups/${group.id}/instances`), "Instanz wird angelegt");
+                        await toast.run(() => api.post(`/groups/${group.id}/instances`), t("Instanz wird angelegt"));
                         refresh();
                       }}
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Instanz
+                      {t("Instanz")}
                     </Button>
                   )}
                   {canManage && (
                     <>
-                      <Button variant="ghost" size="icon-sm" onClick={() => setEditing(group)} aria-label="Bearbeiten">
+                      <Button variant="ghost" size="icon-sm" onClick={() => setEditing(group)} aria-label={t("Bearbeiten")}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(group)} aria-label="Löschen">
+                      <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(group)} aria-label={t("Löschen")}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </>
@@ -96,15 +95,15 @@ export function GroupsTab({ project, refresh }: { project: Project; refresh: () 
               {group.note && <p className="border-b border-warn/25 bg-warn/10 px-5 py-2.5 text-xs text-warn">{group.note}</p>}
               <div className="px-5 py-3">
                 <div className="mb-1.5 flex justify-between text-[11px] text-muted">
-                  <span>Auslastung</span>
+                  <span>{t("Auslastung")}</span>
                   <span className="tabular-nums">
-                    {group.players} / {group.active * group.playersPerInstance} Plätze
+                    {group.players} / {group.active * group.playersPerInstance} {t("Plätze")}
                   </span>
                 </div>
                 <Meter value={group.players} max={capacity} tone={group.players / capacity >= 0.8 ? "warn" : "good"} />
               </div>
               {instances.length === 0 ? (
-                <p className="px-5 pb-5 text-xs text-muted">Noch keine Instanz – das Panel legt sie gleich an.</p>
+                <p className="px-5 pb-5 text-xs text-muted">{t("Noch keine Instanz – das Panel legt sie gleich an.")}</p>
               ) : (
                 <div className="divide-y divide-white/[0.05] border-t border-white/[0.05]">
                   {instances.map((server) => (
@@ -112,7 +111,7 @@ export function GroupsTab({ project, refresh }: { project: Project; refresh: () 
                       <span className="min-w-[120px] flex-1 truncate text-sm">{server.name}</span>
                       <StateBadge server={server} />
                       <span className="w-24 text-right text-xs tabular-nums text-muted">
-                        {server.view?.stats && server.view.state === "running" ? `${server.view.stats.cpuPercent.toFixed(0)} % CPU` : "–"}
+                        {server.view?.stats && server.view.state === "running" ? t("{value} % CPU", { value: server.view.stats.cpuPercent.toFixed(0) }) : "–"}
                       </span>
                     </Link>
                   ))}
@@ -127,13 +126,13 @@ export function GroupsTab({ project, refresh }: { project: Project; refresh: () 
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
-        title={`Gruppe „${removing?.name}“ löschen?`}
-        text="Alle Instanzen der Gruppe werden gestoppt und samt Dateien gelöscht."
-        confirm="Löschen"
+        title={t("Gruppe „{name}“ löschen?", { name: removing?.name })}
+        text={t("Alle Instanzen der Gruppe werden gestoppt und samt Dateien gelöscht.")}
+        confirm={t("Löschen")}
         danger
         onConfirm={async () => {
           if (!removing) return;
-          await toast.run(() => api.delete(`/groups/${removing.id}`), "Gruppe gelöscht");
+          await toast.run(() => api.delete(`/groups/${removing.id}`), t("Gruppe gelöscht"));
           refresh();
         }}
       />
@@ -202,7 +201,7 @@ function GroupDialog({ project, group, onClose, onDone }: { project: Project; gr
     };
     const ok = await toast.run(
       () => (existing ? api.patch(`/groups/${existing.id}`, body) : api.post(`/projects/${project.id}/groups`, { ...body, software: softwareId, version: effectiveVersion, eula })),
-      existing ? "Gruppe gespeichert" : "Gruppe angelegt",
+      existing ? t("Gruppe gespeichert") : t("Gruppe angelegt"),
     );
     setBusy(false);
     if (ok) {
@@ -217,28 +216,28 @@ function GroupDialog({ project, group, onClose, onDone }: { project: Project; gr
     <Dialog
       open={open}
       onClose={onClose}
-      title={existing ? `Gruppe „${existing.name}“ bearbeiten` : "Gruppe anlegen"}
-      description={existing ? "Änderungen gelten für neue Instanzen." : undefined}
+      title={existing ? t("Gruppe „{name}“ bearbeiten", { name: existing.name }) : t("Gruppe anlegen")}
+      description={existing ? t("Änderungen gelten für neue Instanzen.") : undefined}
       wide
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button variant="primary" loading={busy} disabled={!valid} onClick={save}>
-            {existing ? "Speichern" : "Anlegen"}
+            {existing ? t("Speichern") : t("Anlegen")}
           </Button>
         </>
       }
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label className="label">Name</label>
+          <label className="label">{t("Name")}</label>
           <input className="field" value={name} onChange={(event) => setName(event.target.value)} placeholder="Lobby" maxLength={32} autoFocus />
-          <p className="mt-1 text-xs text-muted">Die Instanzen heißen {name.trim() ? name.trim() : "Lobby"}-1, -2 …</p>
+          <p className="mt-1 text-xs text-muted">{t("Die Instanzen heißen")} {name.trim() ? name.trim() : "Lobby"}-1, -2 …</p>
         </div>
         <div>
-          <label className="label">Software</label>
+          <label className="label">{t("Software")}</label>
           <select className="field" value={softwareId} onChange={(event) => setSoftwareId(event.target.value)} disabled={!!existing}>
             {options.map((item) => (
               <option key={item.id} value={item.id}>
@@ -248,7 +247,7 @@ function GroupDialog({ project, group, onClose, onDone }: { project: Project; gr
           </select>
         </div>
         <div>
-          <label className="label">Version</label>
+          <label className="label">{t("Version")}</label>
           {existing ? (
             <input className="field" value={version} onChange={(event) => setVersion(event.target.value)} />
           ) : (
@@ -262,7 +261,7 @@ function GroupDialog({ project, group, onClose, onDone }: { project: Project; gr
           )}
         </div>
         <div>
-          <label className="label">Arbeitsspeicher je Instanz</label>
+          <label className="label">{t("Arbeitsspeicher je Instanz")}</label>
           <select className="field" value={memory} onChange={(event) => setMemory(Number(event.target.value))}>
             {[...new Set([...memoryOptions, memory])].sort((a, b) => a - b).map((value) => (
               <option key={value} value={value}>
@@ -272,38 +271,38 @@ function GroupDialog({ project, group, onClose, onDone }: { project: Project; gr
           </select>
         </div>
         <div>
-          <label className="label">Spieler pro Instanz</label>
+          <label className="label">{t("Spieler pro Instanz")}</label>
           <input className="field" inputMode="numeric" value={perInstance} onChange={(event) => setPerInstance(event.target.value)} />
         </div>
         <div>
-          <label className="label">Mindestens (Instanzen)</label>
+          <label className="label">{t("Mindestens (Instanzen)")}</label>
           <input className="field" inputMode="numeric" value={min} onChange={(event) => setMin(event.target.value)} />
         </div>
         <div>
-          <label className="label">Höchstens (Instanzen)</label>
+          <label className="label">{t("Höchstens (Instanzen)")}</label>
           <input className="field" inputMode="numeric" value={max} onChange={(event) => setMax(event.target.value)} />
         </div>
         <div>
-          <label className="label">Leerlauf bis zum Stoppen (Minuten)</label>
+          <label className="label">{t("Leerlauf bis zum Stoppen (Minuten)")}</label>
           <input className="field" inputMode="numeric" value={idle} onChange={(event) => setIdle(event.target.value)} />
         </div>
         <div>
-          <label className="label">Plugins von Modrinth (kommagetrennt)</label>
+          <label className="label">{t("Plugins von Modrinth (kommagetrennt)")}</label>
           <input className="field" value={plugins} onChange={(event) => setPlugins(event.target.value)} placeholder="luckperms, essentialsx" />
         </div>
       </div>
       <div className="space-y-2.5 rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
         <label className="flex items-center justify-between gap-3 text-sm">
           <span>
-            In die Beitrittsreihenfolge aufnehmen
-            <span className="block text-xs text-muted">Neue Spieler landen auf diesen Servern (z. B. bei einer Lobby).</span>
+            {t("In die Beitrittsreihenfolge aufnehmen")}
+            <span className="block text-xs text-muted">{t("Neue Spieler landen auf diesen Servern (z. B. bei einer Lobby).")}</span>
           </span>
           <Switch checked={inTry} onChange={setInTry} />
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
           <span>
-            Dynamisch
-            <span className="block text-xs text-muted">Überzählige Instanzen werden samt Dateien gelöscht. Sonst werden sie nur gestoppt und bleiben erhalten.</span>
+            {t("Dynamisch")}
+            <span className="block text-xs text-muted">{t("Überzählige Instanzen werden samt Dateien gelöscht. Sonst werden sie nur gestoppt und bleiben erhalten.")}</span>
           </span>
           <Switch checked={dynamic} onChange={setDynamic} />
         </label>
@@ -312,11 +311,11 @@ function GroupDialog({ project, group, onClose, onDone }: { project: Project; gr
         <label className="flex cursor-pointer items-start gap-2.5 text-xs text-muted">
           <Checkbox checked={eula} onChange={setEula} label="EULA" />
           <span>
-            Ich akzeptiere die{" "}
+            {t("Ich akzeptiere die")}{" "}
             <a className="text-accent hover:underline" href="https://aka.ms/MinecraftEULA" target="_blank" rel="noreferrer">
               Minecraft-EULA
             </a>{" "}
-            für alle Instanzen.
+            {t("für alle Instanzen.")}
           </span>
         </label>
       )}

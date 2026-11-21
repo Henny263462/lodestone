@@ -8,6 +8,7 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import { compact } from "@/lib/format";
 import type { SourceHit, SourceId, SourceInfo, SourceVersion } from "@/lib/types";
+import { locale, t, tx } from "@/lib/i18n";
 
 /** Suche über alle Quellen eines Servers. Modrinth bringt seine eigene Ansicht mit (modrinth), die anderen Quellen
  *  (Hangar, Spigot, CurseForge) teilen sich diese hier. */
@@ -26,7 +27,7 @@ export function SourceBrowse({ serverId, noun, onInstalled, modrinth }: { server
     <div className="space-y-4">
       {available.length > 1 && (
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs text-muted">Quelle:</span>
+          <span className="text-xs text-muted">{t("Quelle:")}</span>
           <Tabs value={active} onChange={setSource} items={available.map((entry) => ({ id: entry.id, label: entry.name }))} />
         </div>
       )}
@@ -37,7 +38,7 @@ export function SourceBrowse({ serverId, noun, onInstalled, modrinth }: { server
         <div className="space-y-1 text-xs text-muted">
           {missing.map((entry) => (
             <p key={entry.id}>
-              <span className="text-ink/80">{entry.name}:</span> {entry.reason}
+              <span className="text-ink/80">{entry.name}:</span> {entry.reason && tx(entry.reason)}
             </p>
           ))}
         </div>
@@ -68,7 +69,7 @@ function ExternalBrowse({ serverId, source, name, noun, onInstalled }: { serverI
       setDetail(null);
       onInstalled();
     } catch (failure) {
-      toast.error(failure instanceof Error ? failure.message : "Die Installation ist fehlgeschlagen.");
+      toast.error(failure instanceof Error ? failure.message : t("Die Installation ist fehlgeschlagen."));
     } finally {
       setInstalling(null);
     }
@@ -76,14 +77,14 @@ function ExternalBrowse({ serverId, source, name, noun, onInstalled }: { serverI
 
   return (
     <div className="space-y-4">
-      <SearchInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${noun} auf ${name} suchen – nur passende zu Software und Version`} />
+      <SearchInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("{noun} auf {name} suchen – nur passende zu Software und Version", { noun, name })} />
       {error ? (
         <ErrorState error={error} retry={() => mutate()} />
       ) : isLoading && !data ? (
-        <Loading label="Suche läuft" />
+        <Loading label={t("Suche läuft")} />
       ) : data && data.hits.length === 0 ? (
         <Card>
-          <EmptyState icon={<Search className="h-6 w-6" />} title="Nichts gefunden" text={`${name} hat dazu nichts Passendes. Probiere einen anderen Suchbegriff.`} />
+          <EmptyState icon={<Search className="h-6 w-6" />} title={t("Nichts gefunden")} text={t("{name} hat dazu nichts Passendes. Probiere einen anderen Suchbegriff.", { name })} />
         </Card>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
@@ -96,8 +97,8 @@ function ExternalBrowse({ serverId, source, name, noun, onInstalled }: { serverI
                   {hit.title}
                 </button>
                 <p className="text-xs text-muted">
-                  {hit.author ? `von ${hit.author} · ` : ""}
-                  {compact(hit.downloads)} Downloads
+                  {hit.author ? t("von {author} · ", { author: hit.author }) : ""}
+                  {compact(hit.downloads)} {t("Downloads")}
                 </p>
                 <p className="mt-1.5 line-clamp-2 text-xs text-ink/70">{hit.description}</p>
                 {!hit.installable && hit.note && <p className="mt-1.5 text-xs text-warn">{hit.note}</p>}
@@ -105,13 +106,13 @@ function ExternalBrowse({ serverId, source, name, noun, onInstalled }: { serverI
               {hit.installable ? (
                 <Button size="sm" variant="primary" loading={installing === hit.id} disabled={!!installing} onClick={() => install(hit.id)}>
                   <Download className="h-3.5 w-3.5" />
-                  Installieren
+                  {t("Installieren")}
                 </Button>
               ) : (
                 hit.link && (
                   <a className="inline-flex shrink-0 items-center gap-1 text-xs text-accent hover:underline" href={hit.link} target="_blank" rel="noreferrer">
                     <ExternalLink className="h-3 w-3" />
-                    Seite
+                    {t("Seite")}
                   </a>
                 )
               )}
@@ -143,11 +144,11 @@ function SourceDetailDialog({
 }) {
   const { data, error, mutate } = useApi<{ project: SourceHit; versions: SourceVersion[] }>(hit ? `/servers/${serverId}/sources/${source}/project/${encodeURIComponent(hit.id)}` : null);
   return (
-    <Dialog open={!!hit} onClose={onClose} title={data?.project.title ?? hit?.title ?? "Wird geladen"} description={data?.project.description ?? hit?.description} wide>
+    <Dialog open={!!hit} onClose={onClose} title={data?.project.title ?? hit?.title ?? t("Wird geladen")} description={data?.project.description ?? hit?.description} wide>
       {data?.project.link && (
         <a className="inline-flex items-center gap-1 text-xs text-accent hover:underline" href={data.project.link} target="_blank" rel="noreferrer">
           <ExternalLink className="h-3 w-3" />
-          Auf {name} ansehen
+          {t("Auf {name} ansehen", { name })}
         </a>
       )}
       {error ? (
@@ -155,7 +156,7 @@ function SourceDetailDialog({
       ) : !data ? (
         <Loading />
       ) : data.versions.length === 0 ? (
-        <p className="text-sm text-muted">Es gibt keine Version, die zu dieser Software und Spielversion passt.</p>
+        <p className="text-sm text-muted">{t("Es gibt keine Version, die zu dieser Software und Spielversion passt.")}</p>
       ) : (
         <div className="max-h-[50vh] divide-y divide-white/[0.05] overflow-y-auto rounded-lg border border-white/[0.07]">
           {data.versions.slice(0, 40).map((version) => (
@@ -164,18 +165,18 @@ function SourceDetailDialog({
                 <p className="truncate text-sm">{version.versionNumber}</p>
                 <p className="truncate text-xs text-muted">
                   {version.name && version.name !== version.versionNumber ? `${version.name} · ` : ""}
-                  {version.published ? new Date(version.published).toLocaleDateString("de-DE") : ""}
-                  {version.gameVersions.length > 0 && ` · MC ${version.gameVersions.slice(0, 4).join(", ")}${version.gameVersions.length > 4 ? " …" : ""}`}
+                  {version.published ? new Date(version.published).toLocaleDateString(locale()) : ""}
+                  {version.gameVersions.length > 0 && t(" · MC {versions}", { versions: version.gameVersions.slice(0, 4).join(", ") + (version.gameVersions.length > 4 ? " …" : "") })}
                 </p>
-                {!version.downloadable && version.reason && <p className="mt-0.5 text-xs text-warn">{version.reason}</p>}
+                {!version.downloadable && version.reason && <p className="mt-0.5 text-xs text-warn">{tx(version.reason)}</p>}
               </div>
               <Badge tone={version.type === "release" ? "good" : "warn"}>{version.type}</Badge>
               {version.downloadable ? (
                 <Button size="sm" disabled={installing} onClick={() => onInstall(data.project.id, version.id)}>
-                  Installieren
+                  {t("Installieren")}
                 </Button>
               ) : (
-                <Badge>Nicht ladbar</Badge>
+                <Badge>{t("Nicht ladbar")}</Badge>
               )}
             </div>
           ))}

@@ -7,6 +7,7 @@ import { Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
 import { allTags, type ProjectFilter } from "@/lib/order";
 import type { Project, ProjectPref } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 /** Die eigene Ordnung (Favoriten, Reihenfolge, Schlagwörter) des angemeldeten Benutzers. */
 export function useProjectPrefs() {
@@ -25,15 +26,15 @@ export function FavoriteButton({ project, pref, onChanged }: { project: Project;
   return (
     <button
       type="button"
-      aria-label={favorite ? `${project.name} vom Anheften lösen` : `${project.name} anheften`}
+      aria-label={favorite ? t("{name} vom Anheften lösen", { name: project.name }) : `${project.name} anheften`}
       aria-pressed={favorite}
-      title={favorite ? "Angeheftet – klicken zum Lösen" : "Anheften (steht dann oben)"}
+      title={favorite ? t("Angeheftet – klicken zum Lösen") : t("Anheften (steht dann oben)")}
       disabled={busy}
       onClick={async (event) => {
         event.preventDefault();
         event.stopPropagation();
         setBusy(true);
-        await toast.run(() => api.put(`/me/project-prefs/${project.id}`, { favorite: !favorite }), favorite ? "Nicht mehr angeheftet" : "Angeheftet");
+        await toast.run(() => api.put(`/me/project-prefs/${project.id}`, { favorite: !favorite }), favorite ? t("Nicht mehr angeheftet") : t("Angeheftet"));
         setBusy(false);
         onChanged();
       }}
@@ -68,9 +69,9 @@ export function ProjectFilterChips({ prefs, value, onChange }: { prefs?: Project
   );
   return (
     <div className="mb-4 flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 text-xs text-muted">Zeigen:</span>
-      {chip("Alle", value.kind === "all", { kind: "all" })}
-      {hasFavorites && chip("Angeheftet", value.kind === "favorites", { kind: "favorites" })}
+      <span className="mr-1 text-xs text-muted">{t("Zeigen:")}</span>
+      {chip(t("Alle"), value.kind === "all", { kind: "all" })}
+      {hasFavorites && chip(t("Angeheftet"), value.kind === "favorites", { kind: "favorites" })}
       {tags.map((tag) => chip(tag, value.kind === "tag" && value.tag.toLowerCase() === tag.toLowerCase(), { kind: "tag", tag }))}
     </div>
   );
@@ -138,7 +139,7 @@ export function OrganizeDialog({ open, onClose, projects, prefs, onSaved }: { op
           await api.put(`/me/project-prefs/${row.project.id}`, { favorite: row.favorite, tags });
         }
       }
-    }, "Ordnung gespeichert");
+    }, t("Ordnung gespeichert"));
     setBusy(false);
     onSaved();
     if (ok) onClose();
@@ -149,15 +150,15 @@ export function OrganizeDialog({ open, onClose, projects, prefs, onSaved }: { op
       open={open}
       onClose={onClose}
       wide
-      title="Projekte ordnen"
-      description="Reihenfolge in Seitenleiste und Übersicht, angeheftete Projekte und Schlagwörter zum Filtern. Das gilt nur für dich."
+      title={t("Projekte ordnen")}
+      description={t("Reihenfolge in Seitenleiste und Übersicht, angeheftete Projekte und Schlagwörter zum Filtern. Das gilt nur für dich.")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button variant="primary" loading={busy} disabled={tooManyTags} onClick={save}>
-            Speichern
+            {t("Speichern")}
           </Button>
         </>
       }
@@ -166,10 +167,10 @@ export function OrganizeDialog({ open, onClose, projects, prefs, onSaved }: { op
         {rows.map((row, index) => (
           <div key={row.project.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
             <div className="flex items-center gap-0.5">
-              <Button variant="ghost" size="icon-sm" aria-label={`${row.project.name} nach oben`} disabled={index === 0} onClick={() => move(index, -1)}>
+              <Button variant="ghost" size="icon-sm" aria-label={t("{name} nach oben", { name: row.project.name })} disabled={index === 0} onClick={() => move(index, -1)}>
                 <ArrowUp className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon-sm" aria-label={`${row.project.name} nach unten`} disabled={index === rows.length - 1} onClick={() => move(index, 1)}>
+              <Button variant="ghost" size="icon-sm" aria-label={t("{name} nach unten", { name: row.project.name })} disabled={index === rows.length - 1} onClick={() => move(index, 1)}>
                 <ArrowDown className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -178,15 +179,15 @@ export function OrganizeDialog({ open, onClose, projects, prefs, onSaved }: { op
             <input
               className="field max-w-[240px] py-1.5 text-xs"
               value={row.tags}
-              aria-label={`Schlagwörter für ${row.project.name}`}
-              placeholder="Schlagwörter, mit Komma"
+              aria-label={t("Schlagwörter für {name}", { name: row.project.name })}
+              placeholder={t("Schlagwörter, mit Komma")}
               maxLength={220}
               onChange={(event) => setRows((current) => current.map((entry, i) => (i === index ? { ...entry, tags: event.target.value } : entry)))}
             />
             <button
               type="button"
               aria-pressed={row.favorite}
-              aria-label={row.favorite ? `${row.project.name} vom Anheften lösen` : `${row.project.name} anheften`}
+              aria-label={row.favorite ? t("{name} vom Anheften lösen", { name: row.project.name }) : `${row.project.name} anheften`}
               onClick={() => setRows((current) => current.map((entry, i) => (i === index ? { ...entry, favorite: !entry.favorite } : entry)))}
               className={cx("grid h-8 w-8 place-items-center rounded-lg transition duration-100 hover:bg-white/[0.06] active:scale-90", row.favorite ? "text-accent" : "text-muted hover:text-ink")}
             >
@@ -195,7 +196,7 @@ export function OrganizeDialog({ open, onClose, projects, prefs, onSaved }: { op
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted">{tooManyTags ? "Höchstens 8 Schlagwörter pro Projekt, jedes bis 24 Zeichen." : "Angeheftete Projekte stehen immer oben. Schlagwörter erscheinen in der Übersicht als Filter."}</p>
+      <p className="text-xs text-muted">{tooManyTags ? t("Höchstens 8 Schlagwörter pro Projekt, jedes bis 24 Zeichen.") : t("Angeheftete Projekte stehen immer oben. Schlagwörter erscheinen in der Übersicht als Filter.")}</p>
     </Dialog>
   );
 }

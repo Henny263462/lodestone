@@ -162,20 +162,20 @@ func (p *Panel) authenticate(next func(http.ResponseWriter, *http.Request)) http
 			// Persönlicher API-Schlüssel: kein Cookie, deshalb auch kein CSRF-Header nötig
 			found, err := p.store.APIKeyUser(hashToken(strings.TrimPrefix(header, "Bearer ")))
 			if err != nil {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "ungültiger oder abgelaufener API-Schlüssel"})
+				writeErrorBody(w, http.StatusUnauthorized, "unauthorized", "ungültiger oder abgelaufener API-Schlüssel")
 				return
 			}
 			user, usedKey = found, true
 		} else {
 			cookie, err := r.Cookie(cookieName)
 			if err != nil || cookie.Value == "" {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "nicht angemeldet"})
+				writeErrorBody(w, http.StatusUnauthorized, "unauthorized", "nicht angemeldet")
 				return
 			}
 			user, err = p.store.SessionUser(hashToken(cookie.Value))
 			if err != nil {
 				p.clearCookie(w)
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "nicht angemeldet"})
+				writeErrorBody(w, http.StatusUnauthorized, "unauthorized", "nicht angemeldet")
 				return
 			}
 			switch r.Method {

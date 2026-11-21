@@ -7,14 +7,15 @@ import { Dialog, useToast } from "@/components/ui/feedback";
 import { api, upload, useApi } from "@/lib/api";
 import { compact, megabytes } from "@/lib/format";
 import type { ModpackVersion, ModrinthHit, NodeInfo, Project, Server, SoftwareInfo } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 const memoryOptions = [256, 512, 1024, 2048, 3072, 4096, 6144, 8192, 12288, 16384];
 
 /** Vorlagen setzen Name, Software und Speicher, damit man für die üblichen Fälle nichts nachdenken muss. */
-const templates = [
+const templates = () => [
   { id: "survival", label: "Survival", software: "paper", memory: 4096, name: "Survival" },
   { id: "lobby", label: "Lobby", software: "paper", memory: 1024, name: "Lobby" },
-  { id: "creative", label: "Creative / Bauen", software: "purpur", memory: 3072, name: "Creative" },
+  { id: "creative", label: t("Creative / Bauen"), software: "purpur", memory: 3072, name: t("Creative") },
   { id: "mods", label: "Mods", software: "fabric", memory: 4096, name: "Mods" },
 ];
 
@@ -83,7 +84,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
   const needsEula = info?.kind === "server";
   const canVoice = project.kind === "network" && ["paper", "purpur", "folia", "fabric"].includes(softwareId);
 
-  function applyTemplate(template: (typeof templates)[number]) {
+  function applyTemplate(template: (ReturnType<typeof templates>)[number]) {
     if (!options.some((item) => item.id === template.software)) return;
     templateMemory.current = template.memory;
     setName((current) => current.trim() || template.name);
@@ -110,17 +111,17 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
           await api.post(`/servers/${server.id}/files/extract`, { path: zip.name, dest: "" });
           await api.delete(`/servers/${server.id}/files?path=${encodeURIComponent(zip.name)}`).catch(() => null);
         } catch (error) {
-          toast.error(`Der Server ist angelegt, der Import ist aber fehlgeschlagen: ${error instanceof Error ? error.message : "unbekannte Ursache"}. Lade das Archiv unter Dateien erneut hoch.`);
+          toast.error(t("Der Server ist angelegt, der Import ist aber fehlgeschlagen: {reason}. Lade das Archiv unter Dateien erneut hoch.", { reason: error instanceof Error ? error.message : t("unbekannte Ursache") }));
         }
       }
-      toast.success(mode === "modpack" ? "Server wird angelegt, das Modpack wird danach installiert" : mode === "import" ? "Server wird angelegt, das Archiv ist entpackt" : "Server wird installiert");
+      toast.success(mode === "modpack" ? t("Server wird angelegt, das Modpack wird danach installiert") : mode === "import" ? t("Server wird angelegt, das Archiv ist entpackt") : t("Server wird installiert"));
       setZip(null);
       setName("");
       setEula(false);
       onClose();
       onCreated(server);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Der Server konnte nicht angelegt werden. Versuche es erneut.");
+      toast.error(error instanceof Error ? error.message : t("Der Server konnte nicht angelegt werden. Versuche es erneut."));
     } finally {
       setBusy(false);
     }
@@ -132,15 +133,15 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
     <Dialog
       open={open}
       onClose={onClose}
-      title={project.kind === "network" && !hasProxy ? "Proxy hinzufügen" : "Server hinzufügen"}
-      description={project.kind === "network" ? "Server in einem Netzwerk werden automatisch mit dem Proxy verbunden." : undefined}
+      title={project.kind === "network" && !hasProxy ? t("Proxy hinzufügen") : t("Server hinzufügen")}
+      description={project.kind === "network" ? t("Server in einem Netzwerk werden automatisch mit dem Proxy verbunden.") : undefined}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button variant="primary" loading={busy} disabled={!ready} onClick={create}>
-            Anlegen
+            {t("Anlegen")}
           </Button>
         </>
       }
@@ -153,16 +154,16 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
             if (next === "modpack") setMemory((current) => Math.max(current, 4096));
           }}
           items={[
-            { id: "software", label: "Software" },
-            ...(canModpack ? [{ id: "modpack" as const, label: "Modrinth-Modpack" }] : []),
-            { id: "import" as const, label: "ZIP importieren" },
+            { id: "software", label: t("Software") },
+            ...(canModpack ? [{ id: "modpack" as const, label: t("Modrinth-Modpack") }] : []),
+            { id: "import" as const, label: t("ZIP importieren") },
           ]}
         />
       )}
       {mode === "software" && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted">Vorlage:</span>
-          {templates
+          <span className="text-xs text-muted">{t("Vorlage:")}</span>
+          {templates()
             .filter((template) => options.some((item) => item.id === template.software))
             .map((template) => (
               <button key={template.id} type="button" onClick={() => applyTemplate(template)} className="rounded-full border border-white/[0.1] px-2.5 py-1 text-xs text-muted transition hover:bg-white/[0.06] hover:text-ink">
@@ -172,22 +173,22 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
         </div>
       )}
       <div>
-        <label className="label">Name</label>
+        <label className="label">{t("Name")}</label>
         <input className="field" value={name} onChange={(event) => setName(event.target.value)} placeholder={softwareId === "velocity" ? "Proxy" : "Lobby"} maxLength={48} autoFocus />
       </div>
       {mode === "import" && (
         <div className="space-y-2">
           <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-white/[0.15] px-3 py-3 text-sm hover:bg-white/[0.03]">
             <FileArchive className="h-5 w-5 shrink-0 text-muted" />
-            <span className="min-w-0 flex-1 truncate">{zip ? `${zip.name} (${megabytes(Math.max(1, Math.round(zip.size / 1024 ** 2)))})` : "ZIP-Datei auswählen (.zip, .tar.gz)"}</span>
+            <span className="min-w-0 flex-1 truncate">{zip ? `${zip.name} (${megabytes(Math.max(1, Math.round(zip.size / 1024 ** 2)))})` : t("ZIP-Datei auswählen (.zip, .tar.gz)")}</span>
             <input type="file" accept=".zip,.tar,.tar.gz,.tgz" className="hidden" onChange={(event) => setZip(event.target.files?.[0] ?? null)} />
           </label>
-          <p className="text-xs text-muted">Der Inhalt landet im Serverordner: Welt, Plugins, Konfiguration. Vorhandene Dateien werden nicht überschrieben, lege deshalb keine eigene Server-Datei bei. Die Software und Version wählst du unten.</p>
+          <p className="text-xs text-muted">{t("Der Inhalt landet im Serverordner: Welt, Plugins, Konfiguration. Vorhandene Dateien werden nicht überschrieben, lege deshalb keine eigene Server-Datei bei. Die Software und Version wählst du unten.")}</p>
         </div>
       )}
       {mode === "modpack" && (
         <div className="space-y-2">
-          <SearchInput value={packQuery} onChange={(event) => setPackQuery(event.target.value)} placeholder="Modpack auf Modrinth suchen (Fabric, NeoForge oder Forge)" />
+          <SearchInput value={packQuery} onChange={(event) => setPackQuery(event.target.value)} placeholder={t("Modpack auf Modrinth suchen (Fabric, NeoForge oder Forge)")} />
           {pack ? (
             <div className="flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/5 p-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -197,20 +198,20 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
                 <select className="field mt-1 py-1 text-xs" value={chosenPackVersion?.id ?? ""} onChange={(event) => setPackVersion(event.target.value)} disabled={!packInfo}>
                   {(packInfo?.versions ?? []).slice(0, 50).map((entry) => (
                     <option key={entry.id} value={entry.id}>
-                      {entry.versionNumber} · MC {entry.gameVersions[0]}
+                      {entry.versionNumber} {t("· MC")} {entry.gameVersions[0]}
                     </option>
                   ))}
                 </select>
               </div>
               <Button size="sm" variant="ghost" onClick={() => { setPack(null); setPackVersion(""); }}>
-                Ändern
+                {t("Ändern")}
               </Button>
             </div>
           ) : packError ? (
             <p className="text-xs text-bad">{packError.message}</p>
           ) : (
             <div className="max-h-52 divide-y divide-white/[0.05] overflow-y-auto rounded-lg border border-white/[0.07]">
-              {packsLoading && !packs && <p className="p-3 text-xs text-muted">Suche läuft …</p>}
+              {packsLoading && !packs && <p className="p-3 text-xs text-muted">{t("Suche läuft …")}</p>}
               {packs?.hits.map((hit) => (
                 <button key={hit.project_id} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-white/[0.04]" onClick={() => setPack(hit)}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -218,22 +219,22 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">{hit.title}</span>
                     <span className="block truncate text-xs text-muted">
-                      {compact(hit.downloads)} Downloads · {hit.description}
+                      {compact(hit.downloads)} {t("Downloads ·")} {hit.description}
                     </span>
                   </span>
                 </button>
               ))}
-              {packs && packs.hits.length === 0 && <p className="p-3 text-xs text-muted">Nichts gefunden.</p>}
+              {packs && packs.hits.length === 0 && <p className="p-3 text-xs text-muted">{t("Nichts gefunden.")}</p>}
             </div>
           )}
-          <p className="text-xs text-muted">Minecraft-Version und Loader (Fabric, NeoForge oder Forge, genau in der Version des Modpacks) ergeben sich aus dem Modpack. Mods werden nach dem Anlegen automatisch heruntergeladen (Fortschritt im Server). Mindestens 4 GB RAM.</p>
+          <p className="text-xs text-muted">{t("Minecraft-Version und Loader (Fabric, NeoForge oder Forge, genau in der Version des Modpacks) ergeben sich aus dem Modpack. Mods werden nach dem Anlegen automatisch heruntergeladen (Fortschritt im Server). Mindestens 4 GB RAM.")}</p>
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         {mode !== "modpack" && (
           <>
             <div>
-              <label className="label">Software</label>
+              <label className="label">{t("Software")}</label>
               <select className="field" value={softwareId} onChange={(event) => setSoftwareId(event.target.value)}>
                 {options.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -243,7 +244,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
               </select>
             </div>
             <div>
-              <label className="label">Version</label>
+              <label className="label">{t("Version")}</label>
               <select className="field" value={effectiveVersion} onChange={(event) => setVersion(event.target.value)} disabled={!versions}>
                 {(versions ?? []).slice(0, 80).map((entry) => (
                   <option key={entry} value={entry}>
@@ -255,7 +256,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
           </>
         )}
         <div>
-          <label className="label">Arbeitsspeicher</label>
+          <label className="label">{t("Arbeitsspeicher")}</label>
           <select className="field" value={memory} onChange={(event) => setMemory(Number(event.target.value))}>
             {memoryOptions.map((value) => (
               <option key={value} value={value}>
@@ -270,18 +271,18 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
             {(nodes ?? []).map((node) => (
               <option key={node.id} value={node.id}>
                 {node.name}
-                {node.online ? "" : " (offline)"}
+                {node.online ? "" : t(" (offline)")}
               </option>
             ))}
           </select>
         </div>
       </div>
-      {fixedNode && <p className="text-xs text-muted">Ein Netzwerk liegt komplett auf einem Node, damit sich die Server im Docker-Netz finden.</p>}
+      {fixedNode && <p className="text-xs text-muted">{t("Ein Netzwerk liegt komplett auf einem Node, damit sich die Server im Docker-Netz finden.")}</p>}
       {canVoice && mode !== "modpack" && (
         <div className="flex items-center justify-between rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
           <div>
             <p className="text-sm font-medium">Simple Voice Chat</p>
-            <p className="text-xs text-muted">Installiert das Plugin bzw. den Mod und richtet den UDP-Port ein.</p>
+            <p className="text-xs text-muted">{t("Installiert das Plugin bzw. den Mod und richtet den UDP-Port ein.")}</p>
           </div>
           <Switch checked={voicechat} onChange={setVoicechat} />
         </div>
@@ -290,7 +291,7 @@ export function AddServerDialog({ project, open, onClose, onCreated }: { project
         <label className="flex cursor-pointer items-start gap-2.5 text-xs text-muted">
           <Checkbox checked={eula} onChange={setEula} label="EULA" />
           <span>
-            Ich akzeptiere die{" "}
+            {t("Ich akzeptiere die")}{" "}
             <a className="text-accent hover:underline" href="https://aka.ms/MinecraftEULA" target="_blank" rel="noreferrer">
               Minecraft-EULA
             </a>

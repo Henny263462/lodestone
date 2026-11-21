@@ -9,17 +9,18 @@ import { api, useApi } from "@/lib/api";
 import { usePoll } from "@/lib/live";
 import { ago, dateTime } from "@/lib/format";
 import { can, type AuthStatus, type Project, type Schedule, type ScheduleStep, type StepAction } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
-const actionLabel: Record<StepAction, string> = {
-  backup: "Backup erstellen",
-  command: "Befehl senden",
-  restart: "Neu starten",
-  stop: "Stoppen",
-  start: "Starten",
-  wait: "Warten (Sekunden)",
-};
+const actionLabel = (): Record<StepAction, string> => ({
+  backup: t("Backup erstellen"),
+  command: t("Befehl senden"),
+  restart: t("Neu starten"),
+  stop: t("Stoppen"),
+  start: t("Starten"),
+  wait: t("Warten (Sekunden)"),
+});
 
-const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const days = () => [t("Mo"), t("Di"), t("Mi"), t("Do"), t("Fr"), t("Sa"), t("So")];
 
 function clock(minute: number): string {
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
@@ -28,25 +29,25 @@ function clock(minute: number): string {
 export function scheduleText(schedule: Pick<Schedule, "kind" | "everyMinutes" | "atMinute" | "weekdays">): string {
   if (schedule.kind === "interval") {
     const m = schedule.everyMinutes;
-    return m % 1440 === 0 ? `alle ${m / 1440} Tage` : m % 60 === 0 ? `alle ${m / 60} Std` : `alle ${m} Min`;
+    return m % 1440 === 0 ? t("alle {value} Tage", { value: m / 1440 }) : m % 60 === 0 ? t("alle {value} Std", { value: m / 60 }) : t("alle {m} Min", { m });
   }
-  if (schedule.kind === "daily" || schedule.weekdays === 127) return `täglich um ${clock(schedule.atMinute)}`;
-  const picked = days.filter((_, index) => schedule.weekdays & (1 << index));
-  return `${picked.join(", ")} um ${clock(schedule.atMinute)}`;
+  if (schedule.kind === "daily" || schedule.weekdays === 127) return t("täglich um {clock}", { clock: clock(schedule.atMinute) });
+  const picked = days().filter((_, index) => schedule.weekdays & (1 << index));
+  return t("{days} um {clock}", { days: picked.join(", "), clock: clock(schedule.atMinute) });
 }
 
 function stepText(step: ScheduleStep): string {
-  if (step.action === "command") return `Befehl: ${step.value}`;
-  if (step.action === "wait") return `${step.value} s warten`;
-  if (step.action === "backup") return (step.value ? `Backup „${step.value}“` : actionLabel.backup) + (step.remote ? " + extern" : "");
-  return actionLabel[step.action];
+  if (step.action === "command") return t("Befehl: {value}", { value: step.value });
+  if (step.action === "wait") return t("{value} s warten", { value: step.value });
+  if (step.action === "backup") return (step.value ? t("Backup „{value}“", { value: step.value }) : actionLabel().backup) + (step.remote ? t(" + extern") : "");
+  return actionLabel()[step.action];
 }
 
-const presets: { label: string; build: () => Partial<Draft> }[] = [
-  { label: "Täglicher Neustart um 04:00", build: () => ({ name: "Täglicher Neustart", kind: "daily", atMinute: 240, warnMinutes: 5, steps: [{ action: "restart" }] }) },
-  { label: "Nächtliches Backup um 03:30", build: () => ({ name: "Nächtliches Backup", kind: "daily", atMinute: 210, warnMinutes: 0, steps: [{ action: "backup", value: "nachts" }] }) },
-  { label: "Backup, dann Neustart", build: () => ({ name: "Backup und Neustart", kind: "daily", atMinute: 240, warnMinutes: 5, steps: [{ action: "backup", value: "vor-neustart" }, { action: "restart" }] }) },
-  { label: "Ansage alle 30 Minuten", build: () => ({ name: "Ansage", kind: "interval", everyMinutes: 30, warnMinutes: 0, steps: [{ action: "command", value: "say Besuche unsere Website!" }] }) },
+const presets = (): { label: string; build: () => Partial<Draft> }[] => [
+  { label: t("Täglicher Neustart um 04:00"), build: () => ({ name: t("Täglicher Neustart"), kind: "daily", atMinute: 240, warnMinutes: 5, steps: [{ action: "restart" }] }) },
+  { label: t("Nächtliches Backup um 03:30"), build: () => ({ name: t("Nächtliches Backup"), kind: "daily", atMinute: 210, warnMinutes: 0, steps: [{ action: "backup", value: "nachts" }] }) },
+  { label: t("Backup, dann Neustart"), build: () => ({ name: t("Backup und Neustart"), kind: "daily", atMinute: 240, warnMinutes: 5, steps: [{ action: "backup", value: "vor-neustart" }, { action: "restart" }] }) },
+  { label: t("Ansage alle 30 Minuten"), build: () => ({ name: t("Ansage"), kind: "interval", everyMinutes: 30, warnMinutes: 0, steps: [{ action: "command", value: "say Besuche unsere Website!" }] }) },
 ];
 
 interface Draft {
@@ -76,20 +77,20 @@ export function SchedulesTab({ project }: { project: Project }) {
     <div className="space-y-5">
       <Card>
         <CardHeader
-          title="Zeitpläne"
-          description="Backups, Neustarts und Befehle zu festen Zeiten."
+          title={t("Zeitpläne")}
+          description={t("Backups, Neustarts und Befehle zu festen Zeiten.")}
           action={
             canManage && (
               <Button size="sm" variant="primary" onClick={() => setEditing("new")} disabled={project.servers.length === 0}>
                 <Plus className="h-3.5 w-3.5" />
-                Zeitplan anlegen
+                {t("Zeitplan anlegen")}
               </Button>
             )
           }
         />
         <p className="px-5 py-3 text-xs leading-relaxed text-muted">
-          Ein Zeitplan kann mehrere Schritte nacheinander ausführen, etwa erst sichern, dann neu starten. Schlägt einer fehl, stoppt der Rest und du bekommst eine Meldung. Zeiten gelten in der Zeitzone{" "}
-          <b className="text-ink/80">{status?.timezone ?? "des Servers"}</b>.
+          {t("Ein Zeitplan kann mehrere Schritte nacheinander ausführen, etwa erst sichern, dann neu starten. Schlägt einer fehl, stoppt der Rest und du bekommst eine Meldung. Zeiten gelten in der Zeitzone")}{" "}
+          <b className="text-ink/80">{status?.timezone ?? t("des Servers")}</b>.
         </p>
       </Card>
 
@@ -99,7 +100,7 @@ export function SchedulesTab({ project }: { project: Project }) {
         <Loading />
       ) : data.length === 0 ? (
         <Card>
-          <EmptyState icon={<CalendarClock className="h-6 w-6" />} title="Noch kein Zeitplan" text={project.servers.length ? "Lege z. B. ein nächtliches Backup oder einen täglichen Neustart an." : "Lege zuerst einen Server an."} />
+          <EmptyState icon={<CalendarClock className="h-6 w-6" />} title={t("Noch kein Zeitplan")} text={project.servers.length ? t("Lege z. B. ein nächtliches Backup oder einen täglichen Neustart an.") : t("Lege zuerst einen Server an.")} />
         </Card>
       ) : (
         data.map((schedule) => (
@@ -108,8 +109,8 @@ export function SchedulesTab({ project }: { project: Project }) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{schedule.name}</p>
                 <p className="mt-0.5 text-xs text-muted">
-                  {schedule.serverName || "Server gelöscht"} · {scheduleText(schedule)}
-                  {schedule.warnMinutes > 0 && ` · Vorwarnung ${schedule.warnMinutes} Min`}
+                  {schedule.serverName || t("Server gelöscht")} · {scheduleText(schedule)}
+                  {schedule.warnMinutes > 0 && t(" · Vorwarnung {warnMinutes} Min", { warnMinutes: schedule.warnMinutes })}
                 </p>
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                   {schedule.steps.map((step, index) => (
@@ -134,20 +135,20 @@ export function SchedulesTab({ project }: { project: Project }) {
                   <Button
                     size="sm"
                     onClick={async () => {
-                      await toast.run(() => api.post(`/schedules/${schedule.id}/run`), "Zeitplan läuft");
+                      await toast.run(() => api.post(`/schedules/${schedule.id}/run`), t("Zeitplan läuft"));
                       setTimeout(() => mutate(), 3000);
                     }}
                   >
                     <Play className="h-3.5 w-3.5" />
-                    Jetzt
+                    {t("Jetzt")}
                   </Button>
                 )}
                 {canManage && (
                   <>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setEditing(schedule)} aria-label="Bearbeiten">
+                    <Button variant="ghost" size="icon-sm" onClick={() => setEditing(schedule)} aria-label={t("Bearbeiten")}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(schedule)} aria-label="Löschen">
+                    <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(schedule)} aria-label={t("Löschen")}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </>
@@ -155,12 +156,12 @@ export function SchedulesTab({ project }: { project: Project }) {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-white/[0.05] px-5 py-2.5 text-xs text-muted">
-              <span>{schedule.enabled && schedule.nextRun ? `Nächster Lauf: ${dateTime(schedule.nextRun)}` : "Pausiert"}</span>
+              <span>{schedule.enabled && schedule.nextRun ? t("Nächster Lauf: {nextRun}", { nextRun: dateTime(schedule.nextRun) }) : t("Pausiert")}</span>
               {schedule.lastRun > 0 && (
                 <span className="inline-flex items-center gap-2">
-                  Zuletzt {ago(schedule.lastRun)}:
+                  {t("Zuletzt")} {ago(schedule.lastRun)}:
                   <Badge tone={schedule.lastStatus === "ok" ? "good" : schedule.lastStatus === "failed" ? "bad" : "warn"}>
-                    {schedule.lastStatus === "ok" ? "erfolgreich" : schedule.lastStatus === "failed" ? "fehlgeschlagen" : "übersprungen"}
+                    {schedule.lastStatus === "ok" ? "erfolgreich" : schedule.lastStatus === "failed" ? "fehlgeschlagen" : t("übersprungen")}
                   </Badge>
                 </span>
               )}
@@ -174,13 +175,13 @@ export function SchedulesTab({ project }: { project: Project }) {
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
-        title={`„${removing?.name}“ löschen?`}
-        text="Der Zeitplan läuft danach nicht mehr."
-        confirm="Löschen"
+        title={t("„{name}“ löschen?", { name: removing?.name })}
+        text={t("Der Zeitplan läuft danach nicht mehr.")}
+        confirm={t("Löschen")}
         danger
         onConfirm={async () => {
           if (!removing) return;
-          await toast.run(() => api.delete(`/schedules/${removing.id}`), "Gelöscht");
+          await toast.run(() => api.delete(`/schedules/${removing.id}`), t("Gelöscht"));
           mutate();
         }}
       />
@@ -215,7 +216,7 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
   async function save() {
     setBusy(true);
     const body = { name: draft.name, steps: draft.steps, kind: draft.kind, everyMinutes: draft.kind === "interval" ? draft.everyMinutes : 0, atMinute: draft.atMinute, weekdays: draft.kind === "weekly" ? draft.weekdays : 127, warnMinutes: stops ? draft.warnMinutes : 0 };
-    const ok = await toast.run(() => (existing ? api.patch(`/schedules/${existing.id}`, body) : api.post(`/projects/${project.id}/schedules`, { ...body, serverId: draft.serverId })), existing ? "Gespeichert" : "Zeitplan angelegt");
+    const ok = await toast.run(() => (existing ? api.patch(`/schedules/${existing.id}`, body) : api.post(`/projects/${project.id}/schedules`, { ...body, serverId: draft.serverId })), existing ? t("Gespeichert") : t("Zeitplan angelegt"));
     setBusy(false);
     if (ok) {
       onClose();
@@ -227,22 +228,22 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
     <Dialog
       open={open}
       onClose={onClose}
-      title={existing ? `„${existing.name}“ bearbeiten` : "Zeitplan anlegen"}
+      title={existing ? t("„{name}“ bearbeiten", { name: existing.name }) : t("Zeitplan anlegen")}
       wide
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button variant="primary" loading={busy} disabled={!valid} onClick={save}>
-            {existing ? "Speichern" : "Anlegen"}
+            {existing ? t("Speichern") : t("Anlegen")}
           </Button>
         </>
       }
     >
       {!existing && (
         <div className="flex flex-wrap gap-2">
-          {presets.map((preset) => (
+          {presets().map((preset) => (
             <button key={preset.label} type="button" onClick={() => patch(preset.build())} className="rounded-full border border-white/[0.09] bg-white/[0.03] px-3 py-1 text-xs text-muted transition hover:border-white/[0.18] hover:text-ink">
               {preset.label}
             </button>
@@ -251,8 +252,8 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="label">Name</label>
-          <input className="field" value={draft.name} onChange={(event) => patch({ name: event.target.value })} maxLength={48} placeholder="Nächtliches Backup" />
+          <label className="label">{t("Name")}</label>
+          <input className="field" value={draft.name} onChange={(event) => patch({ name: event.target.value })} maxLength={48} placeholder={t("Nächtliches Backup")} />
         </div>
         <div>
           <label className="label">Server</label>
@@ -265,21 +266,21 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
           </select>
         </div>
         <div>
-          <label className="label">Wann</label>
+          <label className="label">{t("Wann")}</label>
           <select className="field" value={draft.kind} onChange={(event) => patch({ kind: event.target.value as Draft["kind"] })}>
-            <option value="daily">Täglich</option>
-            <option value="weekly">An bestimmten Wochentagen</option>
-            <option value="interval">In festem Abstand</option>
+            <option value="daily">{t("Täglich")}</option>
+            <option value="weekly">{t("An bestimmten Wochentagen")}</option>
+            <option value="interval">{t("In festem Abstand")}</option>
           </select>
         </div>
         {draft.kind === "interval" ? (
           <div>
-            <label className="label">Alle … Minuten (mindestens 5)</label>
+            <label className="label">{t("Alle … Minuten (mindestens 5)")}</label>
             <input className="field" inputMode="numeric" value={draft.everyMinutes} onChange={(event) => patch({ everyMinutes: Number(event.target.value.replace(/\D/g, "")) || 0 })} />
           </div>
         ) : (
           <div>
-            <label className="label">Uhrzeit</label>
+            <label className="label">{t("Uhrzeit")}</label>
             <input
               className="field"
               type="time"
@@ -294,7 +295,7 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
       </div>
       {draft.kind === "weekly" && (
         <div className="flex flex-wrap gap-1.5">
-          {days.map((day, index) => {
+          {days().map((day, index) => {
             const on = (draft.weekdays & (1 << index)) !== 0;
             return (
               <button key={day} type="button" onClick={() => patch({ weekdays: draft.weekdays ^ (1 << index) })} className={cx("h-8 w-10 rounded-md border text-xs font-medium transition active:scale-95", on ? "border-accent/60 bg-accent/15 text-ink" : "border-white/[0.08] text-muted hover:text-ink")}>
@@ -306,15 +307,15 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
       )}
 
       <div>
-        <label className="label">Schritte (laufen nacheinander)</label>
+        <label className="label">{t("Schritte (laufen nacheinander)")}</label>
         <div className="space-y-2">
           {draft.steps.map((step, index) => (
             <div key={index} className="flex items-center gap-2">
               <span className="w-5 text-center text-xs text-muted">{index + 1}</span>
               <select className="field w-48" value={step.action} onChange={(event) => setStep(index, { action: event.target.value as StepAction, value: "", remote: undefined })}>
-                {(Object.keys(actionLabel) as StepAction[]).map((action) => (
+                {(Object.keys(actionLabel()) as StepAction[]).map((action) => (
                   <option key={action} value={action}>
-                    {actionLabel[action]}
+                    {actionLabel()[action]}
                   </option>
                 ))}
               </select>
@@ -323,18 +324,18 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
                   className="field flex-1"
                   value={step.value ?? ""}
                   onChange={(event) => setStep(index, { value: event.target.value })}
-                  placeholder={step.action === "command" ? "say Hallo" : step.action === "wait" ? "30" : "Bezeichnung (optional)"}
+                  placeholder={step.action === "command" ? t("say Hallo") : step.action === "wait" ? "30" : t("Bezeichnung (optional)")}
                   inputMode={step.action === "wait" ? "numeric" : undefined}
                   maxLength={200}
                 />
               )}
               {step.action === "backup" && (
-                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-muted" title="Lädt das Backup zusätzlich zum Backup-Ziel des Projekts hoch">
-                  <Checkbox checked={!!step.remote} onChange={(value) => setStep(index, { remote: value || undefined })} label="Auch extern hochladen" />
-                  auch extern
+                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-muted" title={t("Lädt das Backup zusätzlich zum Backup-Ziel des Projekts hoch")}>
+                  <Checkbox checked={!!step.remote} onChange={(value) => setStep(index, { remote: value || undefined })} label={t("Auch extern hochladen")} />
+                  {t("auch extern")}
                 </label>
               )}
-              <Button variant="ghost" size="icon-sm" disabled={draft.steps.length === 1} onClick={() => patch({ steps: draft.steps.filter((_, position) => position !== index) })} aria-label="Schritt entfernen">
+              <Button variant="ghost" size="icon-sm" disabled={draft.steps.length === 1} onClick={() => patch({ steps: draft.steps.filter((_, position) => position !== index) })} aria-label={t("Schritt entfernen")}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -343,16 +344,16 @@ function ScheduleDialog({ project, schedule, onClose, onDone }: { project: Proje
         {draft.steps.length < 10 && (
           <Button size="sm" variant="ghost" className="mt-2" onClick={() => patch({ steps: [...draft.steps, { action: "command", value: "" }] })}>
             <Plus className="h-3.5 w-3.5" />
-            Schritt hinzufügen
+            {t("Schritt hinzufügen")}
           </Button>
         )}
       </div>
 
       {stops && (
         <div>
-          <label className="label">Vorwarnung im Spiel (Minuten vorher, 0 = keine)</label>
+          <label className="label">{t("Vorwarnung im Spiel (Minuten vorher, 0 = keine)")}</label>
           <input className="field w-32" inputMode="numeric" value={draft.warnMinutes} onChange={(event) => patch({ warnMinutes: Math.min(60, Number(event.target.value.replace(/\D/g, "")) || 0) })} />
-          <p className="mt-1 text-xs text-muted">Das Panel schreibt dann zur gewählten Zeit und noch einmal eine Minute vor dem Lauf „Der Server wird in … neu gestartet“ in den Chat.</p>
+          <p className="mt-1 text-xs text-muted">{t("Das Panel schreibt dann zur gewählten Zeit und noch einmal eine Minute vor dem Lauf „Der Server wird in … neu gestartet“ in den Chat.")}</p>
         </div>
       )}
     </Dialog>

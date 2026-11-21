@@ -1,5 +1,6 @@
 // Reine Hilfen für die eigene Ordnung: Projekte nach Favoriten und Reihenfolge, Server nach Name, Zustand oder Spielern.
 import type { Project, ProjectPref, Server } from "./types";
+import { t } from "@/lib/i18n";
 
 /** Favoriten zuerst, dann die eigene Reihenfolge, dann die Reihenfolge des Panels (alphabetisch). */
 export function orderProjects(projects: Project[], prefs: ProjectPref[] | undefined): Project[] {
@@ -38,12 +39,12 @@ export function filterProjects(projects: Project[], prefs: ProjectPref[] | undef
 
 export type ServerSort = "default" | "name" | "state" | "players";
 
-export const serverSortLabels: Record<ServerSort, string> = {
-  default: "Standard",
-  name: "Name",
-  state: "Zustand (laufende zuerst)",
-  players: "Spieler (meiste zuerst)",
-};
+export const serverSortLabels = (): Record<ServerSort, string> => ({
+  default: t("Standard"),
+  name: t("Name"),
+  state: t("Zustand (laufende zuerst)"),
+  players: t("Spieler (meiste zuerst)"),
+});
 
 const stateOrder: Record<string, number> = { running: 0, starting: 1, stopping: 2, restoring: 3, installing: 4, offline: 5 };
 

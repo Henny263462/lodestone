@@ -8,6 +8,7 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import { ago, dateTime } from "@/lib/format";
 import { can, type DiscordAction, type DiscordConfig, type DiscordRule, type Project } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 const actionLabels: Record<DiscordAction, string> = { status: "/status", players: "/spieler", start: "/start", stop: "/stop", restart: "/restart" };
 const powerActions: DiscordAction[] = ["start", "stop", "restart"];
@@ -38,14 +39,14 @@ export function DiscordBotCard({ project }: { project: Project }) {
 
   const header = (
     <CardHeader
-      title="Discord-Bot"
-      description="Slash-Befehle /status, /spieler, /start, /stop und /restart in deinem Discord. Das Panel muss dafür öffentlich per HTTPS erreichbar sein."
+      title={t("Discord-Bot")}
+      description={t("Slash-Befehle /status, /spieler, /start, /stop und /restart in deinem Discord. Das Panel muss dafür öffentlich per HTTPS erreichbar sein.")}
       action={
         data?.configured && (
           <Switch
             checked={data.enabled}
             onChange={async (value) => {
-              await toast.run(() => api.put(`/projects/${project.id}/discord`, { applicationId: data.applicationId, publicKey: data.publicKey, rules: data.rules, enabled: value }), value ? "Discord-Bot ist an" : "Discord-Bot ist aus");
+              await toast.run(() => api.put(`/projects/${project.id}/discord`, { applicationId: data.applicationId, publicKey: data.publicKey, rules: data.rules, enabled: value }), value ? t("Discord-Bot ist an") : t("Discord-Bot ist aus"));
               mutate();
             }}
           />
@@ -75,7 +76,7 @@ export function DiscordBotCard({ project }: { project: Project }) {
   async function save() {
     setBusy("save");
     const body = { applicationId: applicationId.trim(), publicKey: publicKey.trim(), rules, enabled: data?.configured ? data.enabled : true, ...(botToken.trim() ? { botToken: botToken.trim() } : {}) };
-    const ok = await toast.run(() => api.put(`/projects/${project.id}/discord`, body), "Gespeichert");
+    const ok = await toast.run(() => api.put(`/projects/${project.id}/discord`, body), t("Gespeichert"));
     setBusy("");
     if (ok) mutate();
   }
@@ -86,14 +87,14 @@ export function DiscordBotCard({ project }: { project: Project }) {
       <div className="space-y-4 px-5 py-4">
         <div className="rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-xs leading-relaxed text-info">
           <ol className="list-decimal space-y-0.5 pl-4">
-            <li>Lege im Discord Developer Portal eine Anwendung an und trag hier Application-ID, Public Key (General Information) und Bot-Token (Bot → Reset Token) ein.</li>
-            <li>Trag unter General Information → Interactions Endpoint URL die Adresse unten ein. Discord prüft sie sofort; dafür muss hier vorher gespeichert sein.</li>
-            <li>Lade den Bot mit den Scopes bot und applications.commands in deinen Discord ein und drück „Befehle eintragen“.</li>
+            <li>{t("Lege im Discord Developer Portal eine Anwendung an und trag hier Application-ID, Public Key (General Information) und Bot-Token (Bot → Reset Token) ein.")}</li>
+            <li>{t("Trag unter General Information → Interactions Endpoint URL die Adresse unten ein. Discord prüft sie sofort; dafür muss hier vorher gespeichert sein.")}</li>
+            <li>{t("Lade den Bot mit den Scopes bot und applications.commands in deinen Discord ein und drück „Befehle eintragen“.")}</li>
           </ol>
         </div>
         {origin.startsWith("http://") && (
           <div className="rounded-lg border border-warn/25 bg-warn/10 px-4 py-3 text-xs text-warn">
-            Das Panel läuft gerade über http://. Discord akzeptiert nur eine öffentliche HTTPS-Adresse – stell das Panel hinter einen Reverse-Proxy mit Zertifikat (z. B. Caddy oder Traefik).
+            {t("Das Panel läuft gerade über http://. Discord akzeptiert nur eine öffentliche HTTPS-Adresse – stell das Panel hinter einen Reverse-Proxy mit Zertifikat (z. B. Caddy oder Traefik).")}
           </div>
         )}
         <div>
@@ -103,13 +104,13 @@ export function DiscordBotCard({ project }: { project: Project }) {
             <Button
               variant="secondary"
               size="icon"
-              aria-label="Adresse kopieren"
+              aria-label={t("Adresse kopieren")}
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(endpoint);
-                  toast.success("Adresse kopiert");
+                  toast.success(t("Adresse kopiert"));
                 } catch {
-                  toast.error("Kopieren ging nicht. Markiere die Adresse und kopiere sie von Hand.");
+                  toast.error(t("Kopieren ging nicht. Markiere die Adresse und kopiere sie von Hand."));
                 }
               }}
             >
@@ -119,44 +120,44 @@ export function DiscordBotCard({ project }: { project: Project }) {
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="label">Application-ID</label>
+            <label className="label">{t("Application-ID")}</label>
             <input className="field font-mono text-xs" inputMode="numeric" value={applicationId} onChange={(event) => setApplicationId(event.target.value)} placeholder="123456789012345678" />
           </div>
           <div>
             <label className="label">Public Key</label>
-            <input className="field font-mono text-xs" value={publicKey} onChange={(event) => setPublicKey(event.target.value)} placeholder="64 Zeichen, 0–9 und a–f" spellCheck={false} />
+            <input className="field font-mono text-xs" value={publicKey} onChange={(event) => setPublicKey(event.target.value)} placeholder={t("64 Zeichen, 0–9 und a–f")} spellCheck={false} />
           </div>
           <div className="md:col-span-2">
-            <label className="label">Bot-Token</label>
+            <label className="label">{t("Bot-Token")}</label>
             <input
               className="field font-mono text-xs"
               type="password"
               autoComplete="off"
               value={botToken}
               onChange={(event) => setBotToken(event.target.value)}
-              placeholder={data.hasToken ? "gespeichert – leer lassen, um es zu behalten" : "nur zum Eintragen der Befehle nötig"}
+              placeholder={data.hasToken ? t("gespeichert – leer lassen, um es zu behalten") : t("nur zum Eintragen der Befehle nötig")}
             />
-            <p className="mt-1 text-xs text-muted">Das Token wird verschlüsselt gespeichert und nie wieder angezeigt.</p>
+            <p className="mt-1 text-xs text-muted">{t("Das Token wird verschlüsselt gespeichert und nie wieder angezeigt.")}</p>
           </div>
         </div>
 
         <div>
-          <label className="label">Wer darf was?</label>
+          <label className="label">{t("Wer darf was?")}</label>
           <p className="mb-2 text-xs text-muted">
-            Ohne Regel darf niemand einen Befehl benutzen. IDs kopierst du in Discord mit Rechtsklick → ID kopieren (Entwicklermodus in den Einstellungen). Die Rolle @everyone hat dieselbe ID wie dein Discord-Server.
+            {t("Ohne Regel darf niemand einen Befehl benutzen. IDs kopierst du in Discord mit Rechtsklick → ID kopieren (Entwicklermodus in den Einstellungen). Die Rolle @everyone hat dieselbe ID wie dein Discord-Server.")}
           </p>
           <div className="space-y-2">
-            {rules.length === 0 && <p className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs text-muted">Noch keine Regel.</p>}
+            {rules.length === 0 && <p className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs text-muted">{t("Noch keine Regel.")}</p>}
             {rules.map((rule, index) => (
               <div key={index} className="space-y-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <select className="field w-auto" value={rule.kind} onChange={(event) => updateRule(index, { kind: event.target.value as DiscordRule["kind"] })} aria-label="Art">
-                    <option value="role">Rolle</option>
-                    <option value="user">Benutzer</option>
+                  <select className="field w-auto" value={rule.kind} onChange={(event) => updateRule(index, { kind: event.target.value as DiscordRule["kind"] })} aria-label={t("Art")}>
+                    <option value="role">{t("Rolle")}</option>
+                    <option value="user">{t("Benutzer")}</option>
                   </select>
-                  <input className="field min-w-[180px] flex-1 font-mono text-xs" value={rule.id} onChange={(event) => updateRule(index, { id: event.target.value.trim() })} placeholder="Discord-ID" aria-label="Discord-ID" />
-                  <input className="field min-w-[140px] flex-1" value={rule.label ?? ""} onChange={(event) => updateRule(index, { label: event.target.value })} maxLength={48} placeholder="Bezeichnung, z. B. Moderatoren" aria-label="Bezeichnung" />
-                  <Button variant="ghost" size="icon-sm" aria-label="Regel entfernen" onClick={() => setRules((current) => current.filter((_, at) => at !== index))}>
+                  <input className="field min-w-[180px] flex-1 font-mono text-xs" value={rule.id} onChange={(event) => updateRule(index, { id: event.target.value.trim() })} placeholder={t("Discord-ID")} aria-label={t("Discord-ID")} />
+                  <input className="field min-w-[140px] flex-1" value={rule.label ?? ""} onChange={(event) => updateRule(index, { label: event.target.value })} maxLength={48} placeholder={t("Bezeichnung, z. B. Moderatoren")} aria-label={t("Bezeichnung")} />
+                  <Button variant="ghost" size="icon-sm" aria-label={t("Regel entfernen")} onClick={() => setRules((current) => current.filter((_, at) => at !== index))}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -164,7 +165,7 @@ export function DiscordBotCard({ project }: { project: Project }) {
                   {(Object.keys(actionLabels) as DiscordAction[]).map((action) => {
                     const locked = !canPower && powerActions.includes(action) && !rule.actions.includes(action);
                     return (
-                      <label key={action} className={cx("flex items-center gap-2 font-mono text-xs", locked ? "cursor-not-allowed opacity-50" : "cursor-pointer")} title={locked ? "Dafür fehlt dir das Recht „Starten und Stoppen“" : undefined}>
+                      <label key={action} className={cx("flex items-center gap-2 font-mono text-xs", locked ? "cursor-not-allowed opacity-50" : "cursor-pointer")} title={locked ? t("Dafür fehlt dir das Recht „Starten und Stoppen“") : undefined}>
                         <Checkbox
                           checked={rule.actions.includes(action)}
                           onChange={(on) => {
@@ -183,38 +184,38 @@ export function DiscordBotCard({ project }: { project: Project }) {
           </div>
           <Button size="sm" className="mt-2" disabled={rules.length >= 25} onClick={() => setRules((current) => [...current, { kind: "role", id: "", label: "", actions: ["status", "players"] }])}>
             <Plus className="h-3.5 w-3.5" />
-            Regel
+            {t("Regel")}
           </Button>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
           <p className="text-xs text-muted">
-            {data.registeredAt ? <span title={dateTime(data.registeredAt)}>Befehle eingetragen {ago(data.registeredAt)}</span> : "Die Befehle sind noch nicht bei Discord eingetragen."}
+            {data.registeredAt ? <span title={dateTime(data.registeredAt)}>{t("Befehle eingetragen")} {ago(data.registeredAt)}</span> : t("Die Befehle sind noch nicht bei Discord eingetragen.")}
           </p>
           <div className="flex flex-wrap gap-2">
             {data.configured && (
               <Button variant="ghost" size="sm" onClick={() => setRemoving(true)}>
                 <Trash2 className="h-3.5 w-3.5" />
-                Entfernen
+                {t("Entfernen")}
               </Button>
             )}
             <Button
               size="sm"
               loading={busy === "register"}
               disabled={!data.configured || !data.hasToken}
-              title={!data.hasToken ? "Erst das Bot-Token speichern" : undefined}
+              title={!data.hasToken ? t("Erst das Bot-Token speichern") : undefined}
               onClick={async () => {
                 setBusy("register");
-                const ok = await toast.run(() => api.post(`/projects/${project.id}/discord/register`), "Befehle bei Discord eingetragen");
+                const ok = await toast.run(() => api.post(`/projects/${project.id}/discord/register`), t("Befehle bei Discord eingetragen"));
                 setBusy("");
                 if (ok) mutate();
               }}
             >
               <Send className="h-3.5 w-3.5" />
-              Befehle eintragen
+              {t("Befehle eintragen")}
             </Button>
             <Button variant="primary" size="sm" loading={busy === "save"} disabled={!complete} onClick={save}>
-              Speichern
+              {t("Speichern")}
             </Button>
           </div>
         </div>
@@ -222,12 +223,12 @@ export function DiscordBotCard({ project }: { project: Project }) {
       <ConfirmDialog
         open={removing}
         onClose={() => setRemoving(false)}
-        title="Discord-Bot entfernen?"
-        text="Application-ID, Public Key, Bot-Token und alle Regeln werden gelöscht. Befehle in Discord antworten danach nicht mehr, bis du den Bot neu einrichtest."
-        confirm="Entfernen"
+        title={t("Discord-Bot entfernen?")}
+        text={t("Application-ID, Public Key, Bot-Token und alle Regeln werden gelöscht. Befehle in Discord antworten danach nicht mehr, bis du den Bot neu einrichtest.")}
+        confirm={t("Entfernen")}
         danger
         onConfirm={async () => {
-          await toast.run(() => api.delete(`/projects/${project.id}/discord`), "Discord-Bot entfernt");
+          await toast.run(() => api.delete(`/projects/${project.id}/discord`), t("Discord-Bot entfernt"));
           mutate();
         }}
       />

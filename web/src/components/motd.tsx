@@ -6,6 +6,7 @@ import { Button, Card, CardHeader } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/feedback";
 import { api } from "@/lib/api";
 import type { Project, SyncResult } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 const colors: Record<string, string> = {
   black: "#000000",
@@ -85,8 +86,8 @@ export function MotdCard({ project, canManage, refresh }: { project: Project; ca
   return (
     <Card>
       <CardHeader
-        title="MOTD (Serverliste)"
-        description="Die zwei Zeilen unter dem Namen in der Serverliste, im Format MiniMessage. Leer heißt: Standardtext."
+        title={t("MOTD (Serverliste)")}
+        description={t("Die zwei Zeilen unter dem Namen in der Serverliste, im Format MiniMessage. Leer heißt: Standardtext.")}
         action={
           canManage && (
             <Button
@@ -102,20 +103,20 @@ export function MotdCard({ project, canManage, refresh }: { project: Project; ca
                 });
                 setBusy(false);
                 if (!ok) return;
-                if (failed.length) toast.error(`MOTD gespeichert, aber nicht überall angewendet: ${failed.join(", ")}`);
-                else toast.success("MOTD gespeichert, der Proxy lädt sie neu");
+                if (failed.length) toast.error(t("MOTD gespeichert, aber nicht überall angewendet: {servers}", { servers: failed.join(", ") }));
+                else toast.success(t("MOTD gespeichert, der Proxy lädt sie neu"));
                 refresh();
               }}
             >
               <Save className="h-3.5 w-3.5" />
-              Speichern
+              {t("Speichern")}
             </Button>
           )
         }
       />
       <div className="space-y-3 px-5 py-4">
-        <textarea className="field font-mono text-xs" rows={2} value={text} disabled={!canManage} onChange={(event) => setText(event.target.value)} placeholder={"<gold><bold>Mein Netzwerk</bold>\n<gray>Jetzt beitreten!"} spellCheck={false} />
-        {lines > 2 && <p className="text-xs text-bad">Höchstens zwei Zeilen.</p>}
+        <textarea className="field font-mono text-xs" rows={2} value={text} disabled={!canManage} onChange={(event) => setText(event.target.value)} placeholder={t("<gold><bold>Mein Netzwerk</bold>\n<gray>Jetzt beitreten!")} spellCheck={false} />
+        {lines > 2 && <p className="text-xs text-bad">{t("Höchstens zwei Zeilen.")}</p>}
         <div className="rounded-lg border border-white/[0.06] bg-[#1b1b1b] p-3">
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded bg-black/50 text-[10px] text-muted">64×64</span>

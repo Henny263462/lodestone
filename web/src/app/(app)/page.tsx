@@ -15,6 +15,7 @@ import { StateBadge } from "@/components/status";
 import { api, useApi } from "@/lib/api";
 import { usePoll } from "@/lib/live";
 import { roleLabel, type NodeInfo, type Project } from "@/lib/types";
+import { t, tp } from "@/lib/i18n";
 
 export default function OverviewPage() {
   const router = useRouter();
@@ -50,50 +51,50 @@ export default function OverviewPage() {
   return (
     <>
       <PageHeader
-        title="Übersicht"
-        description="Deine Projekte, ihre Server und was zuletzt passiert ist."
+        title={t("Übersicht")}
+        description={t("Deine Projekte, ihre Server und was zuletzt passiert ist.")}
         action={
           <div className="flex flex-wrap gap-2">
             {projects.length > 1 && (
               <Button onClick={() => setOrganizing(true)}>
                 <ArrowUpDown className="h-4 w-4" />
-                Ordnen
+                {t("Ordnen")}
               </Button>
             )}
             <Button variant="primary" onClick={() => setCreating(true)}>
               <Plus className="h-4 w-4" />
-              Neues Projekt
+              {t("Neues Projekt")}
             </Button>
           </div>
         }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Projekte" value={projects.length} icon={<FolderPlus className="h-4 w-4" />} tone="violet" hint={`${projects.filter((p) => p.kind === "network").length} Netzwerke`} />
-        <StatCard label="Server" value={servers.length} icon={<ServerIcon className="h-4 w-4" />} tone="blue" hint="in allen Projekten" />
-        <StatCard label="Laufen gerade" value={running} icon={<Play className="h-4 w-4" />} tone={running > 0 ? "green" : "neutral"} hint={`von ${servers.length}`} />
+        <StatCard label={t("Projekte")} value={projects.length} icon={<FolderPlus className="h-4 w-4" />} tone="violet" hint={tp("networks", projects.filter((p) => p.kind === "network").length)} />
+        <StatCard label="Server" value={servers.length} icon={<ServerIcon className="h-4 w-4" />} tone="blue" hint={t("in allen Projekten")} />
+        <StatCard label={t("Laufen gerade")} value={running} icon={<Play className="h-4 w-4" />} tone={running > 0 ? "green" : "neutral"} hint={t("von {total}", { total: servers.length })} />
         <StatCard
-          label="Nodes online"
+          label={t("Nodes online")}
           value={nodes.data ? `${online}/${nodes.data.length}` : "–"}
           icon={<Cpu className="h-4 w-4" />}
           tone={nodes.data && online < nodes.data.length ? "red" : "amber"}
-          hint={nodes.data?.length === 0 ? "Noch kein Node eingerichtet" : "Maschinen mit Docker"}
+          hint={nodes.data?.length === 0 ? t("Noch kein Node eingerichtet") : t("Maschinen mit Docker")}
         />
       </div>
 
       <div className="mt-8 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section aria-label="Projekte" className="min-w-0">
+        <section aria-label={t("Projekte")} className="min-w-0">
           {projects.length === 0 ? (
             <Card>
               <EmptyState
                 icon={<FolderPlus className="h-6 w-6" />}
-                title="Noch kein Projekt"
-                text={nodes.data && nodes.data.length === 0 ? "Richte zuerst unter „Nodes“ eine Maschine ein, dann lege hier ein Projekt an." : "Lege dein erstes Projekt an: ein einzelner Server oder ein Netzwerk mit Velocity."}
+                title={t("Noch kein Projekt")}
+                text={nodes.data && nodes.data.length === 0 ? t("Richte zuerst unter „Nodes“ eine Maschine ein, dann lege hier ein Projekt an.") : t("Lege dein erstes Projekt an: ein einzelner Server oder ein Netzwerk mit Velocity.")}
               />
               <div className="flex justify-center pb-10">
                 <Button variant="primary" onClick={() => setCreating(true)}>
                   <Plus className="h-4 w-4" />
-                  Projekt anlegen
+                  {t("Projekt anlegen")}
                 </Button>
               </div>
             </Card>
@@ -102,7 +103,7 @@ export default function OverviewPage() {
               <ProjectFilterChips prefs={prefs} value={filter} onChange={setFilter} />
               {shown.length === 0 && (
                 <Card>
-                  <EmptyState icon={<Tag className="h-6 w-6" />} title="Kein Projekt passt zum Filter" text="Wähle „Alle“ oder ordne Projekten unter „Ordnen“ Schlagwörter zu." />
+                  <EmptyState icon={<Tag className="h-6 w-6" />} title={t("Kein Projekt passt zum Filter")} text={t("Wähle „Alle“ oder ordne Projekten unter „Ordnen“ Schlagwörter zu.")} />
                 </Card>
               )}
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
@@ -114,7 +115,7 @@ export default function OverviewPage() {
           )}
         </section>
 
-        <aside aria-label="Zustand" className="min-w-0 space-y-5">
+        <aside aria-label={t("Zustand")} className="min-w-0 space-y-5">
           <NodesOverviewCard nodes={nodes.data} error={nodes.error} retry={() => nodes.mutate()} isAdmin={user.isAdmin} />
           {projects.length > 0 && <RecentEventsCard projects={projects} />}
         </aside>
@@ -146,7 +147,7 @@ function ProjectCard({ project, favorite, tags }: { project: Project; favorite: 
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{project.name}</p>
-              <p className="text-xs text-muted">{project.kind === "network" ? "Netzwerk" : "Einzelner Server"}</p>
+              <p className="text-xs text-muted">{project.kind === "network" ? t("Netzwerk") : t("Einzelner Server")}</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -154,7 +155,7 @@ function ProjectCard({ project, favorite, tags }: { project: Project; favorite: 
               <StateBadge server={first} />
             ) : (
               <Badge tone={live > 0 ? "good" : "neutral"}>
-                {live}/{project.servers.length} laufen
+                {live}/{project.servers.length} {t("laufen")}
               </Badge>
             )}
             {favorite}
@@ -165,7 +166,7 @@ function ProjectCard({ project, favorite, tags }: { project: Project; favorite: 
         <div className="mt-4 flex min-w-0 items-center gap-3 text-xs text-muted">
           <span className="inline-flex shrink-0 items-center gap-1">
             <Users className="h-3.5 w-3.5" />
-            {roleLabel[project.myRole]}
+            {roleLabel()[project.myRole]}
           </span>
           {first?.address && <span className="truncate font-mono">{first.address}</span>}
         </div>
@@ -186,7 +187,7 @@ function NewProjectDialog({ open, onClose, onCreated }: { open: boolean; onClose
     let project: Project | null = null;
     const ok = await toast.run(async () => {
       project = await api.post<Project>("/projects", { name, kind, description });
-    }, "Projekt angelegt");
+    }, t("Projekt angelegt"));
     setBusy(false);
     if (ok && project) {
       setName("");
@@ -197,22 +198,22 @@ function NewProjectDialog({ open, onClose, onCreated }: { open: boolean; onClose
   }
 
   const options = [
-    { id: "server" as const, icon: ServerIcon, title: "Einzelner Server", text: "Ein Server: Paper, Purpur, Folia, Fabric, NeoForge, Forge, Vanilla oder Velocity." },
-    { id: "network" as const, icon: Network, title: "Netzwerk", text: "Velocity-Proxy mit mehreren Servern dahinter. Wird automatisch verbunden." },
+    { id: "server" as const, icon: ServerIcon, title: t("Einzelner Server"), text: t("Ein Server: Paper, Purpur, Folia, Fabric, NeoForge, Forge, Vanilla oder Velocity.") },
+    { id: "network" as const, icon: Network, title: t("Netzwerk"), text: t("Velocity-Proxy mit mehreren Servern dahinter. Wird automatisch verbunden.") },
   ];
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title="Neues Projekt"
+      title={t("Neues Projekt")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button variant="primary" loading={busy} disabled={!name.trim()} onClick={create}>
-            Anlegen
+            {t("Anlegen")}
           </Button>
         </>
       }
@@ -236,11 +237,11 @@ function NewProjectDialog({ open, onClose, onCreated }: { open: boolean; onClose
         ))}
       </div>
       <div>
-        <label className="label">Name</label>
-        <input className="field" value={name} onChange={(event) => setName(event.target.value)} placeholder={kind === "network" ? "Mein Netzwerk" : "Survival"} maxLength={48} autoFocus />
+        <label className="label">{t("Name")}</label>
+        <input className="field" value={name} onChange={(event) => setName(event.target.value)} placeholder={kind === "network" ? t("Mein Netzwerk") : "Survival"} maxLength={48} autoFocus />
       </div>
       <div>
-        <label className="label">Beschreibung (optional)</label>
+        <label className="label">{t("Beschreibung (optional)")}</label>
         <input className="field" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
       </div>
     </Dialog>

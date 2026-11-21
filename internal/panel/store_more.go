@@ -86,6 +86,8 @@ var moreColumns = []struct{ table, name, definition string }{
 	{"members", "permissions", "TEXT NOT NULL DEFAULT ''"},
 	{"nodes", "link_secret_hash", "TEXT NOT NULL DEFAULT ''"},
 	{"nodes", "link_joined_at", "INTEGER NOT NULL DEFAULT 0"},
+	// language ist die Sprache der Oberfläche ("de", "en"); leer heißt: wie der Browser.
+	{"users", "language", "TEXT NOT NULL DEFAULT ''"},
 }
 
 // ---------------------------------------------------------------- Zeitpläne
@@ -482,6 +484,28 @@ func (s *Store) APIKeyUser(hash string) (User, error) {
 }
 
 // ---------------------------------------------------------------- Zwei-Faktor und Sitzungen
+
+// UserLanguage liefert die gewählte Sprache der Oberfläche ("" = wie der Browser).
+func (s *Store) UserLanguage(userID string) (string, error) {
+	var language string
+	err := s.db.QueryRow("SELECT language FROM users WHERE id = ?", userID).Scan(&language)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return language, err
+}
+
+// SetUserLanguage speichert die Sprache der Oberfläche.
+func (s *Store) SetUserLanguage(userID, language string) error {
+	result, err := s.db.Exec("UPDATE users SET language = ? WHERE id = ?", language, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 
 // TotpState liefert den verschlüsselten Schlüssel, ob 2FA aktiv ist und die Hashes der Wiederherstellungscodes.
 func (s *Store) TotpState(userID string) (secret string, enabled bool, recovery []string, err error) {

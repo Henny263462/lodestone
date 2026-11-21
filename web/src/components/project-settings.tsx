@@ -12,6 +12,7 @@ import { DiscordBotCard } from "@/components/discord-bot";
 import { api } from "@/lib/api";
 import { useUrlState } from "@/lib/url-state";
 import type { Project } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 type SectionId = "general" | "status" | "backups" | "discord" | "transfer" | "danger";
 
@@ -20,17 +21,17 @@ export function ProjectSettingsTab({ project, refresh }: { project: Project; ref
   const isOwner = project.myRole === "owner";
   const [section, setSection] = useUrlState<SectionId>("section", "general");
   const sections: Section<SectionId>[] = [
-    { id: "general", label: "Allgemein", icon: Settings2 },
-    { id: "status", label: "Statusseite", icon: Globe },
-    { id: "backups", label: "Backup-Ziel", icon: Archive },
-    { id: "discord", label: "Discord-Bot", icon: Bot },
-    { id: "transfer", label: "Umziehen", icon: Truck },
-    ...(isOwner ? [{ id: "danger" as const, label: "Gefahrenzone", icon: Trash2 }] : []),
+    { id: "general", label: t("Allgemein"), icon: Settings2 },
+    { id: "status", label: t("Statusseite"), icon: Globe },
+    { id: "backups", label: t("Backup-Ziel"), icon: Archive },
+    { id: "discord", label: t("Discord-Bot"), icon: Bot },
+    { id: "transfer", label: t("Umziehen"), icon: Truck },
+    ...(isOwner ? [{ id: "danger" as const, label: t("Gefahrenzone"), icon: Trash2 }] : []),
   ];
   const active = sections.some((entry) => entry.id === section) ? section : "general";
 
   return (
-    <SectionLayout label="Abschnitte der Projekteinstellungen" sections={sections} value={active} onChange={setSection}>
+    <SectionLayout label={t("Abschnitte der Projekteinstellungen")} sections={sections} value={active} onChange={setSection}>
       {active === "general" && <GeneralCard project={project} refresh={refresh} />}
       {active === "status" && <StatusCard project={project} refresh={refresh} />}
       {active === "backups" && <BackupTargetCard project={project} />}
@@ -48,14 +49,14 @@ function GeneralCard({ project, refresh }: { project: Project; refresh: () => vo
   const [busy, setBusy] = useState(false);
   return (
     <Card>
-      <CardHeader title="Allgemein" description="Name und Beschreibung erscheinen in der Übersicht und in der Seitenleiste." />
+      <CardHeader title={t("Allgemein")} description={t("Name und Beschreibung erscheinen in der Übersicht und in der Seitenleiste.")} />
       <div className="space-y-4 px-5 py-4">
         <div>
-          <label className="label">Name</label>
+          <label className="label">{t("Name")}</label>
           <input className="field max-w-md" value={name} onChange={(event) => setName(event.target.value)} maxLength={48} />
         </div>
         <div>
-          <label className="label">Beschreibung (optional)</label>
+          <label className="label">{t("Beschreibung (optional)")}</label>
           <input className="field max-w-xl" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
         </div>
       </div>
@@ -66,12 +67,12 @@ function GeneralCard({ project, refresh }: { project: Project; refresh: () => vo
           disabled={!name.trim() || (name === project.name && description === project.description)}
           onClick={async () => {
             setBusy(true);
-            const ok = await toast.run(() => api.patch(`/projects/${project.id}`, { name, description }), "Gespeichert");
+            const ok = await toast.run(() => api.patch(`/projects/${project.id}`, { name, description }), t("Gespeichert"));
             setBusy(false);
             if (ok) refresh();
           }}
         >
-          Speichern
+          {t("Speichern")}
         </Button>
       </div>
     </Card>
@@ -85,23 +86,23 @@ function DeleteProject({ project }: { project: Project }) {
   return (
     <>
       <Card className="border-bad/25">
-        <CardHeader title="Projekt löschen" description="Löscht alle Server dieses Projekts samt Dateien und Backups. Das lässt sich nicht rückgängig machen." />
+        <CardHeader title={t("Projekt löschen")} description={t("Löscht alle Server dieses Projekts samt Dateien und Backups. Das lässt sich nicht rückgängig machen.")} />
         <div className="px-5 py-4">
           <Button variant="danger" onClick={() => setDeleting(true)}>
             <Trash2 className="h-4 w-4" />
-            Projekt löschen
+            {t("Projekt löschen")}
           </Button>
         </div>
       </Card>
       <ConfirmDialog
         open={deleting}
         onClose={() => setDeleting(false)}
-        title={`„${project.name}“ löschen?`}
-        text="Alle Server, Welten, Plugins und Backups dieses Projekts werden unwiderruflich gelöscht."
-        confirm="Endgültig löschen"
+        title={t("„{name}“ löschen?", { name: project.name })}
+        text={t("Alle Server, Welten, Plugins und Backups dieses Projekts werden unwiderruflich gelöscht.")}
+        confirm={t("Endgültig löschen")}
         danger
         onConfirm={async () => {
-          if (await toast.run(() => api.delete(`/projects/${project.id}`), "Projekt gelöscht")) router.replace("/");
+          if (await toast.run(() => api.delete(`/projects/${project.id}`), t("Projekt gelöscht"))) router.replace("/");
         }}
       />
     </>

@@ -2,8 +2,9 @@
 
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { Button, Card } from "./primitives";
+import { t } from "@/lib/i18n";
 
-export function Loading({ label = "Daten werden geladen" }: { label?: string }) {
+export function Loading({ label = t("Daten werden geladen") }: { label?: string }) {
   return (
     <div role="status" className="flex animate-fade-in-late items-center justify-center gap-2 py-16 text-sm text-muted">
       <Loader2 className="h-4 w-4 animate-spin" />
@@ -26,7 +27,7 @@ export function ErrorState({ error, retry, inline }: { error: Error; retry?: () 
           {retry && (
             <Button size="sm" onClick={retry}>
               <RefreshCw className="h-3.5 w-3.5" />
-              Erneut versuchen
+              {t("Erneut versuchen")}
             </Button>
           )}
         </div>
@@ -39,13 +40,13 @@ export function ErrorState({ error, retry, inline }: { error: Error; retry?: () 
         <AlertTriangle className="h-5 w-5" />
       </span>
       <div>
-        <p className="text-sm font-medium">Daten konnten nicht geladen werden</p>
+        <p className="text-sm font-medium">{t("Daten konnten nicht geladen werden")}</p>
         <p className="mx-auto mt-1 max-w-md text-xs text-muted">{error.message}</p>
       </div>
       {retry && (
         <Button size="sm" onClick={retry}>
           <RefreshCw className="h-3.5 w-3.5" />
-          Erneut versuchen
+          {t("Erneut versuchen")}
         </Button>
       )}
     </Card>

@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR, { preload, type SWRConfiguration } from "swr";
+import { backendError, t } from "@/lib/i18n";
 
 /** Fehler der Schnittstelle mit der Meldung des Panels. */
 export class ApiError extends Error {
@@ -31,13 +32,14 @@ function toLogin() {
 
 /** Meldung, wenn die Antwort keine Meldung des Panels enthält (z. B. ein Proxy davor antwortet). */
 function statusText(status: number): string {
-  if (status === 0 || status === 502 || status === 503 || status === 504) return "Das Panel ist gerade nicht erreichbar. Prüfe die Verbindung und versuche es erneut.";
-  return `Die Anfrage ist fehlgeschlagen (Status ${status}). Versuche es erneut.`;
+  if (status === 0 || status === 502 || status === 503 || status === 504) return t("Das Panel ist gerade nicht erreichbar. Prüfe die Verbindung und versuche es erneut.");
+  return t("Die Anfrage ist fehlgeschlagen (Status {status}). Versuche es erneut.", { status });
 }
 
+// Meldungen des Panels sind deutsch; backendError übersetzt bekannte über Text oder Kennung (`code`), der Rest bleibt deutsch.
 async function failure(response: Response): Promise<ApiError> {
-  const data = (await response.json().catch(() => null)) as { error?: string } | null;
-  return new ApiError(data?.error ?? statusText(response.status), response.status);
+  const data = (await response.json().catch(() => null)) as { error?: string; code?: string } | null;
+  return new ApiError(data?.error ? backendError(data.error, data.code) : statusText(response.status), response.status);
 }
 
 export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -51,7 +53,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
   });
   if (response.status === 401 && !path.startsWith("/auth/")) {
     toLogin();
-    throw new ApiError("Nicht angemeldet", 401);
+    throw new ApiError(t("Nicht angemeldet"), 401);
   }
   if (!response.ok) throw await failure(response);
   if (response.status === 204) return undefined as T;
@@ -72,7 +74,7 @@ export async function fetchText(path: string): Promise<string> {
   const response = await fetch(`${apiBase()}/api${path}`, { credentials: "include" });
   if (response.status === 401) {
     toLogin();
-    throw new ApiError("Nicht angemeldet", 401);
+    throw new ApiError(t("Nicht angemeldet"), 401);
   }
   if (!response.ok) throw await failure(response);
   return response.text();
@@ -98,12 +100,13 @@ export function upload(path: string, files: File[], onProgress?: (fraction: numb
     xhr.withCredentials = true;
     xhr.setRequestHeader("X-Lodestone", "1");
     xhr.upload.onprogress = (event) => event.lengthComputable && onProgress?.(event.loaded / event.total);
-    xhr.onerror = () => reject(new ApiError("Der Upload ist fehlgeschlagen", 0));
+    xhr.onerror = () => reject(new ApiError(t("Der Upload ist fehlgeschlagen"), 0));
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) return resolve();
       let message = statusText(xhr.status);
       try {
-        message = (JSON.parse(xhr.responseText) as { error?: string }).error ?? message;
+        const data = JSON.parse(xhr.responseText) as { error?: string; code?: string };
+        if (data.error) message = backendError(data.error, data.code);
       } catch {}
       reject(new ApiError(message, xhr.status));
     };

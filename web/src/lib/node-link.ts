@@ -1,5 +1,7 @@
 // Befehle, mit denen ein Node gestartet wird, der sich selbst zum Panel verbindet. Reine Funktionen ohne React.
 
+import { t } from "@/lib/i18n";
+
 export const nodeImage = "ghcr.io/henny263462/lodestone-node:latest";
 export const defaultDataDir = "/srv/lodestone";
 
@@ -61,7 +63,7 @@ export function composeFile(input: NodeCommandInput): string {
     "    restart: unless-stopped",
     '    user: "1000:1000"',
     "    group_add:",
-    '      - "999" # Gruppe des Docker-Sockets: stat -c %g /var/run/docker.sock',
+    `      - "999" # ${t("Gruppe des Docker-Sockets")}: stat -c %g /var/run/docker.sock`,
     "    environment:",
     ...environment(input).map(([name, value]) => `      ${name}: "${value}"`),
     "    volumes:",

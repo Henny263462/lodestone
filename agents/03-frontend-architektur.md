@@ -33,7 +33,10 @@ web/src/
     live.ts                         Live-Kanal (useLiveUpdates in der Shell), affects (welche Schlüssel eine Meldung betrifft), usePoll
     url-state.ts                    useUrlState: Tab/Abschnitt in der Adresse
     types.ts                        Typen der Schnittstelle + roleRank
-    format.ts                       bytes, megabytes, dateTime, ago, uptime, compact, stateTone …
+    format.ts                       bytes, megabytes, dateTime, ago, uptime, compact, stateLabel, stateTone … (sprachabhängig)
+    i18n.ts                         Übersetzung: t, tp, tx, msg, tFor, formatNumber, locale, backendError, permissionText
+    i18n-provider.tsx               Sprache im Browser: I18nProvider, LanguageRoot, useLanguage, useUserLanguage
+    messages/                       en.ts (Englisch je deutschem Text), plurals.ts (Pluralformen de/en), backend-en.ts (Backend-Meldungen, Rechte)
     audit.ts, crash.ts, editor.ts   reine Hilfen (Beschriftungen, Fehlererkennung, Dateitypen des Editors)
 web/demo/server.mjs                 Schein-Backend für die Demo (Port 3100)
 ```
@@ -118,4 +121,37 @@ Neuer **Abschnitt** in Einstellungen (Server: `components/server/settings.tsx`, 
 - Kein Inline-`style`, außer für berechnete Werte (Breite eines Balkens, Pixelgrößen von Avataren).
 - Keine Server-Komponenten, `generateStaticParams`, `useRouter().push` auf dynamische Pfade.
 - Kein Umbenennen oder Verschieben bestehender Routen (Lesezeichen und die öffentliche Statusadresse `/status/?p=` müssen bleiben).
-- Keine Texte in Englisch, keine Zahlenformatierung von Hand (`lib/format`).
+- Keine englischen Texte im Code (Englisch steht nur in `lib/messages/`), kein sichtbarer Text ohne `t()`, keine
+  Zahlenformatierung von Hand (`lib/format`, `formatNumber`).
+- `t()` nie auf Modulebene aufrufen (siehe §9).
+
+## 9. Zwei Sprachen (`lib/i18n.ts`)
+
+Eigene kleine Lösung ohne Bibliothek, passend zum statischen Export (keine Pfade wie `/en/`, die Sprache lebt im Browser).
+
+- **Deutsch ist Quelle und Schlüssel:** `t("Backup erstellen")`, mit Platzhaltern `t("„{name}“ löschen?", { name })`. Der Typ
+  des Schlüssels kommt aus `lib/messages/en.ts`; steht ein Text dort nicht, meldet `npx tsc --noEmit` den Aufruf. Neue Texte
+  trägst du in `en.ts` unter der Datei ein, in der sie zuerst vorkommen. Ändert sich ein deutscher Text, ändert sich der
+  Schlüssel – tsc zeigt dir dann die Stelle in `en.ts`.
+- **Mehrzahl:** `tp("filesUploaded", anzahl, { … })` mit Formen `one`/`other` je Sprache in `lib/messages/plurals.ts`
+  (`pluralsEn` muss jeden Schlüssel von `pluralsDe` haben, sonst Typfehler). `{count}` ist die Zahl.
+- **Zahlen und Datum:** `formatNumber(wert, nachkommastellen)`, `locale()` für `toLocaleString`; die Hilfen in `lib/format.ts`
+  nutzen das schon.
+- **Modulebene:** Dort steht die Sprache noch nicht fest. Listen mit Texten (Abschnitte, Beschriftungen, Regeln) sind deshalb
+  Funktionen, die beim Rendern übersetzen: `const sections = (): Section<Id>[] => [{ id: "x", label: t("…") }]`, Aufruf
+  `sections()`. `msg("…")` markiert einen Text nur für die Prüfung, wenn er wirklich als Konstante bleiben muss.
+- **Text, der erst zur Laufzeit feststeht** (Gründe und Beschreibungen vom Backend): `tx(text)` – bekannte Texte werden übersetzt,
+  der Rest bleibt deutsch.
+- **Fehlermeldungen des Backends** sind deutsche Sätze. `lib/api.ts` reicht sie durch `backendError(meldung, code)`: zuerst die
+  genaue Meldung aus `lib/messages/backend-en.ts`, dann bekannte Anfänge („ungültige Anfrage: …“), dann die stabile Kennung
+  `code` aus dem JSON (`forbidden`, `not_found`, `unauthorized`, `invalid_request`, `too_many_requests`, `node_offline`,
+  `internal`). Unbekanntes bleibt deutsch. Neue häufige Meldung → Eintrag in `backendEn`.
+- **Rechte-Katalog:** kommt deutsch vom Backend, mit stabiler `id` und `groupId`. `permissionText(info)` nimmt für Englisch
+  `permissionsEn`/`permissionGroupsEn` (`backend-en.ts`), sonst das Deutsch des Backends. Ein neues Recht braucht dort einen
+  Eintrag (Typfehler sonst). Ereignis-Titel übersetzt die Oberfläche über die `kind` (`eventLabels()` in `components/events.tsx`).
+- **Wechsel:** `I18nProvider`/`LanguageRoot` (in `app/layout.tsx`) starten auf Deutsch wie das vorgerenderte HTML, laden dann
+  die gespeicherte Wahl bzw. die Browsersprache und bauen den Baum bei einem Wechsel neu auf. Das englische Wörterbuch wird
+  nur geladen, wenn jemand Englisch nutzt. Die Wahl im Konto (`PUT /api/me/language`, `language` in `/api/me` und
+  `/api/auth/status`) übernimmt die Shell mit `useUserLanguage`.
+- **Prüfen:** `node scripts/i18n-check.mjs` findet ungenutzte oder fehlende Einträge, abweichende Platzhalter und sichtbaren
+  JSX-Text ohne `t()`. Werte, die in jeder Sprache gleich sind (Adressen, Befehle, Produktnamen), stehen dort in `neutral`.

@@ -9,10 +9,11 @@ import { ErrorState, Loading } from "@/components/ui/async";
 import { ApiError, api, fetchText, putText, useApi } from "@/lib/api";
 import { knownPropertyKeys, propertyGroups, propertyProblem, type PropertyField } from "@/lib/properties";
 import type { Server, ServerProperties } from "@/lib/types";
+import { t, tp } from "@/lib/i18n";
 
 const CodeEditor = dynamic(() => import("./code-editor").then((module) => module.CodeEditor), {
   ssr: false,
-  loading: () => <Loading label="Editor wird geladen" />,
+  loading: () => <Loading label={t("Editor wird geladen")} />,
 });
 
 type View = "form" | "raw";
@@ -26,16 +27,16 @@ export function PropertiesTab({ server, canWrite }: { server: Server; canWrite: 
       <div className="flex gap-3 rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-xs text-info">
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          Änderungen an der server.properties gelten erst nach einem Neustart des Servers.
-          {running && " Der Server läuft gerade – starte ihn nach dem Speichern neu."}
+          {t("Änderungen an der server.properties gelten erst nach einem Neustart des Servers.")}
+          {running && t(" Der Server läuft gerade – starte ihn nach dem Speichern neu.")}
         </p>
       </div>
       <Tabs
         value={view}
         onChange={setView}
         items={[
-          { id: "form", label: "Formular" },
-          { id: "raw", label: "Rohansicht" },
+          { id: "form", label: t("Formular") },
+          { id: "raw", label: t("Rohansicht") },
         ]}
       />
       <div key={view} className="animate-fade-in">
@@ -59,7 +60,7 @@ function PropertiesForm({ serverId, canWrite }: { serverId: string; canWrite: bo
     for (const [key, value] of Object.entries(draft)) if (value !== current[key]) out[key] = value;
     return out;
   }, [draft, current]);
-  const fields = useMemo(() => new Map(propertyGroups.flatMap((group) => group.fields.map((field) => [field.key, field] as const))), []);
+  const fields = useMemo(() => new Map(propertyGroups().flatMap((group) => group.fields.map((field) => [field.key, field] as const))), []);
   const problems = Object.entries(changes)
     .map(([key, value]) => {
       const field = fields.get(key);
@@ -87,7 +88,7 @@ function PropertiesForm({ serverId, canWrite }: { serverId: string; canWrite: bo
 
   async function save() {
     setSaving(true);
-    const ok = await toast.run(() => api.put(`/servers/${serverId}/properties`, { values: changes }), "Gespeichert – gilt nach dem nächsten Neustart");
+    const ok = await toast.run(() => api.put(`/servers/${serverId}/properties`, { values: changes }), t("Gespeichert – gilt nach dem nächsten Neustart"));
     setSaving(false);
     if (ok) {
       setDraft({});
@@ -99,10 +100,10 @@ function PropertiesForm({ serverId, canWrite }: { serverId: string; canWrite: bo
     <div className="space-y-5">
       {!data.exists && (
         <p className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-xs text-muted">
-          Noch gibt es keine server.properties – sie entsteht beim ersten Start. Was du hier speicherst, übernimmt der Server dabei; die übrigen Werte ergänzt er selbst.
+          {t("Noch gibt es keine server.properties – sie entsteht beim ersten Start. Was du hier speicherst, übernimmt der Server dabei; die übrigen Werte ergänzt er selbst.")}
         </p>
       )}
-      {propertyGroups.map((group) => (
+      {propertyGroups().map((group) => (
         <Card key={group.title}>
           <CardHeader title={group.title} description={group.description} />
           <div className="grid gap-4 px-5 py-4 md:grid-cols-2">
@@ -123,12 +124,12 @@ function PropertiesForm({ serverId, canWrite }: { serverId: string; canWrite: bo
       ))}
 
       <Card>
-        <CardHeader title="Weitere Einstellungen" description="Alle übrigen Schlüssel der Datei, auch die von Plugins und neueren Versionen. Sie bleiben beim Speichern erhalten. Neue Schlüssel legst du in der Rohansicht an." />
+        <CardHeader title={t("Weitere Einstellungen")} description={t("Alle übrigen Schlüssel der Datei, auch die von Plugins und neueren Versionen. Sie bleiben beim Speichern erhalten. Neue Schlüssel legst du in der Rohansicht an.")} />
         {unknown.length === 0 ? (
-          <EmptyState icon={<Info className="h-6 w-6" />} title="Keine weiteren Schlüssel" text="Die Datei enthält nur die Einstellungen oben." />
+          <EmptyState icon={<Info className="h-6 w-6" />} title={t("Keine weiteren Schlüssel")} text={t("Die Datei enthält nur die Einstellungen oben.")} />
         ) : (
           <div className="px-5 py-4">
-            {unknown.length > 8 && <SearchInput className="mb-3" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Schlüssel suchen" />}
+            {unknown.length > 8 && <SearchInput className="mb-3" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("Schlüssel suchen")} />}
             <div className="divide-y divide-white/[0.05]">
               {shownUnknown.map((entry) => (
                 <div key={entry.key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2">
@@ -138,7 +139,7 @@ function PropertiesForm({ serverId, canWrite }: { serverId: string; canWrite: bo
                   <input id={`prop-${entry.key}`} className={cx("field max-w-md font-mono text-xs", entry.key in changes && "border-warn/50")} value={valueOf(entry.key, "")} disabled={!canWrite} onChange={(event) => set(entry.key, event.target.value)} />
                 </div>
               ))}
-              {shownUnknown.length === 0 && <p className="py-3 text-xs text-muted">Kein Schlüssel passt zur Suche.</p>}
+              {shownUnknown.length === 0 && <p className="py-3 text-xs text-muted">{t("Kein Schlüssel passt zur Suche.")}</p>}
             </div>
           </div>
         )}
@@ -147,20 +148,20 @@ function PropertiesForm({ serverId, canWrite }: { serverId: string; canWrite: bo
       {Object.keys(locked).length > 0 && (
         <p className="flex gap-2 text-xs text-muted">
           <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Von Lodestone verwaltet und hier gesperrt: {Object.keys(locked).join(", ")}.
+          {t("Von Lodestone verwaltet und hier gesperrt:")} {Object.keys(locked).join(", ")}.
         </p>
       )}
 
       {canWrite && (
         <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-end gap-3 rounded-xl border border-white/[0.07] bg-surface px-4 py-3 shadow-panel">
-          <p className="mr-auto text-xs text-muted">{problems[0] ?? (dirty ? `${Object.keys(changes).length} Änderung${Object.keys(changes).length === 1 ? "" : "en"} – gilt nach dem nächsten Neustart` : "Keine Änderungen")}</p>
+          <p className="mr-auto text-xs text-muted">{problems[0] ?? (dirty ? tp("changesPending", Object.keys(changes).length) : t("Keine Änderungen"))}</p>
           <Button variant="ghost" disabled={!dirty || saving} onClick={() => setDraft({})}>
             <RotateCcw className="h-3.5 w-3.5" />
-            Verwerfen
+            {t("Verwerfen")}
           </Button>
           <Button variant="primary" loading={saving} disabled={!dirty || problems.length > 0} onClick={save}>
             <Save className="h-3.5 w-3.5" />
-            Speichern
+            {t("Speichern")}
           </Button>
         </div>
       )}
@@ -205,8 +206,8 @@ function FieldInput({
     <span className="flex items-center gap-2">
       {field.label}
       <span className="font-mono text-[10.5px] font-normal text-muted/70">{field.key}</span>
-      {changed && <Badge tone="warn">Geändert</Badge>}
-      {missing && !changed && <Badge>Standard</Badge>}
+      {changed && <Badge tone="warn">{t("Geändert")}</Badge>}
+      {missing && !changed && <Badge>{t("Standard")}</Badge>}
     </span>
   );
 
@@ -275,7 +276,7 @@ function RawProperties({ serverId, canWrite }: { serverId: string; canWrite: boo
 
   const save = useCallback(async () => {
     setSaving(true);
-    const ok = await toast.run(() => putText(path, text), "Gespeichert – gilt nach dem nächsten Neustart");
+    const ok = await toast.run(() => putText(path, text), t("Gespeichert – gilt nach dem nächsten Neustart"));
     setSaving(false);
     if (ok) setOriginal(text);
   }, [path, text, toast]);
@@ -285,18 +286,18 @@ function RawProperties({ serverId, canWrite }: { serverId: string; canWrite: boo
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-mono text-sm">{RAW_PATH}</span>
-          {dirty && <Badge tone="warn">Ungespeichert</Badge>}
-          {!canWrite && <Badge>Nur lesen</Badge>}
+          {dirty && <Badge tone="warn">{t("Ungespeichert")}</Badge>}
+          {!canWrite && <Badge>{t("Nur lesen")}</Badge>}
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="ghost" onClick={() => (dirty ? setConfirmReload(true) : setVersion((value) => value + 1))}>
             <RotateCcw className="h-3.5 w-3.5" />
-            Neu laden
+            {t("Neu laden")}
           </Button>
           {canWrite && (
             <Button size="sm" variant="primary" onClick={save} loading={saving} disabled={!dirty}>
               <Save className="h-3.5 w-3.5" />
-              Speichern
+              {t("Speichern")}
             </Button>
           )}
         </div>
@@ -305,13 +306,13 @@ function RawProperties({ serverId, canWrite }: { serverId: string; canWrite: boo
         {failure ? (
           <div className="p-4">
             {failure instanceof ApiError && failure.status === 404 ? (
-              <EmptyState icon={<Info className="h-6 w-6" />} title="Noch keine server.properties" text="Die Datei entsteht beim ersten Start des Servers. Im Formular kannst du schon vorher Werte festlegen." />
+              <EmptyState icon={<Info className="h-6 w-6" />} title={t("Noch keine server.properties")} text={t("Die Datei entsteht beim ersten Start des Servers. Im Formular kannst du schon vorher Werte festlegen.")} />
             ) : (
               <ErrorState error={failure} retry={() => setVersion((value) => value + 1)} />
             )}
           </div>
         ) : original === null ? (
-          <Loading label="Datei wird geladen" />
+          <Loading label={t("Datei wird geladen")} />
         ) : (
           <CodeEditor key={version} value={original} language="properties" onChange={setText} onSave={() => canWrite && save()} readOnly={!canWrite} />
         )}
@@ -319,9 +320,9 @@ function RawProperties({ serverId, canWrite }: { serverId: string; canWrite: boo
       <ConfirmDialog
         open={confirmReload}
         onClose={() => setConfirmReload(false)}
-        title="Änderungen verwerfen?"
-        text="Die Rohansicht hat ungespeicherte Änderungen. Beim Neuladen gehen sie verloren."
-        confirm="Verwerfen"
+        title={t("Änderungen verwerfen?")}
+        text={t("Die Rohansicht hat ungespeicherte Änderungen. Beim Neuladen gehen sie verloren.")}
+        confirm={t("Verwerfen")}
         danger
         onConfirm={() => setVersion((value) => value + 1)}
       />

@@ -9,6 +9,7 @@ import { api, upload, useApi } from "@/lib/api";
 import { bytes, compact } from "@/lib/format";
 import type { Addon, AddonDetail, ModrinthHit, UpdateEntry } from "@/lib/types";
 import { SourceBrowse } from "@/components/server/sources";
+import { locale, t, tp } from "@/lib/i18n";
 
 type View = "installed" | "browse" | "blocks";
 
@@ -24,9 +25,9 @@ export function AddonsTab({ serverId, canWrite, canFiles, noun, running, blocks 
         value={view}
         onChange={setView}
         items={[
-          { id: "installed", label: `Installierte ${noun}` },
-          ...(canWrite ? [{ id: "browse" as const, label: "Durchsuchen" }] : []),
-          ...(blocks ? [{ id: "blocks" as const, label: "Bausteine" }] : []),
+          { id: "installed", label: t("Installierte {noun}", { noun }) },
+          ...(canWrite ? [{ id: "browse" as const, label: t("Durchsuchen") }] : []),
+          ...(blocks ? [{ id: "blocks" as const, label: t("Bausteine") }] : []),
         ]}
       />
       {view === "installed" && <Installed serverId={serverId} canWrite={canWrite} canFiles={canFiles} noun={noun} running={running} />}
@@ -60,9 +61,9 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
       const list = await api.post<UpdateEntry[]>(`/servers/${serverId}/addons/check`);
       setUpdates(Object.fromEntries(list.map((entry) => [entry.file, entry])));
       const count = list.filter((entry) => entry.updateAvailable).length;
-      toast.success(count ? `${count} Update${count === 1 ? "" : "s"} verfügbar` : "Alles ist aktuell");
+      toast.success(count ? tp("updatesAvailable", count) : t("Alles ist aktuell"));
     } catch (failure) {
-      toast.error(failure instanceof Error ? failure.message : "Prüfung fehlgeschlagen");
+      toast.error(failure instanceof Error ? failure.message : t("Prüfung fehlgeschlagen"));
     } finally {
       setChecking(false);
     }
@@ -72,7 +73,7 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
     const results = await api.post<{ file: string; updated: boolean; to?: string; error?: string }[]>(`/servers/${serverId}/addons/update`, { files });
     const ok = results.filter((entry) => entry.updated).length;
     const bad = results.filter((entry) => !entry.updated && entry.error && entry.error !== "schon aktuell");
-    if (ok) toast.success(`${ok} aktualisiert${running ? " – Neustart nötig" : ""}`);
+    if (ok) toast.success(`${ok} aktualisiert${running ? t(" – Neustart nötig") : ""}`);
     if (bad.length) toast.error(bad.map((entry) => `${entry.file}: ${entry.error}`).join("\n"));
     setUpdates(null);
     mutate();
@@ -81,34 +82,34 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
 
   async function toggle(addon: Addon) {
     const target = addon.enabled ? `${path(addon)}.disabled` : path(addon).replace(/\.disabled$/, "");
-    await toast.run(() => api.post(`/servers/${serverId}/files/rename`, { from: path(addon), to: target }), addon.enabled ? "Deaktiviert" : "Aktiviert");
+    await toast.run(() => api.post(`/servers/${serverId}/files/rename`, { from: path(addon), to: target }), addon.enabled ? t("Deaktiviert") : t("Aktiviert"));
     mutate();
   }
 
   return (
     <Card>
       <CardHeader
-        title={`Installierte ${noun}`}
-        description={running ? "Änderungen werden nach einem Neustart des Servers wirksam." : undefined}
+        title={t("Installierte {noun}", { noun })}
+        description={running ? t("Änderungen werden nach einem Neustart des Servers wirksam.") : undefined}
         action={
           (canWrite || canFiles) && (
             <div className="flex gap-2">
               {canWrite && (
                 <Button size="sm" onClick={check} loading={checking}>
                   <RefreshCw className="h-3.5 w-3.5" />
-                  Updates prüfen
+                  {t("Updates prüfen")}
                 </Button>
               )}
               {canWrite && pending.length > 0 && (
                 <Button size="sm" variant="primary" onClick={() => toast.run(() => updateAll(pending.map((entry) => entry.file)))}>
                   <ArrowUpCircle className="h-3.5 w-3.5" />
-                  Alle aktualisieren ({pending.length})
+                  {t("Alle aktualisieren (")}{pending.length})
                 </Button>
               )}
               {canFiles && (
                 <Button size="sm" onClick={() => picker.current?.click()}>
                   <Upload className="h-3.5 w-3.5" />
-                  Hochladen
+                  {t("Hochladen")}
                 </Button>
               )}
               <input
@@ -123,7 +124,7 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
                   if (files.length === 0) return;
                   const folder = data[0]?.dir ?? (noun === "Mods" ? "mods" : "plugins");
                   setProgress(0);
-                  await toast.run(() => upload(`/servers/${serverId}/files/upload?path=${folder}&overwrite=1`, files, setProgress), "Hochgeladen");
+                  await toast.run(() => upload(`/servers/${serverId}/files/upload?path=${folder}&overwrite=1`, files, setProgress), t("Hochgeladen"));
                   setProgress(null);
                   mutate();
                 }}
@@ -138,7 +139,7 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
         </div>
       )}
       {data.length === 0 ? (
-        <EmptyState icon={<Package className="h-6 w-6" />} title={`Keine ${noun} installiert`} text={canWrite ? "Durchsuche Modrinth und die anderen Quellen oder lade eine .jar-Datei hoch." : undefined} />
+        <EmptyState icon={<Package className="h-6 w-6" />} title={t("Keine {noun} installiert", { noun })} text={canWrite ? t("Durchsuche Modrinth und die anderen Quellen oder lade eine .jar-Datei hoch.") : undefined} />
       ) : (
         <div className="divide-y divide-white/[0.05]">
           {data.map((addon) => {
@@ -170,17 +171,17 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
                       {detail.link && (
                         <a className="inline-flex items-center gap-1 hover:text-ink hover:underline" href={detail.link} target="_blank" rel="noreferrer">
                           <ExternalLink className="h-3 w-3" />
-                          {detail.source ? sourceNames[detail.source] : "Modrinth"}-Seite
+                          {t("{source}-Seite", { source: detail.source ? sourceNames[detail.source] : "Modrinth" })}
                         </a>
                       )}
                       {detail.sourceUrl && (
                         <a className="hover:text-ink hover:underline" href={detail.sourceUrl} target="_blank" rel="noreferrer">
-                          Quellcode
+                          {t("Quellcode")}
                         </a>
                       )}
                       {detail.issuesUrl && (
                         <a className="hover:text-ink hover:underline" href={detail.issuesUrl} target="_blank" rel="noreferrer">
-                          Fehler melden
+                          {t("Fehler melden")}
                         </a>
                       )}
                       {detail.license && <span>{detail.license}</span>}
@@ -188,7 +189,7 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
                     </p>
                   )}
                 </div>
-                {!addon.enabled && <Badge>Deaktiviert</Badge>}
+                {!addon.enabled && <Badge>{t("Deaktiviert")}</Badge>}
                 {update?.updateAvailable && (
                   <Badge tone="accent">
                     <ArrowUpCircle className="h-3 w-3" />
@@ -198,29 +199,29 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
                 {update && !update.updateAvailable && update.known && (
                   <Badge tone="good">
                     <CheckCircle2 className="h-3 w-3" />
-                    Aktuell
+                    {t("Aktuell")}
                   </Badge>
                 )}
-                {update && !update.known && <span title="Keiner Quelle zugeordnet – lade die Datei über „Durchsuchen“, damit Lodestone Updates findet"><Badge>Unbekannt</Badge></span>}
+                {update && !update.known && <span title={t("Keiner Quelle zugeordnet – lade die Datei über „Durchsuchen“, damit Lodestone Updates findet")}><Badge>{t("Unbekannt")}</Badge></span>}
                 {(canWrite || canFiles) && (
                   <div className="flex items-center gap-1">
                     {canWrite && update?.updateAvailable && (
                       <Button size="sm" onClick={() => toast.run(() => updateAll([addon.file]))}>
-                        Aktualisieren
+                        {t("Aktualisieren")}
                       </Button>
                     )}
                     {canWrite && detail?.known && detail.projectId && !detail.source && (
-                      <Button variant="ghost" size="icon-sm" onClick={() => setSwitching(detail)} title="Version wechseln" aria-label="Version wechseln">
+                      <Button variant="ghost" size="icon-sm" onClick={() => setSwitching(detail)} title={t("Version wechseln")} aria-label={t("Version wechseln")}>
                         <Repeat className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     {canFiles && (
-                      <Button variant="ghost" size="icon-sm" onClick={() => toggle(addon)} title={addon.enabled ? "Deaktivieren" : "Aktivieren"} aria-label="Umschalten">
+                      <Button variant="ghost" size="icon-sm" onClick={() => toggle(addon)} title={addon.enabled ? t("Deaktivieren") : t("Aktivieren")} aria-label={t("Umschalten")}>
                         <Power className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     {canFiles && (
-                      <Button variant="ghost" size="icon-sm" onClick={() => setRemove(addon)} title="Löschen" aria-label="Löschen">
+                      <Button variant="ghost" size="icon-sm" onClick={() => setRemove(addon)} title={t("Löschen")} aria-label={t("Löschen")}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -246,13 +247,13 @@ function Installed({ serverId, canWrite, canFiles, noun, running }: { serverId: 
       <ConfirmDialog
         open={!!remove}
         onClose={() => setRemove(null)}
-        title={`„${remove?.name || remove?.file}“ löschen?`}
-        text="Die Datei wird vom Server gelöscht. Die Konfiguration des Plugins bleibt erhalten."
-        confirm="Löschen"
+        title={t("„{value}“ löschen?", { value: remove?.name || remove?.file })}
+        text={t("Die Datei wird vom Server gelöscht. Die Konfiguration des Plugins bleibt erhalten.")}
+        confirm={t("Löschen")}
         danger
         onConfirm={async () => {
           if (!remove) return;
-          await toast.run(() => api.delete(`/servers/${serverId}/files?path=${encodeURIComponent(path(remove))}`), "Gelöscht");
+          await toast.run(() => api.delete(`/servers/${serverId}/files?path=${encodeURIComponent(path(remove))}`), t("Gelöscht"));
           mutate();
         }}
       />
@@ -266,7 +267,7 @@ function SwitchDialog({ serverId, detail, onClose, onDone, running }: { serverId
   const [busy, setBusy] = useState<string | null>(null);
   const { data, error } = useApi<ProjectDetail>(detail?.projectId ? `/servers/${serverId}/modrinth/project/${encodeURIComponent(detail.projectId)}` : null);
   return (
-    <Dialog open={!!detail} onClose={onClose} title={`${detail?.title ?? ""}: Version wechseln`} description={`Installiert: ${detail?.versionNumber ?? "?"}${running ? " · Neustart nötig" : ""}`} wide>
+    <Dialog open={!!detail} onClose={onClose} title={t("{value}: Version wechseln", { value: detail?.title ?? "" })} description={t("Installiert: {value}{value2}", { value: detail?.versionNumber ?? "?", value2: running ? t(" · Neustart nötig") : "" })} wide>
       {error ? (
         <p className="text-sm text-bad">{error.message}</p>
       ) : !data ? (
@@ -278,12 +279,12 @@ function SwitchDialog({ serverId, detail, onClose, onDone, running }: { serverId
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{version.versionNumber}</p>
                 <p className="truncate text-xs text-muted">
-                  {version.name} · {new Date(version.published).toLocaleDateString("de-DE")}
+                  {version.name} · {new Date(version.published).toLocaleDateString(locale())}
                 </p>
               </div>
               <Badge tone={version.type === "release" ? "good" : "warn"}>{version.type}</Badge>
               {version.id === detail?.versionId ? (
-                <Badge tone="accent">Installiert</Badge>
+                <Badge tone="accent">{t("Installiert")}</Badge>
               ) : (
                 <Button
                   size="sm"
@@ -291,12 +292,12 @@ function SwitchDialog({ serverId, detail, onClose, onDone, running }: { serverId
                   disabled={!!busy}
                   onClick={async () => {
                     setBusy(version.id);
-                    const ok = await toast.run(() => api.post(`/servers/${serverId}/addons/switch`, { file: detail?.file, versionId: version.id }), `Auf ${version.versionNumber} gewechselt`);
+                    const ok = await toast.run(() => api.post(`/servers/${serverId}/addons/switch`, { file: detail?.file, versionId: version.id }), t("Auf {versionNumber} gewechselt", { versionNumber: version.versionNumber }));
                     setBusy(null);
                     if (ok) onDone();
                   }}
                 >
-                  Wechseln
+                  {t("Wechseln")}
                 </Button>
               )}
             </div>
@@ -336,7 +337,7 @@ function Browse({ serverId, noun, onInstalled }: { serverId: string; noun: strin
       setDetail(null);
       onInstalled();
     } catch (failure) {
-      toast.error(failure instanceof Error ? failure.message : "Installation fehlgeschlagen");
+      toast.error(failure instanceof Error ? failure.message : t("Installation fehlgeschlagen"));
     } finally {
       setInstalling(null);
     }
@@ -344,14 +345,14 @@ function Browse({ serverId, noun, onInstalled }: { serverId: string; noun: strin
 
   return (
     <div className="space-y-4">
-      <SearchInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${noun} auf Modrinth suchen – nur passende zu Software und Version`} />
+      <SearchInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("{noun} auf Modrinth suchen – nur passende zu Software und Version", { noun })} />
       {error ? (
         <ErrorState error={error} />
       ) : isLoading && !data ? (
-        <Loading label="Suche läuft" />
+        <Loading label={t("Suche läuft")} />
       ) : data && data.hits.length === 0 ? (
         <Card>
-          <EmptyState icon={<Search className="h-6 w-6" />} title="Nichts gefunden" text="Probiere einen anderen Suchbegriff." />
+          <EmptyState icon={<Search className="h-6 w-6" />} title={t("Nichts gefunden")} text={t("Probiere einen anderen Suchbegriff.")} />
         </Card>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
@@ -364,13 +365,13 @@ function Browse({ serverId, noun, onInstalled }: { serverId: string; noun: strin
                   {hit.title}
                 </button>
                 <p className="text-xs text-muted">
-                  von {hit.author} · {compact(hit.downloads)} Downloads
+                  {t("von")} {hit.author} · {compact(hit.downloads)} {t("Downloads")}
                 </p>
                 <p className="mt-1.5 line-clamp-2 text-xs text-ink/70">{hit.description}</p>
               </div>
               <Button size="sm" variant="primary" loading={installing === hit.project_id} onClick={() => install(hit.project_id)}>
                 <Download className="h-3.5 w-3.5" />
-                Installieren
+                {t("Installieren")}
               </Button>
             </Card>
           ))}
@@ -384,13 +385,13 @@ function Browse({ serverId, noun, onInstalled }: { serverId: string; noun: strin
 function DetailDialog({ serverId, project, installing, onClose, onInstall }: { serverId: string; project: string | null; installing: boolean; onClose: () => void; onInstall: (project: string, versionId?: string) => void }) {
   const { data, error } = useApi<ProjectDetail>(project ? `/servers/${serverId}/modrinth/project/${encodeURIComponent(project)}` : null);
   return (
-    <Dialog open={!!project} onClose={onClose} title={data?.project.title ?? "Wird geladen"} description={data?.project.description} wide>
+    <Dialog open={!!project} onClose={onClose} title={data?.project.title ?? t("Wird geladen")} description={data?.project.description} wide>
       {error ? (
         <p className="text-sm text-bad">{error.message}</p>
       ) : !data ? (
         <Loading />
       ) : data.versions.length === 0 ? (
-        <p className="text-sm text-muted">Es gibt keine Version, die zu dieser Software und Spielversion passt.</p>
+        <p className="text-sm text-muted">{t("Es gibt keine Version, die zu dieser Software und Spielversion passt.")}</p>
       ) : (
         <div className="max-h-[50vh] divide-y divide-white/[0.05] overflow-y-auto rounded-lg border border-white/[0.07]">
           {data.versions.slice(0, 40).map((version) => (
@@ -398,12 +399,12 @@ function DetailDialog({ serverId, project, installing, onClose, onInstall }: { s
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{version.versionNumber}</p>
                 <p className="truncate text-xs text-muted">
-                  {version.name} · {new Date(version.published).toLocaleDateString("de-DE")}
+                  {version.name} · {new Date(version.published).toLocaleDateString(locale())}
                 </p>
               </div>
               <Badge tone={version.type === "release" ? "good" : "warn"}>{version.type}</Badge>
               <Button size="sm" disabled={installing} onClick={() => onInstall(data.project.id, version.id)}>
-                Installieren
+                {t("Installieren")}
               </Button>
             </div>
           ))}

@@ -7,6 +7,7 @@ import { LodestoneLogo } from "@/components/ui/mc";
 import { Badge, Button, Card, Dot } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import type { PublicStatus } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 /** Öffentliche Statusseite eines Projekts, ohne Anmeldung. Aufruf: /status/?p=<Kürzel>, mit &embed=1 ohne Rahmen. */
 export default function StatusPage() {
@@ -62,11 +63,11 @@ function StatusView() {
         {missing && !status ? (
           <Card className="p-8 text-center">
             <p className="text-sm text-muted">404</p>
-            <h1 className="mt-1 text-xl font-semibold">Diese Statusseite gibt es nicht</h1>
-            <p className="mt-2 text-sm text-muted">Sie ist nicht veröffentlicht oder der Link stimmt nicht.</p>
+            <h1 className="mt-1 text-xl font-semibold">{t("Diese Statusseite gibt es nicht")}</h1>
+            <p className="mt-2 text-sm text-muted">{t("Sie ist nicht veröffentlicht oder der Link stimmt nicht.")}</p>
           </Card>
         ) : !status ? (
-          <p className="text-center text-sm text-muted">Wird geladen</p>
+          <p className="text-center text-sm text-muted">{t("Wird geladen")}</p>
         ) : (
           <Card>
             <div className="flex items-center gap-3 border-b border-white/[0.06] p-5">
@@ -83,14 +84,14 @@ function StatusView() {
 
             <div className="grid grid-cols-2 gap-px bg-white/[0.05]">
               <div className="bg-surface p-5">
-                <p className="text-xs text-muted">Spieler</p>
+                <p className="text-xs text-muted">{t("Spieler")}</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums">
                   {status.online ? status.players : "–"}
                   {status.online && status.maxPlayers ? <span className="text-base font-normal text-muted"> / {status.maxPlayers}</span> : null}
                 </p>
               </div>
               <div className="bg-surface p-5">
-                <p className="text-xs text-muted">Version</p>
+                <p className="text-xs text-muted">{t("Version")}</p>
                 <p className="mt-1 truncate text-2xl font-semibold">{status.version || "–"}</p>
               </div>
             </div>
@@ -100,7 +101,7 @@ function StatusView() {
                 <code className="min-w-0 flex-1 truncate rounded-md bg-black/30 px-3 py-2 font-mono text-sm">{status.address}</code>
                 <Button size="sm" onClick={copy}>
                   {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? "Kopiert" : "Kopieren"}
+                  {copied ? t("Kopiert") : t("Kopieren")}
                 </Button>
               </div>
             )}
@@ -111,14 +112,14 @@ function StatusView() {
                   <li key={server.name} className="flex items-center gap-3 px-5 py-2.5 text-sm">
                     <Dot tone={server.online ? "good" : "bad"} />
                     <span className="min-w-0 flex-1 truncate">{server.name}</span>
-                    <span className="text-xs tabular-nums text-muted">{server.online ? `${server.players}${server.maxPlayers ? ` / ${server.maxPlayers}` : ""} Spieler` : "offline"}</span>
+                    <span className="text-xs tabular-nums text-muted">{server.online ? t("{players} Spieler", { players: server.maxPlayers ? `${server.players} / ${server.maxPlayers}` : server.players }) : "offline"}</span>
                   </li>
                 ))}
               </ul>
             )}
           </Card>
         )}
-        {!embed && status && <p className="mt-4 text-center text-[11px] text-muted/70">Angetrieben von Lodestone</p>}
+        {!embed && status && <p className="mt-4 text-center text-[11px] text-muted/70">{t("Angetrieben von Lodestone")}</p>}
       </div>
     </main>
   );

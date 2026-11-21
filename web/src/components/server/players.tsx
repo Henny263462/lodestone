@@ -11,14 +11,15 @@ import { useApi } from "@/lib/api";
 import { usePoll } from "@/lib/live";
 import { ago } from "@/lib/format";
 import type { Metrics, PlayerInfo, Range, SeenPlayer, Server } from "@/lib/types";
+import { formatNumber, t } from "@/lib/i18n";
 
 function playtime(seconds: number): string {
-  if (seconds < 60) return "<1 Min";
+  if (seconds < 60) return t("<1 Min");
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-  if (hours >= 24) return `${Math.floor(hours / 24)} T ${hours % 24} Std`;
-  if (hours > 0) return `${hours} Std ${minutes % 60} Min`;
-  return `${minutes} Min`;
+  if (hours >= 24) return t("{floor} T {value} Std", { floor: Math.floor(hours / 24), value: hours % 24 });
+  if (hours > 0) return t("{hours} Std {value} Min", { hours, value: minutes % 60 });
+  return t("{minutes} Min", { minutes });
 }
 
 function Head({ name, size = 28 }: { name: string; size?: number }) {
@@ -48,29 +49,29 @@ export function PlayersTab({ server, canOperate = false }: { server: Server; can
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Jetzt online" value={running ? `${info?.online ?? metrics.data.players}${info?.max ? ` / ${info.max}` : ""}` : "–"} icon={<Users className="h-4 w-4" />} tone={running ? "green" : "neutral"} hint={running ? undefined : "Der Server läuft nicht"} />
-        <StatCard label="Spitze im Zeitraum" value={series.samples ? series.peakPlayers : "–"} icon={<Users className="h-4 w-4" />} tone="amber" hint={series.samples ? `Ø ${series.avgPlayers.toFixed(1).replace(".", ",")} gleichzeitig` : undefined} />
-        <StatCard label="Verschiedene Spieler" value={seen.length || "–"} icon={<Users className="h-4 w-4" />} tone="violet" hint="seit der ersten Messung" />
-        <StatCard label="Antwortzeit" value={info ? `${info.latencyMs} ms` : "–"} icon={<Gauge className="h-4 w-4" />} tone="blue" hint={info?.version} />
+        <StatCard label={t("Jetzt online")} value={running ? `${info?.online ?? metrics.data.players}${info?.max ? ` / ${info.max}` : ""}` : "–"} icon={<Users className="h-4 w-4" />} tone={running ? "green" : "neutral"} hint={running ? undefined : t("Der Server läuft nicht")} />
+        <StatCard label={t("Spitze im Zeitraum")} value={series.samples ? series.peakPlayers : "–"} icon={<Users className="h-4 w-4" />} tone="amber" hint={series.samples ? t("Ø {average} gleichzeitig", { average: formatNumber(series.avgPlayers, 1) }) : undefined} />
+        <StatCard label={t("Verschiedene Spieler")} value={seen.length || "–"} icon={<Users className="h-4 w-4" />} tone="violet" hint={t("seit der ersten Messung")} />
+        <StatCard label={t("Antwortzeit")} value={info ? `${info.latencyMs} ms` : "–"} icon={<Gauge className="h-4 w-4" />} tone="blue" hint={info?.version} />
       </div>
 
       <div className="flex justify-end">
         <RangeTabs value={range} onChange={setRange} />
       </div>
-      <ChartCard title="Spieler im Verlauf" empty={series.samples === 0}>
-        <SeriesChart times={series.times} series={[{ name: "Spieler", color: "#f59e0b", values: series.players }]} long={range === "24h" || range === "7d"} format={(value) => String(Math.round(value))} />
+      <ChartCard title={t("Spieler im Verlauf")} empty={series.samples === 0}>
+        <SeriesChart times={series.times} series={[{ name: t("Spieler"), color: "#f59e0b", values: series.players }]} long={range === "24h" || range === "7d"} format={(value) => String(Math.round(value))} />
       </ChartCard>
 
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
-          <CardHeader title="Online" description={info?.motd ? `MOTD: ${info.motd}` : undefined} />
+          <CardHeader title="Online" description={info?.motd ? t("MOTD: {motd}", { motd: info.motd }) : undefined} />
           {!running ? (
-            <EmptyState icon={<Users className="h-6 w-6" />} title="Der Server läuft nicht" />
+            <EmptyState icon={<Users className="h-6 w-6" />} title={t("Der Server läuft nicht")} />
           ) : !info || info.names.length === 0 ? (
             <EmptyState
               icon={<Users className="h-6 w-6" />}
-              title={info && info.online > 0 ? `${info.online} Spieler online` : "Niemand online"}
-              text={isProxy && info && info.online > 0 ? "Der Proxy nennt keine Namen – schau bei den Servern dahinter." : info && info.online > 0 ? "Der Server nennt ihre Namen nicht." : undefined}
+              title={info && info.online > 0 ? t("{online} Spieler online", { online: info.online }) : t("Niemand online")}
+              text={isProxy && info && info.online > 0 ? t("Der Proxy nennt keine Namen – schau bei den Servern dahinter.") : info && info.online > 0 ? t("Der Server nennt ihre Namen nicht.") : undefined}
             />
           ) : (
             <div className="grid gap-2 p-5 sm:grid-cols-2">
@@ -86,17 +87,17 @@ export function PlayersTab({ server, canOperate = false }: { server: Server; can
         </Card>
 
         <Card>
-          <CardHeader title="Zuletzt gesehen" description={seen.length ? `Gesamt ${playtime(totalSeconds)} Spielzeit` : undefined} />
+          <CardHeader title={t("Zuletzt gesehen")} description={seen.length ? t("Gesamt {playtime} Spielzeit", { playtime: playtime(totalSeconds) }) : undefined} />
           {seen.length === 0 ? (
-            <EmptyState icon={<Clock className="h-6 w-6" />} title="Noch keine Spieler erfasst" text="Namen werden erfasst, solange der Server sie bei der Abfrage nennt." />
+            <EmptyState icon={<Clock className="h-6 w-6" />} title={t("Noch keine Spieler erfasst")} text={t("Namen werden erfasst, solange der Server sie bei der Abfrage nennt.")} />
           ) : (
             <div className="max-h-[420px] divide-y divide-white/[0.05] overflow-y-auto">
               {seen.map((player) => (
                 <div key={player.name} className="flex items-center gap-3 px-5 py-2.5">
                   <Head name={player.name} size={24} />
                   <span className="min-w-0 flex-1 truncate text-sm">{player.name}</span>
-                  {player.online ? <Badge tone="good">online</Badge> : <span className="text-xs text-muted">{ago(player.lastSeen)}</span>}
-                  <span className="w-20 text-right text-xs tabular-nums text-muted" title="Spielzeit (aus den Messungen)">
+                  {player.online ? <Badge tone="good">{t("online")}</Badge> : <span className="text-xs text-muted">{ago(player.lastSeen)}</span>}
+                  <span className="w-20 text-right text-xs tabular-nums text-muted" title={t("Spielzeit (aus den Messungen)")}>
                     {playtime(player.seconds)}
                   </span>
                 </div>

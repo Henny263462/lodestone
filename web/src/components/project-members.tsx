@@ -9,6 +9,7 @@ import { useUser } from "@/components/layout/shell";
 import { PixelAvatar } from "@/components/ui/mc";
 import { api, useApi } from "@/lib/api";
 import { can, roleLabel, roleRank, type Member, type Project, type Role } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 /** Tab „Mitglieder“: wer im Projekt ist, mit welcher Rolle, und angepasste Rechte. */
 export function MembersTab({ project, refresh }: { project: Project; refresh: () => void }) {
@@ -23,29 +24,29 @@ export function MembersTab({ project, refresh }: { project: Project; refresh: ()
 
   async function setRole(member: Member, role: Role) {
     // Eine neue Rolle setzt die Rechte auf ihre Vorlage zurück
-    await toast.run(() => api.put(`/projects/${project.id}/members/${member.userId}`, { role }), member.customPermissions ? "Rolle geändert, Rechte folgen jetzt der Vorlage" : "Rolle geändert");
+    await toast.run(() => api.put(`/projects/${project.id}/members/${member.userId}`, { role }), member.customPermissions ? t("Rolle geändert, Rechte folgen jetzt der Vorlage") : t("Rolle geändert"));
     refresh();
   }
 
   return (
     <Card>
       <CardHeader
-        title="Mitglieder"
-        description="Die Rolle ist eine Vorlage für Rechte. Unter „Rechte“ passt du sie für einzelne Mitglieder an."
+        title={t("Mitglieder")}
+        description={t("Die Rolle ist eine Vorlage für Rechte. Unter „Rechte“ passt du sie für einzelne Mitglieder an.")}
         action={
           canManage && (
             <Button size="sm" onClick={() => setAdding(true)}>
               <UserPlus className="h-3.5 w-3.5" />
-              Hinzufügen
+              {t("Hinzufügen")}
             </Button>
           )
         }
       />
       <p className="border-b border-white/[0.06] px-5 py-3 text-xs text-muted">
-        Betrachter sehen Konsole und Spieler, Operatoren steuern Server und Dateien, Admins ändern Einstellungen, Eigentümer verwalten das Projekt.
+        {t("Betrachter sehen Konsole und Spieler, Operatoren steuern Server und Dateien, Admins ändern Einstellungen, Eigentümer verwalten das Projekt.")}
       </p>
       {members.length === 0 ? (
-        <EmptyState icon={<UserPlus className="h-6 w-6" />} title="Noch keine Mitglieder" text="Füge Benutzer hinzu, damit sie das Projekt sehen und bedienen können." />
+        <EmptyState icon={<UserPlus className="h-6 w-6" />} title={t("Noch keine Mitglieder")} text={t("Füge Benutzer hinzu, damit sie das Projekt sehen und bedienen können.")} />
       ) : (
         <div className="divide-y divide-white/[0.05]">
           {members.map((member) => (
@@ -53,24 +54,24 @@ export function MembersTab({ project, refresh }: { project: Project; refresh: ()
               <PixelAvatar name={member.username} size={32} />
               <p className="min-w-0 flex-1 truncate text-sm">
                 {member.username}
-                {member.userId === user.id && <span className="ml-2 text-xs text-muted">(du)</span>}
+                {member.userId === user.id && <span className="ml-2 text-xs text-muted">{t("(du)")}</span>}
               </p>
-              {member.customPermissions && <Badge tone="accent">Angepasst</Badge>}
+              {member.customPermissions && <Badge tone="accent">{t("Angepasst")}</Badge>}
               {member.role !== "owner" && (editable(member) || member.userId === user.id) && (
-                <Button size="sm" variant="ghost" onClick={() => setRights(member)} title={editable(member) ? "Rechte anpassen" : "Rechte ansehen"}>
+                <Button size="sm" variant="ghost" onClick={() => setRights(member)} title={editable(member) ? t("Rechte anpassen") : t("Rechte ansehen")}>
                   <SlidersHorizontal className="h-3.5 w-3.5" />
-                  Rechte
+                  {t("Rechte")}
                 </Button>
               )}
-              <select className="field w-36" aria-label={`Rolle von ${member.username}`} value={member.role} disabled={!editable(member)} onChange={(event) => setRole(member, event.target.value as Role)}>
-                {(Object.keys(roleLabel) as Role[]).map((role) => (
+              <select className="field w-36" aria-label={t("Rolle von {username}", { username: member.username })} value={member.role} disabled={!editable(member)} onChange={(event) => setRole(member, event.target.value as Role)}>
+                {(Object.keys(roleLabel()) as Role[]).map((role) => (
                   <option key={role} value={role} disabled={roleRank[role] > roleRank[project.myRole]}>
-                    {roleLabel[role]}
+                    {roleLabel()[role]}
                   </option>
                 ))}
               </select>
               {(canManage || member.userId === user.id) && (
-                <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(member)} aria-label={member.userId === user.id ? "Projekt verlassen" : `${member.username} entfernen`} title={member.userId === user.id ? "Projekt verlassen" : "Entfernen"}>
+                <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(member)} aria-label={member.userId === user.id ? t("Projekt verlassen") : `${member.username} entfernen`} title={member.userId === user.id ? t("Projekt verlassen") : t("Entfernen")}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
@@ -83,14 +84,14 @@ export function MembersTab({ project, refresh }: { project: Project; refresh: ()
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
-        title={removing?.userId === user.id ? "Projekt verlassen?" : `${removing?.username ?? "Mitglied"} entfernen?`}
-        text={removing ? `${removing.userId === user.id ? "Du verlierst" : `${removing.username} verliert`} den Zugriff auf dieses Projekt und seine Server.` : ""}
-        confirm={removing?.userId === user.id ? "Verlassen" : "Entfernen"}
+        title={removing?.userId === user.id ? t("Projekt verlassen?") : `${removing?.username ?? t("Mitglied")} entfernen?`}
+        text={removing ? removing.userId === user.id ? t("Du verlierst den Zugriff auf dieses Projekt und seine Server.") : t("{name} verliert den Zugriff auf dieses Projekt und seine Server.", { name: removing.username }) : ""}
+        confirm={removing?.userId === user.id ? t("Verlassen") : t("Entfernen")}
         danger
         onConfirm={async () => {
           if (!removing) return;
           const leaving = removing.userId === user.id;
-          const ok = await toast.run(() => api.delete(`/projects/${project.id}/members/${removing.userId}`), leaving ? "Projekt verlassen" : "Mitglied entfernt");
+          const ok = await toast.run(() => api.delete(`/projects/${project.id}/members/${removing.userId}`), leaving ? t("Projekt verlassen") : t("Mitglied entfernt"));
           if (ok && leaving) window.location.replace("/");
           refresh();
         }}
@@ -112,11 +113,11 @@ function AddMemberDialog({ project, open, onClose, onDone }: { project: Project;
     <Dialog
       open={open}
       onClose={onClose}
-      title="Mitglied hinzufügen"
+      title={t("Mitglied hinzufügen")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button
             variant="primary"
@@ -124,7 +125,7 @@ function AddMemberDialog({ project, open, onClose, onDone }: { project: Project;
             disabled={!userId}
             onClick={async () => {
               setBusy(true);
-              const ok = await toast.run(() => api.put(`/projects/${project.id}/members/${userId}`, { role }), "Mitglied hinzugefügt");
+              const ok = await toast.run(() => api.put(`/projects/${project.id}/members/${userId}`, { role }), t("Mitglied hinzugefügt"));
               setBusy(false);
               if (ok) {
                 setUserId("");
@@ -133,15 +134,15 @@ function AddMemberDialog({ project, open, onClose, onDone }: { project: Project;
               }
             }}
           >
-            Hinzufügen
+            {t("Hinzufügen")}
           </Button>
         </>
       }
     >
       <div>
-        <label className="label">Benutzer</label>
+        <label className="label">{t("Benutzer")}</label>
         <select className="field" value={userId} onChange={(event) => setUserId(event.target.value)} disabled={!users}>
-          <option value="">{users ? "Auswählen …" : "Benutzer werden geladen …"}</option>
+          <option value="">{users ? t("Auswählen …") : t("Benutzer werden geladen …")}</option>
           {choices.map((candidate) => (
             <option key={candidate.id} value={candidate.id}>
               {candidate.username}
@@ -149,14 +150,14 @@ function AddMemberDialog({ project, open, onClose, onDone }: { project: Project;
           ))}
         </select>
         {error && <p className="mt-1.5 text-xs text-bad">{error.message}</p>}
-        {users && choices.length === 0 && <p className="mt-1.5 text-xs text-muted">Alle Benutzer sind schon Mitglied. Neue Benutzer legt ein Administrator unter „Benutzer“ an.</p>}
+        {users && choices.length === 0 && <p className="mt-1.5 text-xs text-muted">{t("Alle Benutzer sind schon Mitglied. Neue Benutzer legt ein Administrator unter „Benutzer“ an.")}</p>}
       </div>
       <div>
-        <label className="label">Rolle</label>
+        <label className="label">{t("Rolle")}</label>
         <select className="field" value={role} onChange={(event) => setRole(event.target.value as Role)}>
-          {(Object.keys(roleLabel) as Role[]).map((value) => (
+          {(Object.keys(roleLabel()) as Role[]).map((value) => (
             <option key={value} value={value} disabled={roleRank[value] > roleRank[project.myRole]}>
-              {roleLabel[value]}
+              {roleLabel()[value]}
             </option>
           ))}
         </select>

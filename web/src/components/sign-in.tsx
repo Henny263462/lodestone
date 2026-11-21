@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/primitives";
 import { api, apiBase } from "@/lib/api";
 import type { AuthStatus, PasskeyAssertionOptions, PasskeyCeremony } from "@/lib/types";
 import { getPasskey, passkeyErrorText, passkeysSupported } from "@/lib/webauthn";
+import { t } from "@/lib/i18n";
 
 /** Ob dieser Browser Passkeys kann; erst nach dem Laden bekannt (beim Bauen gibt es kein window). */
 export function usePasskeySupport(): boolean {
@@ -40,7 +41,7 @@ export function SignInOptions({ status, divider, next, onError }: { status: Auth
       {divider && (
         <div className="flex items-center gap-3 text-[11px] text-muted">
           <span className="h-px flex-1 bg-white/[0.06]" />
-          oder
+          {t("oder")}
           <span className="h-px flex-1 bg-white/[0.06]" />
         </div>
       )}
@@ -57,13 +58,13 @@ export function SignInOptions({ status, divider, next, onError }: { status: Auth
           }}
         >
           {busy !== "oidc" && <LogIn className="h-4 w-4" />}
-          Mit {status.oidc.name} anmelden
+          {t("Mit {name} anmelden", { name: status.oidc.name })}
         </Button>
       )}
       {showPasskey && (
         <Button type="button" size="lg" className="w-full" loading={busy === "passkey"} disabled={busy !== null} onClick={passkeyLogin}>
           {busy !== "passkey" && <Fingerprint className="h-4 w-4" />}
-          Mit Passkey anmelden
+          {t("Mit Passkey anmelden")}
         </Button>
       )}
     </div>
@@ -75,7 +76,7 @@ export function PasskeySecondFactor({ ticket, next, onError }: { ticket: string;
   const supported = usePasskeySupport();
   const [busy, setBusy] = useState(false);
   if (!supported) {
-    return <p className="text-xs text-muted">Dein Konto hat einen Passkey, aber dieser Browser kann ihn hier nicht benutzen. Öffne das Panel über HTTPS.</p>;
+    return <p className="text-xs text-muted">{t("Dein Konto hat einen Passkey, aber dieser Browser kann ihn hier nicht benutzen. Öffne das Panel über HTTPS.")}</p>;
   }
   return (
     <Button
@@ -98,7 +99,7 @@ export function PasskeySecondFactor({ ticket, next, onError }: { ticket: string;
       }}
     >
       {!busy && <Fingerprint className="h-4 w-4" />}
-      Mit Passkey bestätigen
+      {t("Mit Passkey bestätigen")}
     </Button>
   );
 }

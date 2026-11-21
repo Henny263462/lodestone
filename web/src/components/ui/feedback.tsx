@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Context, type ReactNode } from "react";
 import { ApiError } from "@/lib/api";
 import { Button, cx, usePresence } from "./primitives";
+import { t } from "@/lib/i18n";
 
 // ---------------------------------------------------------------- Meldungen
 
@@ -79,7 +80,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           if (success) push("good", success);
           return true;
         } catch (error) {
-          push("bad", error instanceof ApiError || error instanceof Error ? error.message : "Unbekannter Fehler");
+          push("bad", error instanceof ApiError || error instanceof Error ? error.message : t("Unbekannter Fehler"));
           return false;
         }
       },
@@ -96,7 +97,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             role={toast.tone === "bad" ? "alert" : "status"}
             onClick={() => dismiss(toast.id)}
-            title="Schließen"
+            title={t("Schließen")}
             className={cx(
               "pointer-events-auto flex cursor-pointer items-start gap-3 rounded-lg border bg-raised px-4 py-3 text-sm shadow-2xl shadow-black/50",
               toast.tone === "good" ? "border-good/40" : "border-bad/40",
@@ -168,7 +169,7 @@ export function Dialog({
             <h3 className="text-base font-semibold">{content.title}</h3>
             {content.description && <p className="mt-0.5 text-xs text-muted">{content.description}</p>}
           </div>
-          <button onClick={onClose} className="rounded-md p-1 text-muted transition duration-100 hover:bg-raised hover:text-ink active:scale-90" aria-label="Schließen">
+          <button onClick={onClose} className="rounded-md p-1 text-muted transition duration-100 hover:bg-raised hover:text-ink active:scale-90" aria-label={t("Schließen")}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -186,7 +187,7 @@ export function ConfirmDialog({
   onConfirm,
   title,
   text,
-  confirm = "Bestätigen",
+  confirm = t("Bestätigen"),
   danger,
 }: {
   open: boolean;
@@ -206,7 +207,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button
             variant={danger ? "danger" : "primary"}

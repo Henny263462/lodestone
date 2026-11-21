@@ -8,6 +8,7 @@ import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { ErrorState, Loading } from "@/components/ui/async";
 import { api, useApi } from "@/lib/api";
 import type { BlockInfo, Server } from "@/lib/types";
+import { t, tx } from "@/lib/i18n";
 
 const icons = { geyser: Smartphone, bluemap: MapIcon };
 
@@ -21,18 +22,18 @@ export function BlocksTab({ server, canManage, offline }: { server: Server; canM
 
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!data) return <Loading />;
-  if (data.length === 0) return <Card><EmptyState icon={<Blocks className="h-6 w-6" />} title="Noch keine Bausteine" text="Für diese Software gibt es keine Bausteine." /></Card>;
+  if (data.length === 0) return <Card><EmptyState icon={<Blocks className="h-6 w-6" />} title={t("Noch keine Bausteine")} text={t("Für diese Software gibt es keine Bausteine.")} /></Card>;
 
   async function change(block: BlockInfo, enabled: boolean) {
     setBusy(block.id);
-    const ok = await toast.run(() => api.put(`/servers/${server.id}/blocks/${block.id}`, { enabled }), enabled ? `${block.name} ist eingerichtet – starte den Server` : `${block.name} ist ausgeschaltet`);
+    const ok = await toast.run(() => api.put(`/servers/${server.id}/blocks/${block.id}`, { enabled }), enabled ? t("{name} ist eingerichtet – starte den Server", { name: block.name }) : t("{name} ist ausgeschaltet", { name: block.name }));
     setBusy(null);
     if (ok) mutate();
   }
 
   return (
     <div className="space-y-4">
-      {!offline && canManage && <p className="rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-xs text-info">Bausteine bekommen eigene Ports. Schalte den Server aus, um sie ein- oder auszuschalten.</p>}
+      {!offline && canManage && <p className="rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-xs text-info">{t("Bausteine bekommen eigene Ports. Schalte den Server aus, um sie ein- oder auszuschalten.")}</p>}
       {data.map((block) => {
         const Icon = icons[block.id] ?? Blocks;
         const switchable = canManage && block.available && !block.managed && offline && busy === null;
@@ -40,10 +41,10 @@ export function BlocksTab({ server, canManage, offline }: { server: Server; canM
           <Card key={block.id}>
             <CardHeader
               title={block.name}
-              description={block.description}
+              description={tx(block.description)}
               action={
                 <div className="flex items-center gap-2">
-                  {block.enabled ? <Badge tone="good">Aktiv</Badge> : <Badge>Aus</Badge>}
+                  {block.enabled ? <Badge tone="good">{t("Aktiv")}</Badge> : <Badge>{t("Aus")}</Badge>}
                   <Switch checked={block.enabled} disabled={!switchable} onChange={(value) => (value ? change(block, true) : setDisable(block))} />
                 </div>
               }
@@ -52,30 +53,30 @@ export function BlocksTab({ server, canManage, offline }: { server: Server; canM
               <Icon className="h-4 w-4 shrink-0" />
               {block.managed === "network" ? (
                 <span>
-                  {block.reason}{" "}
+                  {block.reason && tx(block.reason)}{" "}
                   <Link className="text-accent hover:underline" href={`/project/?id=${server.projectId}`}>
-                    Zum Netzwerk
+                    {t("Zum Netzwerk")}
                   </Link>
                 </span>
               ) : !block.available ? (
-                <span>{block.reason}</span>
+                <span>{block.reason && tx(block.reason)}</span>
               ) : block.enabled ? (
                 <>
                   {block.address && (
                     <span>
-                      Bedrock-Adresse: <code className="rounded bg-black/30 px-2 py-0.5 text-ink">{block.address}</code> (TCP und UDP freigeben)
+                      {t("Bedrock-Adresse:")} <code className="rounded bg-black/30 px-2 py-0.5 text-ink">{block.address}</code> {t("(TCP und UDP freigeben)")}
                     </span>
                   )}
                   {block.url && (
                     <a className="inline-flex items-center gap-1 text-accent hover:underline" href={block.url} target="_blank" rel="noreferrer">
                       <ExternalLink className="h-3 w-3" />
-                      Karte öffnen
+                      {t("Karte öffnen")}
                     </a>
                   )}
-                  {!block.address && !block.url && <span>Eingeschaltet. Die Adresse erscheint, sobald der Node eine öffentliche Adresse hat.</span>}
+                  {!block.address && !block.url && <span>{t("Eingeschaltet. Die Adresse erscheint, sobald der Node eine öffentliche Adresse hat.")}</span>}
                 </>
               ) : (
-                <span>{canManage ? "Beim Einschalten lädt Lodestone die Dateien und richtet Port und Konfiguration ein." : "Einschalten kann, wer die Rechte „Einstellungen“ und „Plugins und Mods“ hat."}</span>
+                <span>{canManage ? t("Beim Einschalten lädt Lodestone die Dateien und richtet Port und Konfiguration ein.") : t("Einschalten kann, wer die Rechte „Einstellungen“ und „Plugins und Mods“ hat.")}</span>
               )}
             </div>
           </Card>
@@ -84,9 +85,9 @@ export function BlocksTab({ server, canManage, offline }: { server: Server; canM
       <ConfirmDialog
         open={!!disable}
         onClose={() => setDisable(null)}
-        title={`„${disable?.name ?? ""}“ ausschalten?`}
-        text="Lodestone löscht die Dateien, die es dafür geladen hat, und schließt den Port. Konfiguration und Daten (zum Beispiel die gerenderte Karte) bleiben im Serverordner."
-        confirm="Ausschalten"
+        title={t("„{value}“ ausschalten?", { value: disable?.name ?? "" })}
+        text={t("Lodestone löscht die Dateien, die es dafür geladen hat, und schließt den Port. Konfiguration und Daten (zum Beispiel die gerenderte Karte) bleiben im Serverordner.")}
+        confirm={t("Ausschalten")}
         danger
         onConfirm={async () => {
           if (disable) await change(disable, false);

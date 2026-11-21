@@ -149,6 +149,8 @@ Fehlt dir ein Baustein: erst prüfen, ob sich der Bedarf mit den vorhandenen lö
 | Eigener Lade-Kringel oder „Loading…“ | `<Loading />` |
 | Leere Fläche, wenn es nichts gibt | `<EmptyState icon title text />` |
 | Englische Texte („Save“, „Delete“, „Error“) | „Speichern“, „Löschen“, Meldung mit Ursache und Lösung |
+| Fester Text im JSX: `<Button>Speichern</Button>`, `title="Backups löschen"` | `<Button>{t("Speichern")}</Button>`, `title={t("Backups löschen")}` – und „Save“ … in `lib/messages/en.ts` |
+| Englisch direkt in eine Seite schreiben, um „schnell zu übersetzen“ | Deutsch in `t()`, Englisch nur im Wörterbuch |
 | Neues Icon-Set, Emoji | `lucide-react` |
 | `style={{ color: "#3b82f6" }}` | `text-accent` |
 | Heller Hintergrund, Dark/Light-Umschalter | Es gibt nur das dunkle Design |

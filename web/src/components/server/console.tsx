@@ -8,6 +8,7 @@ import { analyse } from "@/lib/crash";
 import { CrashReportHint } from "@/components/server/crash-analysis";
 import { ansiStrip, bytes, stateLabel, stateTone } from "@/lib/format";
 import type { LogLine, ServerState, Stats } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 const MAX_LINES = 1500;
 
@@ -125,7 +126,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
             setStats(event.stats);
             break;
           case "error":
-            setError(event.error ?? "Der Befehl konnte nicht ausgeführt werden.");
+            setError(event.error ?? t("Der Befehl konnte nicht ausgeführt werden."));
             setTimeout(() => setError(null), 5000);
             break;
         }
@@ -196,9 +197,9 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
         <div className="flex items-center gap-2">
           <Badge tone={tn === "neutral" ? "neutral" : tn}>
             <Dot tone={tn} />
-            {state ? stateLabel[state] : "…"}
+            {state ? stateLabel(state) : "…"}
           </Badge>
-          {!connected && <Badge tone="warn">Verbindung wird aufgebaut</Badge>}
+          {!connected && <Badge tone="warn">{t("Verbindung wird aufgebaut")}</Badge>}
         </div>
         {stats && running && (
           <div className="flex gap-4 text-xs text-muted">
@@ -229,7 +230,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
                 <p className="font-medium text-ink">{hint.title}</p>
                 <p className="mt-0.5 leading-relaxed text-ink/70">{hint.text}</p>
               </div>
-              <button onClick={() => setDismissed((current) => [...current, hint.id])} className="rounded p-1 text-muted hover:bg-white/[0.08] hover:text-ink" aria-label="Ausblenden">
+              <button onClick={() => setDismissed((current) => [...current, hint.id])} className="rounded p-1 text-muted hover:bg-white/[0.08] hover:text-ink" aria-label={t("Ausblenden")}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -240,9 +241,9 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
       <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-2">
         <div className="flex min-w-[180px] flex-1 items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5">
           <Search className="h-3.5 w-3.5 shrink-0 text-muted" />
-          <input className="h-8 w-full bg-transparent text-xs outline-none placeholder:text-muted/60" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="In der Konsole suchen" />
+          <input className="h-8 w-full bg-transparent text-xs outline-none placeholder:text-muted/60" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("In der Konsole suchen")} />
           {filter && (
-            <button onClick={() => setFilter("")} className="text-muted hover:text-ink" aria-label="Suche löschen">
+            <button onClick={() => setFilter("")} className="text-muted hover:text-ink" aria-label={t("Suche löschen")}>
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -257,14 +258,14 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
           </button>
         ))}
         {canCommand && (
-          <a href={downloadUrl(`/servers/${serverId}/files/download?path=logs/latest.log`)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-white/[0.09] px-3 text-xs text-muted transition hover:border-white/[0.18] hover:text-ink" title="Die Datei logs/latest.log des Servers herunterladen">
+          <a href={downloadUrl(`/servers/${serverId}/files/download?path=logs/latest.log`)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-white/[0.09] px-3 text-xs text-muted transition hover:border-white/[0.18] hover:text-ink" title={t("Die Datei logs/latest.log des Servers herunterladen")}>
             <Download className="h-3.5 w-3.5" />
             Log
           </a>
         )}
         {filter && (
           <span className="text-[11px] text-muted">
-            {visible.length} von {lines.length} Zeilen
+            {visible.length} {t("von")} {lines.length} {t("Zeilen")}
           </span>
         )}
       </div>
@@ -278,7 +279,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
           }}
           className="console-text h-[min(62vh,640px)] min-h-[320px] overflow-y-auto bg-black/40 px-4 py-3 text-zinc-200"
         >
-          {lines.length === 0 ? <p className="text-muted">Noch keine Ausgabe. Starte den Server, um die Konsole zu sehen.</p> : <Fragment>{rendered}</Fragment>}
+          {lines.length === 0 ? <p className="text-muted">{t("Noch keine Ausgabe. Starte den Server, um die Konsole zu sehen.")}</p> : <Fragment>{rendered}</Fragment>}
         </div>
         {!follow && (
           <button
@@ -286,7 +287,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
             className="absolute bottom-3 right-5 inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-raised px-3 py-1.5 text-xs shadow-lg transition hover:bg-white/[0.08]"
           >
             <ArrowDownToLine className="h-3.5 w-3.5" />
-            Nach unten
+            {t("Nach unten")}
           </button>
         )}
       </div>
@@ -295,7 +296,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
         <span className="font-mono text-sm text-muted">&gt;</span>
         <input
           className="h-9 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted/60 disabled:opacity-50"
-          placeholder={!canCommand ? "Nur lesen – Befehle brauchen die Rolle Operator" : running ? "Befehl eingeben und Enter drücken" : "Der Server läuft nicht"}
+          placeholder={!canCommand ? t("Nur lesen – Befehle brauchen die Rolle Operator") : running ? t("Befehl eingeben und Enter drücken") : t("Der Server läuft nicht")}
           value={input}
           disabled={!canCommand || !running}
           onChange={(event) => setInput(event.target.value)}
@@ -305,7 +306,7 @@ export function ConsoleTab({ serverId, canCommand, state: initialState, onState 
         />
         <Button size="sm" variant="primary" onClick={send} disabled={!canCommand || !running || !input.trim()}>
           <Send className="h-3.5 w-3.5" />
-          Senden
+          {t("Senden")}
         </Button>
       </div>
       {error && <p className="border-t border-bad/25 bg-bad/10 px-4 py-2 text-xs text-bad">{error}</p>}

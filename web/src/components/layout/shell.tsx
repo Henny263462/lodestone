@@ -13,6 +13,8 @@ import { api, prefetch, useApi } from "@/lib/api";
 import { usePoll, useLiveUpdates } from "@/lib/live";
 import { orderProjects } from "@/lib/order";
 import type { AuthStatus, Project, ProjectPref, User } from "@/lib/types";
+import { t, type LanguageChoice } from "@/lib/i18n";
+import { useUserLanguage } from "@/lib/i18n-provider";
 
 type Icon = ComponentType<{ className?: string }>;
 
@@ -46,6 +48,8 @@ export function SecondarySidebar({ children }: { children: ReactNode }) {
 /** Prüft die Anmeldung und zeigt erst dann die Oberfläche. */
 export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [language, setLanguage] = useState<LanguageChoice>();
+  useUserLanguage(language);
 
   useEffect(() => {
     // Die Projektliste braucht die Shell sofort; sie lädt parallel zur Anmeldeprüfung statt danach
@@ -58,6 +62,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           window.location.replace(`/login/?next=${next}`);
           return;
         }
+        setLanguage(status.language);
         setUser(status.user);
       })
       .catch(() => window.location.replace("/login/"));
@@ -66,7 +71,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (!user) {
     return (
       <div className="grid min-h-screen place-items-center">
-        <Loading label="Anmeldung wird geprüft" />
+        <Loading label={t("Anmeldung wird geprüft")} />
       </div>
     );
   }
@@ -162,7 +167,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
             <LodestoneLogo size={28} />
             {!compact && <Wordmark className="min-w-0 flex-1 truncate text-[12.5px]" />}
             {!compact && (
-              <button onClick={() => setOpen(false)} className="rounded-md p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink lg:hidden" aria-label="Menü schließen">
+              <button onClick={() => setOpen(false)} className="rounded-md p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink lg:hidden" aria-label={t("Menü schließen")}>
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -172,20 +177,20 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
         <nav className={cx("no-scrollbar flex-1 space-y-0.5 overflow-y-auto pb-4", compact ? "px-2" : "px-3")}>
           <button
             onClick={() => setPalette(true)}
-            title={compact ? "Suchen (Strg K)" : undefined}
+            title={compact ? t("Suchen (Strg K)") : undefined}
             className={cx("mb-2 flex w-full items-center rounded-lg border border-white/[0.07] bg-white/[0.03] text-[13px] text-muted transition hover:bg-white/[0.06] hover:text-ink", compact ? "justify-center py-2.5" : "gap-3 px-3 py-2")}
           >
             <Search className="h-4 w-4 shrink-0" />
             {!compact && (
               <>
-                <span className="flex-1 text-left">Suchen</span>
+                <span className="flex-1 text-left">{t("Suchen")}</span>
                 <kbd className="rounded border border-white/[0.1] px-1.5 text-[10px]">Strg K</kbd>
               </>
             )}
           </button>
-          {link("/", "Übersicht", LayoutDashboard, pathname === "/", compact)}
+          {link("/", t("Übersicht"), LayoutDashboard, pathname === "/", compact)}
 
-          {heading("Projekte")}
+          {heading(t("Projekte"))}
           {orderProjects(projects ?? [], prefs).map((project) =>
             link(
               `/project/?id=${project.id}`,
@@ -195,13 +200,13 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
               compact,
             ),
           )}
-          {projects && projects.length === 0 && !compact && <p className="px-3 py-1 text-xs text-muted/70">Noch keine Projekte</p>}
+          {projects && projects.length === 0 && !compact && <p className="px-3 py-1 text-xs text-muted/70">{t("Noch keine Projekte")}</p>}
 
-          {heading("Verwaltung")}
-          {link("/nodes/", "Nodes", Cpu, pathname === "/nodes/", compact)}
-          {user.isAdmin && link("/users/", "Benutzer", Users, pathname === "/users/", compact)}
-          {user.isAdmin && link("/audit/", "Protokoll", ScrollText, pathname === "/audit/", compact)}
-          {link("/account/", "Konto", UserCog, pathname === "/account/", compact)}
+          {heading(t("Verwaltung"))}
+          {link("/nodes/", t("Nodes"), Cpu, pathname === "/nodes/", compact)}
+          {user.isAdmin && link("/users/", t("Benutzer"), Users, pathname === "/users/", compact)}
+          {user.isAdmin && link("/audit/", t("Protokoll"), ScrollText, pathname === "/audit/", compact)}
+          {link("/account/", t("Konto"), UserCog, pathname === "/account/", compact)}
         </nav>
 
         <div className="border-t border-white/[0.06] p-3">
@@ -212,10 +217,10 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
             {!compact && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium">{user.username}</p>
-                {user.isAdmin && <p className="text-[10.5px] text-muted">Administrator</p>}
+                {user.isAdmin && <p className="text-[10.5px] text-muted">{t("Administrator")}</p>}
               </div>
             )}
-            <button onClick={logout} className="rounded-md p-1.5 text-muted transition hover:bg-white/[0.06] hover:text-ink" title="Abmelden" aria-label="Abmelden">
+            <button onClick={logout} className="rounded-md p-1.5 text-muted transition hover:bg-white/[0.06] hover:text-ink" title={t("Abmelden")} aria-label={t("Abmelden")}>
               <LogOut className="h-4 w-4" />
             </button>
           </div>
@@ -225,11 +230,11 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
               "mt-1 hidden w-full items-center rounded-lg py-2 text-[12px] text-muted transition hover:bg-white/[0.05] hover:text-ink lg:flex",
               compact ? "justify-center" : "gap-3 px-3",
             )}
-            title={folded ? "Seitenleiste ausklappen (Strg B)" : "Seitenleiste einklappen (Strg B)"}
-            aria-label={folded ? "Seitenleiste ausklappen" : "Seitenleiste einklappen"}
+            title={folded ? t("Seitenleiste ausklappen (Strg B)") : t("Seitenleiste einklappen (Strg B)")}
+            aria-label={folded ? t("Seitenleiste ausklappen") : t("Seitenleiste einklappen")}
           >
             {folded ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            {!compact && <span>Einklappen</span>}
+            {!compact && <span>{t("Einklappen")}</span>}
           </button>
         </div>
       </div>
@@ -255,7 +260,7 @@ function Shell({ user, children }: { user: User; children: ReactNode }) {
 
         <div className={cx("min-h-screen p-0 transition-[padding] duration-200 ease-snappy lg:h-screen lg:min-h-0 lg:p-2", folded ? "lg:pl-[68px]" : "lg:pl-[240px]")}>
           <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-white/[0.06] bg-bg/90 px-4 backdrop-blur-xl lg:hidden">
-            <button onClick={() => setOpen(true)} className="rounded-lg border border-white/[0.08] p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink" aria-label="Menü öffnen">
+            <button onClick={() => setOpen(true)} className="rounded-lg border border-white/[0.08] p-1.5 text-muted hover:bg-white/[0.06] hover:text-ink" aria-label={t("Menü öffnen")}>
               <Menu className="h-4 w-4" />
             </button>
             <LodestoneLogo size={22} />

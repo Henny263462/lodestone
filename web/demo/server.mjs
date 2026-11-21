@@ -253,7 +253,9 @@ const sessions = [
   { id: "s2", createdAt: now() - 4 * 24 * HOUR, expiresAt: now() + 26 * 24 * HOUR, userAgent: "Mozilla/5.0 (iPhone) Safari/604", ip: "203.0.113.7", current: false },
 ];
 let totpEnabled = false;
-const me = () => ({ ...user, totpEnabled, recoveryCodes: totpEnabled ? 8 : 0 });
+// Sprache der Oberfläche des Demo-Benutzers ("" = wie der Browser), wie users.language im Panel
+let language = "";
+const me = () => ({ ...user, totpEnabled, recoveryCodes: totpEnabled ? 8 : 0, language });
 const playerLists = {
   whitelist: [{ uuid: "1", name: "Alex" }, { uuid: "2", name: "Luna" }, { uuid: "3", name: "Mika" }],
   ops: [{ uuid: "1", name: "Alex", level: 4 }],
@@ -288,6 +290,13 @@ async function api(req, res, url) {
   if (a === "me") {
     if (!b) return send(res, 200, me());
     if (b === "password") return send(res, 204);
+    if (b === "language" && method === "PUT") {
+      if (!["", "de", "en"].includes(body.language)) {
+        return send(res, 400, { error: "diese Sprache gibt es nicht (erlaubt: de, en oder leer für die Sprache des Browsers)" });
+      }
+      language = body.language;
+      return send(res, 200, { language });
+    }
     if (b === "keys") {
       if (method === "POST") {
         const key = { id: id(), name: body.name || "Schlüssel", prefix: "lds_Demo", createdAt: now(), lastUsed: 0, expiresAt: body.days ? now() + body.days * 24 * HOUR : 0 };
@@ -664,6 +673,8 @@ server.listen(port, "127.0.0.1", () => console.log(`Lodestone-Demo läuft auf ht
 // --- rechte
 // Einzelrechte pro Mitglied (Spiegel von internal/panel/rechte.go). Die Demo ist immer Eigentümer; „ben“ hat angepasste Rechte.
 
+const groupIds = { Konsole: "console", Dateien: "files", Backups: "backups", Server: "server", Projekt: "project" };
+
 const permissionCatalog = [
   ["console.read", "Konsole", "Konsole lesen", "Sieht die Ausgabe der Konsole und das Protokoll des Servers.", "viewer"],
   ["console.command", "Konsole", "Befehle senden", "Schickt Befehle an die Konsole, zum Beispiel „op“ oder „stop“.", "operator"],
@@ -683,7 +694,7 @@ const permissionCatalog = [
   ["webhooks", "Projekt", "Webhooks", "Verwaltet Webhooks, etwa für Discord, und Konsolen-Auslöser.", "admin"],
   ["members", "Projekt", "Mitglieder", "Fügt Mitglieder hinzu, entfernt sie und vergibt Rollen und Rechte – nie mehr, als man selbst hat.", "admin"],
   ["network", "Projekt", "Netzwerk", "Ändert Reihenfolge, Forced Hosts, MOTD, Voicechat, Tunnel und Gruppen (mit „Server anlegen und löschen“) des Netzwerks.", "admin"],
-].map(([id, group, label, description, role]) => ({ id, group, label, description, role }));
+].map(([id, group, label, description, role]) => ({ id, groupId: groupIds[group], group, label, description, role }));
 
 const demoRanks = { viewer: 1, operator: 2, admin: 3, owner: 4 };
 const roleTemplate = (role) => permissionCatalog.filter((info) => demoRanks[role] >= demoRanks[info.role]).map((info) => info.id);
@@ -898,7 +909,7 @@ function anmeldungDemo(res, method, body, parts) {
   const [a, b, c, d] = parts;
   const rp = { id: "localhost", name: "Lodestone" };
   if (a === "auth" && b === "status") {
-    send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, timezone: "Europe/Berlin", passwordLogin: true, passkeys: true, oidc: { name: "Authentik" } });
+    send(res, 200, { setupRequired: false, version: "0.1.0-demo", user, language, timezone: "Europe/Berlin", passwordLogin: true, passkeys: true, oidc: { name: "Authentik" } });
     return true;
   }
   if (a === "auth" && b === "oidc") {

@@ -33,7 +33,8 @@ Oberfläche (`web/`):
 - [ ] `cd web && npx tsc --noEmit` sauber
 - [ ] `npx next build` läuft durch (erzeugt `out/`)
 - [ ] Vier Zustände (lädt, Fehler, leer, voll) und Rechte beachtet
-- [ ] Nur Bausteine aus `components/ui` und Design-Farben; Texte deutsch
+- [ ] Nur Bausteine aus `components/ui` und Design-Farben; Texte deutsch über `t()`, Englisch in `lib/messages/en.ts`
+- [ ] `node scripts/i18n-check.mjs` (in `web/`) sauber
 - [ ] Typen in `lib/types.ts` ergänzt, `web/demo/server.mjs` kennt die neuen Endpunkte
 - [ ] Bei neuer Hauptseite: Seitenleiste (`shell.tsx`) und Strg+K (`palette.tsx`)
 
@@ -54,7 +55,8 @@ go build ./...
 # Oberfläche
 cd web
 npm ci                      # nur wenn node_modules fehlt
-npx tsc --noEmit
+npx tsc --noEmit            # meldet auch Texte in t("…") ohne englische Übersetzung
+node scripts/i18n-check.mjs # Übersetzung: ungenutzte Einträge, Platzhalter, sichtbarer Text ohne t()
 npx next build              # Ausgabe in web/out
 node demo/server.mjs        # Demo auf http://localhost:3100 (nutzt web/out), vorher bauen; alten Prozess beenden
 

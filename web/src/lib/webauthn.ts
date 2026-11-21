@@ -2,6 +2,7 @@
 // base64url-Feldern; der Browser braucht dort ArrayBuffer und liefert ArrayBuffer zurück, die wir wieder als base64url senden.
 
 import type { PasskeyAssertionOptions, PasskeyCreationOptions } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export function toBase64Url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -26,12 +27,12 @@ export function passkeysSupported(): boolean {
 /** Deutsche Meldung für die typischen Abbrüche des Browsers. */
 export function passkeyErrorText(error: unknown): string {
   if (error instanceof DOMException) {
-    if (error.name === "NotAllowedError") return "Der Vorgang wurde abgebrochen oder ist abgelaufen. Versuch es noch einmal.";
-    if (error.name === "InvalidStateError") return "Dieser Passkey ist schon für dein Konto registriert.";
-    if (error.name === "SecurityError") return "Die Adresse passt nicht zur Einstellung des Panels (LODESTONE_PUBLIC_URL). Öffne das Panel über diese Adresse.";
-    if (error.name === "NotSupportedError") return "Dein Browser oder Gerät unterstützt diese Art Passkey nicht.";
+    if (error.name === "NotAllowedError") return t("Der Vorgang wurde abgebrochen oder ist abgelaufen. Versuch es noch einmal.");
+    if (error.name === "InvalidStateError") return t("Dieser Passkey ist schon für dein Konto registriert.");
+    if (error.name === "SecurityError") return t("Die Adresse passt nicht zur Einstellung des Panels (LODESTONE_PUBLIC_URL). Öffne das Panel über diese Adresse.");
+    if (error.name === "NotSupportedError") return t("Dein Browser oder Gerät unterstützt diese Art Passkey nicht.");
   }
-  return error instanceof Error ? error.message : "Der Passkey hat nicht geantwortet. Versuch es noch einmal.";
+  return error instanceof Error ? error.message : t("Der Passkey hat nicht geantwortet. Versuch es noch einmal.");
 }
 
 function descriptors(list?: { type: string; id: string; transports?: string[] }[]): PublicKeyCredentialDescriptor[] | undefined {
@@ -48,7 +49,7 @@ export async function createPasskey(options: PasskeyCreationOptions): Promise<un
     excludeCredentials: descriptors(source.excludeCredentials),
   };
   const credential = (await navigator.credentials.create({ publicKey })) as PublicKeyCredential | null;
-  if (!credential) throw new Error("Der Browser hat keinen Passkey angelegt.");
+  if (!credential) throw new Error(t("Der Browser hat keinen Passkey angelegt."));
   const response = credential.response as AuthenticatorAttestationResponse;
   return {
     id: credential.id,
@@ -73,7 +74,7 @@ export async function getPasskey(options: PasskeyAssertionOptions): Promise<unkn
     allowCredentials: descriptors(source.allowCredentials),
   };
   const credential = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
-  if (!credential) throw new Error("Der Browser hat keinen Passkey geliefert.");
+  if (!credential) throw new Error(t("Der Browser hat keinen Passkey geliefert."));
   const response = credential.response as AuthenticatorAssertionResponse;
   return {
     id: credential.id,

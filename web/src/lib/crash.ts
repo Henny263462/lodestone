@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 // Erkennt bekannte Fehlerbilder in den letzten Zeilen der Konsole und erklärt, was zu tun ist.
 
 export interface Hint {
@@ -48,106 +49,106 @@ export function failedMixins(text: string): string[] {
 
 const quote = (list: string[]) => list.map((entry) => `„${entry}“`).join(", ");
 
-const rules: { id: string; level: Hint["level"]; pattern: RegExp; title: string; text: string; detail?: (text: string) => string | null }[] = [
+const rules = (): { id: string; level: Hint["level"]; pattern: RegExp; title: string; text: string; detail?: (text: string) => string | null }[] => [
   {
     id: "suspect",
     level: "bad",
     pattern: /Suspected Mods?(?:\(s\))?:\s*(?!NONE)\S/,
-    title: "Der Absturzbericht nennt eine verdächtige Mod",
-    text: "Der Bericht in crash-reports/ zeigt auf die Mod, in der der Fehler passiert ist. Aktualisiere oder entferne sie unter Mods und starte neu.",
+    title: t("Der Absturzbericht nennt eine verdächtige Mod"),
+    text: t("Der Bericht in crash-reports/ zeigt auf die Mod, in der der Fehler passiert ist. Aktualisiere oder entferne sie unter Mods und starte neu."),
     detail: (text) => {
       const mods = suspectedMods(text);
-      return mods.length > 0 ? `Verdächtig: ${quote(mods)}.` : null;
+      return mods.length > 0 ? t("Verdächtig: {quote}.", { quote: quote(mods) }) : null;
     },
   },
   {
     id: "mixin",
     level: "bad",
     pattern: /MixinApplyError|InvalidMixinException|InvalidInjectionException|MixinTransformerError|Mixin apply (?:for mod \S+ )?failed/,
-    title: "Mixin-Fehler einer Mod",
-    text: "Eine Mod verändert Minecraft-Code, der in dieser Version anders aussieht. Meist hilft ein Update der Mod oder die Minecraft-Version, für die sie gebaut ist.",
+    title: t("Mixin-Fehler einer Mod"),
+    text: t("Eine Mod verändert Minecraft-Code, der in dieser Version anders aussieht. Meist hilft ein Update der Mod oder die Minecraft-Version, für die sie gebaut ist."),
     detail: (text) => {
       const mixins = failedMixins(text);
-      return mixins.length > 0 ? `Betroffen: ${quote(mixins)} (Mod „${mixins[0].split(".")[0]}“).` : null;
+      return mixins.length > 0 ? t("Betroffen: {quote} (Mod „{value}“).", { quote: quote(mixins), value: mixins[0].split(".")[0] }) : null;
     },
   },
   {
     id: "oom",
     level: "bad",
     pattern: /OutOfMemoryError|Java heap space|Exit-Code 137|GC overhead limit/,
-    title: "Zu wenig Arbeitsspeicher",
-    text: "Der Server hat mehr gebraucht, als sein Limit erlaubt (Exit-Code 137 heißt: vom System beendet). Gib ihm unter Einstellungen mehr Arbeitsspeicher. Paper 26 und Modpacks brauchen schnell 2 bis 4 GB.",
+    title: t("Zu wenig Arbeitsspeicher"),
+    text: t("Der Server hat mehr gebraucht, als sein Limit erlaubt (Exit-Code 137 heißt: vom System beendet). Gib ihm unter Einstellungen mehr Arbeitsspeicher. Paper 26 und Modpacks brauchen schnell 2 bis 4 GB."),
   },
   {
     id: "eula",
     level: "bad",
     pattern: /agree to the EULA|eula=false/i,
-    title: "Die Minecraft-EULA ist nicht akzeptiert",
-    text: "Öffne unter Dateien die Datei eula.txt und setze eula=true. Danach starten.",
+    title: t("Die Minecraft-EULA ist nicht akzeptiert"),
+    text: t("Öffne unter Dateien die Datei eula.txt und setze eula=true. Danach starten."),
   },
   {
     id: "port",
     level: "bad",
     pattern: /Address already in use|Failed to bind to port|BindException/,
-    title: "Der Port ist schon belegt",
-    text: "Ein anderes Programm nutzt denselben Port. Prüfe unter Einstellungen die Anschlüsse oder stoppe den anderen Server.",
+    title: t("Der Port ist schon belegt"),
+    text: t("Ein anderes Programm nutzt denselben Port. Prüfe unter Einstellungen die Anschlüsse oder stoppe den anderen Server."),
   },
   {
     id: "java",
     level: "bad",
     pattern: /UnsupportedClassVersionError|class file version|requires Java|Unsupported Java/,
-    title: "Falsche Java-Version",
-    text: "Software und Java passen nicht zusammen. Wechsle unter Einstellungen die Version oder leg das Docker-Image fest, das zur Software passt.",
+    title: t("Falsche Java-Version"),
+    text: t("Software und Java passen nicht zusammen. Wechsle unter Einstellungen die Version oder leg das Docker-Image fest, das zur Software passt."),
     detail: (text) => {
       const java = javaVersions(text);
-      return java ? `Gebraucht wird Java ${java.required}, es läuft Java ${java.current}.` : null;
+      return java ? t("Gebraucht wird Java {required}, es läuft Java {current}.", { required: java.required, current: java.current }) : null;
     },
   },
   {
     id: "plugin",
     level: "warn",
     pattern: /Could not load '[^']+\.jar'|Error occurred while enabling|Unsupported API version|Plugin .* requires/,
-    title: "Ein Plugin lässt sich nicht laden",
-    text: "Meist passt die Plugin-Version nicht zur Server-Version, oder eine Abhängigkeit fehlt. Schau unter Plugins nach Updates oder deaktiviere das Plugin.",
+    title: t("Ein Plugin lässt sich nicht laden"),
+    text: t("Meist passt die Plugin-Version nicht zur Server-Version, oder eine Abhängigkeit fehlt. Schau unter Plugins nach Updates oder deaktiviere das Plugin."),
   },
   {
     id: "mods",
     level: "bad",
     pattern: /Incompatible mod set|Missing or unsupported mandatory dependencies|Mod resolution failed|Incompatible mods found|, which is missing/,
-    title: "Mods passen nicht zusammen",
-    text: "Eine Mod fehlt oder ist für eine andere Version gebaut. Die Zeilen darüber nennen, welche. Entferne oder aktualisiere sie unter Mods.",
+    title: t("Mods passen nicht zusammen"),
+    text: t("Eine Mod fehlt oder ist für eine andere Version gebaut. Die Zeilen darüber nennen, welche. Entferne oder aktualisiere sie unter Mods."),
     detail: (text) => {
       const missing = missingDependencies(text);
-      return missing.length > 0 ? `Es fehlt: ${missing.map((entry) => `„${entry.requires}“ (gebraucht von „${entry.mod}“)`).join(", ")}.` : null;
+      return missing.length > 0 ? t("Es fehlt: {value}.", { value: missing.map((entry) => t("„{requires}“ (gebraucht von „{mod}“)", { requires: entry.requires, mod: entry.mod })).join(", ") }) : null;
     },
   },
   {
     id: "forwarding",
     level: "warn",
     pattern: /enable it in your BungeeCord config|Unable to verify player details|ip_forward|Velocity forwarding|modern forwarding/i,
-    title: "Der Server erwartet den Proxy",
-    text: "Spieler müssen über den Proxy beitreten. Im Projekt unter Netzwerk „Neu abgleichen“ drücken und den Server neu starten, damit die Weiterleitung eingerichtet ist.",
+    title: t("Der Server erwartet den Proxy"),
+    text: t("Spieler müssen über den Proxy beitreten. Im Projekt unter Netzwerk „Neu abgleichen“ drücken und den Server neu starten, damit die Weiterleitung eingerichtet ist."),
   },
   {
     id: "permission",
     level: "bad",
     pattern: /AccessDeniedException|Permission denied/,
-    title: "Fehlende Dateirechte",
-    text: "Der Server darf in einen Ordner nicht schreiben. Der Datenordner des Nodes muss dem Benutzer 1000:1000 gehören (chown -R 1000:1000).",
+    title: t("Fehlende Dateirechte"),
+    text: t("Der Server darf in einen Ordner nicht schreiben. Der Datenordner des Nodes muss dem Benutzer 1000:1000 gehören (chown -R 1000:1000)."),
   },
   {
     id: "lag",
     level: "warn",
     pattern: /Can't keep up!|Is the server overloaded/,
-    title: "Der Server kommt nicht hinterher",
-    text: "Die Tick-Rate sinkt. Gib ihm mehr Arbeitsspeicher oder CPU, senke die Sichtweite (view-distance) oder entferne aufwendige Plugins.",
+    title: t("Der Server kommt nicht hinterher"),
+    text: t("Die Tick-Rate sinkt. Gib ihm mehr Arbeitsspeicher oder CPU, senke die Sichtweite (view-distance) oder entferne aufwendige Plugins."),
   },
 ];
 
 /** Prüft die letzten Zeilen und liefert höchstens drei Hinweise, die schlimmsten zuerst. */
 export function analyse(lines: string[]): Hint[] {
   const text = lines.slice(-400).join("\n");
-  const found = rules
+  const found = rules()
     .filter((rule) => rule.pattern.test(text))
     .map(({ id, level, title, text: body, detail }) => {
       const extra = detail?.(text);

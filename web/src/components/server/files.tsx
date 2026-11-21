@@ -10,11 +10,12 @@ import { api, downloadUrl, fetchText, putText, upload, useApi } from "@/lib/api"
 import { isEditable, languageFor } from "@/lib/editor";
 import { bytes, dateTime, joinPath, parentPath } from "@/lib/format";
 import type { FileEntry } from "@/lib/types";
+import { t, tp } from "@/lib/i18n";
 
 // CodeMirror ist groß und wird nur zum Bearbeiten gebraucht; so lädt die Serverseite ohne ihn
 const CodeEditor = dynamic(() => import("./code-editor").then((module) => module.CodeEditor), {
   ssr: false,
-  loading: () => <Loading label="Editor wird geladen" />,
+  loading: () => <Loading label={t("Editor wird geladen")} />,
 });
 
 export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: boolean }) {
@@ -59,10 +60,10 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
       setProgress(0);
       try {
         await upload(`/servers/${serverId}/files/upload?path=${encodeURIComponent(path)}&overwrite=1`, files, setProgress);
-        toast.success(files.length === 1 ? `${files[0].name} hochgeladen` : `${files.length} Dateien hochgeladen`);
+        toast.success(files.length === 1 ? t("{name} hochgeladen", { name: files[0].name }) : tp("filesUploaded", files.length));
         mutate();
       } catch (failure) {
-        toast.error(failure instanceof Error ? failure.message : "Upload fehlgeschlagen");
+        toast.error(failure instanceof Error ? failure.message : t("Upload fehlgeschlagen"));
       } finally {
         setProgress(null);
       }
@@ -117,25 +118,25 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
           {path && (
             <Button size="sm" variant="ghost" onClick={() => setPath(parentPath(path))}>
               <ArrowLeft className="h-3.5 w-3.5" />
-              Zurück
+              {t("Zurück")}
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => mutate()} aria-label="Aktualisieren">
+          <Button size="sm" variant="ghost" onClick={() => mutate()} aria-label={t("Aktualisieren")}>
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
           {canWrite && (
             <>
               <Button size="sm" onClick={() => setCreating("file")}>
                 <FilePlus className="h-3.5 w-3.5" />
-                Datei
+                {t("Datei")}
               </Button>
               <Button size="sm" onClick={() => setCreating("folder")}>
                 <FolderPlus className="h-3.5 w-3.5" />
-                Ordner
+                {t("Ordner")}
               </Button>
               <Button size="sm" variant="primary" onClick={() => picker.current?.click()}>
                 <Upload className="h-3.5 w-3.5" />
-                Hochladen
+                {t("Hochladen")}
               </Button>
               <input
                 ref={picker}
@@ -154,21 +155,21 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
 
       {canWrite && chosen.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] bg-accent/10 px-4 py-2 text-sm">
-          <span className="mr-auto">{chosen.length} ausgewählt</span>
+          <span className="mr-auto">{chosen.length} {t("ausgewählt")}</span>
           <Button size="sm" onClick={() => setMoving(chosen)}>
             <FolderInput className="h-3.5 w-3.5" />
-            Verschieben
+            {t("Verschieben")}
           </Button>
           <Button size="sm" onClick={() => setArchiving(chosen)}>
             <Archive className="h-3.5 w-3.5" />
-            Archivieren
+            {t("Archivieren")}
           </Button>
           <Button size="sm" variant="danger" onClick={() => setBulkRemove(chosen)}>
             <Trash2 className="h-3.5 w-3.5" />
-            Löschen
+            {t("Löschen")}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-            Aufheben
+            {t("Aufheben")}
           </Button>
         </div>
       )}
@@ -182,15 +183,15 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
       {error ? (
         <ErrorState inline error={error} retry={() => mutate()} />
       ) : isLoading && !data ? (
-        <Loading label="Dateien werden geladen" />
+        <Loading label={t("Dateien werden geladen")} />
       ) : entries.length === 0 ? (
-        <EmptyState icon={<Folder className="h-6 w-6" />} title="Dieser Ordner ist leer" text={canWrite ? "Ziehe Dateien hierher, um sie hochzuladen." : undefined} />
+        <EmptyState icon={<Folder className="h-6 w-6" />} title={t("Dieser Ordner ist leer")} text={canWrite ? t("Ziehe Dateien hierher, um sie hochzuladen.") : undefined} />
       ) : (
         <div className="divide-y divide-white/[0.04]">
           {canWrite && (
             <div className="flex items-center gap-3 px-4 py-1.5 text-xs text-muted">
-              <Checkbox checked={allChosen} onChange={(value) => setSelected(value ? new Set(entries.map((entry) => entry.name)) : new Set())} label="Alle auswählen" />
-              <span>Alle auswählen</span>
+              <Checkbox checked={allChosen} onChange={(value) => setSelected(value ? new Set(entries.map((entry) => entry.name)) : new Set())} label={t("Alle auswählen")} />
+              <span>{t("Alle auswählen")}</span>
             </div>
           )}
           {entries.map((entry) => {
@@ -202,7 +203,7 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
                 className="row-hover flex cursor-pointer items-center gap-3 px-4 py-2.5"
                 onClick={() => (entry.dir ? setPath(full) : editable ? setEditing(full) : window.open(downloadUrl(`/servers/${serverId}/files/download?path=${encodeURIComponent(full)}`)))}
               >
-                {canWrite && <Checkbox checked={selected.has(entry.name)} onChange={() => toggle(entry.name)} label={`${entry.name} auswählen`} />}
+                {canWrite && <Checkbox checked={selected.has(entry.name)} onChange={() => toggle(entry.name)} label={t("{name} auswählen", { name: entry.name })} />}
                 {entry.dir ? <Folder className="h-4 w-4 shrink-0 text-sky-400" /> : <FileIcon className="h-4 w-4 shrink-0 text-muted" />}
                 <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
                 {entry.symlink && <Badge>Link</Badge>}
@@ -210,9 +211,9 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
                 <span className="hidden w-32 text-right text-xs text-muted md:block">{dateTime(entry.modified)}</span>
                 <RowMenu
                   items={[
-                    ...(editable ? [{ label: canWrite ? "Bearbeiten" : "Ansehen", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => setEditing(full) }] : []),
-                    ...(!entry.dir ? [{ label: "Herunterladen", icon: <Download className="h-3.5 w-3.5" />, onClick: () => window.open(downloadUrl(`/servers/${serverId}/files/download?path=${encodeURIComponent(full)}`)) }] : []),
-                    ...(canWrite ? ["separator" as const, { label: "Umbenennen", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => setRename(entry) }, { label: "Verschieben", icon: <FolderInput className="h-3.5 w-3.5" />, onClick: () => setMoving([entry.name]) }, { label: "Archivieren", icon: <Archive className="h-3.5 w-3.5" />, onClick: () => setArchiving([entry.name]) }, ...(!entry.dir && /\.(zip|tar|tar\.gz|tgz)$/i.test(entry.name) ? [{ label: "Entpacken", icon: <PackageOpen className="h-3.5 w-3.5" />, onClick: () => setExtracting(entry) }] : []), { label: "Löschen", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => setRemove(entry) }] : []),
+                    ...(editable ? [{ label: canWrite ? t("Bearbeiten") : t("Ansehen"), icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => setEditing(full) }] : []),
+                    ...(!entry.dir ? [{ label: t("Herunterladen"), icon: <Download className="h-3.5 w-3.5" />, onClick: () => window.open(downloadUrl(`/servers/${serverId}/files/download?path=${encodeURIComponent(full)}`)) }] : []),
+                    ...(canWrite ? ["separator" as const, { label: t("Umbenennen"), icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => setRename(entry) }, { label: t("Verschieben"), icon: <FolderInput className="h-3.5 w-3.5" />, onClick: () => setMoving([entry.name]) }, { label: t("Archivieren"), icon: <Archive className="h-3.5 w-3.5" />, onClick: () => setArchiving([entry.name]) }, ...(!entry.dir && /\.(zip|tar|tar\.gz|tgz)$/i.test(entry.name) ? [{ label: t("Entpacken"), icon: <PackageOpen className="h-3.5 w-3.5" />, onClick: () => setExtracting(entry) }] : []), { label: t("Löschen"), icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => setRemove(entry) }] : []),
                   ]}
                 />
               </div>
@@ -223,96 +224,96 @@ export function FilesTab({ serverId, canWrite }: { serverId: string; canWrite: b
 
       <NameDialog
         open={creating !== null}
-        title={creating === "folder" ? "Neuer Ordner" : "Neue Datei"}
-        label="Name"
-        confirm="Anlegen"
+        title={creating === "folder" ? t("Neuer Ordner") : t("Neue Datei")}
+        label={t("Name")}
+        confirm={t("Anlegen")}
         onClose={() => setCreating(null)}
         onSubmit={async (name) => {
           const full = joinPath(path, name);
-          if (creating === "folder") await toast.run(() => api.post(`/servers/${serverId}/files/mkdir`, { path: full }), "Ordner angelegt");
+          if (creating === "folder") await toast.run(() => api.post(`/servers/${serverId}/files/mkdir`, { path: full }), t("Ordner angelegt"));
           else if (await toast.run(() => putText(`/servers/${serverId}/files/content?path=${encodeURIComponent(full)}&create=1`, ""))) setEditing(full);
           mutate();
         }}
       />
       <NameDialog
         open={!!rename}
-        title="Umbenennen"
-        label="Neuer Name"
-        confirm="Umbenennen"
+        title={t("Umbenennen")}
+        label={t("Neuer Name")}
+        confirm={t("Umbenennen")}
         initial={rename?.name}
         onClose={() => setRename(null)}
         onSubmit={async (name) => {
           if (!rename) return;
-          await toast.run(() => api.post(`/servers/${serverId}/files/rename`, { from: joinPath(path, rename.name), to: joinPath(path, name) }), "Umbenannt");
+          await toast.run(() => api.post(`/servers/${serverId}/files/rename`, { from: joinPath(path, rename.name), to: joinPath(path, name) }), t("Umbenannt"));
           mutate();
         }}
       />
       <NameDialog
         open={!!moving}
-        title={`${moving?.length ?? 0} Eintrag/Einträge verschieben`}
-        label="Zielordner (relativ zum Serverordner, leer = Wurzel)"
-        confirm="Verschieben"
+        title={tp("moveEntries", moving?.length ?? 0)}
+        label={t("Zielordner (relativ zum Serverordner, leer = Wurzel)")}
+        confirm={t("Verschieben")}
         initial={path}
         allowSlash
         allowEmpty
         onClose={() => setMoving(null)}
         onSubmit={async (dest) => {
           if (!moving) return;
-          await toast.run(() => api.post(`/servers/${serverId}/files/move`, { paths: fullPaths(moving), dest }), "Verschoben");
+          await toast.run(() => api.post(`/servers/${serverId}/files/move`, { paths: fullPaths(moving), dest }), t("Verschoben"));
           done();
         }}
       />
       <NameDialog
         open={!!archiving}
-        title="Archivieren"
-        label="Archivname (.zip oder .tar.gz)"
-        confirm="Archiv erstellen"
+        title={t("Archivieren")}
+        label={t("Archivname (.zip oder .tar.gz)")}
+        confirm={t("Archiv erstellen")}
         initial={archiving && archiving.length === 1 ? `${archiving[0]}.zip` : "archiv.zip"}
         onClose={() => setArchiving(null)}
         onSubmit={async (name) => {
           if (!archiving) return;
-          await toast.run(() => api.post(`/servers/${serverId}/files/archive`, { paths: fullPaths(archiving), dest: joinPath(path, name) }), "Archiv erstellt");
+          await toast.run(() => api.post(`/servers/${serverId}/files/archive`, { paths: fullPaths(archiving), dest: joinPath(path, name) }), t("Archiv erstellt"));
           done();
         }}
       />
       <NameDialog
         open={!!extracting}
-        title={`„${extracting?.name}“ entpacken`}
-        label="Zielordner (relativ zum Serverordner)"
-        confirm="Entpacken"
+        title={t("„{name}“ entpacken", { name: extracting?.name })}
+        label={t("Zielordner (relativ zum Serverordner)")}
+        confirm={t("Entpacken")}
         initial={path}
         allowSlash
         allowEmpty
         onClose={() => setExtracting(null)}
         onSubmit={async (dest) => {
           if (!extracting) return;
-          await toast.run(() => api.post(`/servers/${serverId}/files/extract`, { path: joinPath(path, extracting.name), dest }), "Entpackt");
+          await toast.run(() => api.post(`/servers/${serverId}/files/extract`, { path: joinPath(path, extracting.name), dest }), t("Entpackt"));
           done();
         }}
       />
       <ConfirmDialog
         open={!!bulkRemove}
         onClose={() => setBulkRemove(null)}
-        title={`${bulkRemove?.length ?? 0} Einträge löschen?`}
-        text="Ordner werden samt Inhalt gelöscht."
-        confirm="Löschen"
+        title={tp("deleteEntries", bulkRemove?.length ?? 0)}
+        text={t("Ordner werden samt Inhalt gelöscht.")}
+        confirm={t("Löschen")}
         danger
         onConfirm={async () => {
           if (!bulkRemove) return;
-          await toast.run(() => api.post(`/servers/${serverId}/files/delete`, { paths: fullPaths(bulkRemove) }), "Gelöscht");
+          await toast.run(() => api.post(`/servers/${serverId}/files/delete`, { paths: fullPaths(bulkRemove) }), t("Gelöscht"));
           done();
         }}
       />
       <ConfirmDialog
         open={!!remove}
         onClose={() => setRemove(null)}
-        title={`„${remove?.name}“ löschen?`}
-        text={remove?.dir ? "Der Ordner wird samt Inhalt gelöscht." : "Die Datei wird gelöscht."}
-        confirm="Löschen"
+        title={t("„{name}“ löschen?", { name: remove?.name })}
+        text={remove?.dir ? t("Der Ordner wird samt Inhalt gelöscht.") : t("Die Datei wird gelöscht.")}
+        confirm={t("Löschen")}
         danger
         onConfirm={async () => {
           if (!remove) return;
-          await toast.run(() => api.delete(`/servers/${serverId}/files?path=${encodeURIComponent(joinPath(path, remove.name))}&recursive=1`), "Gelöscht");
+          await toast.run(() => api.delete(`/servers/${serverId}/files?path=${encodeURIComponent(joinPath(path, remove.name))}&recursive=1`), t("Gelöscht"));
           mutate();
         }}
       />
@@ -345,7 +346,7 @@ function NameDialog({ open, title, label, confirm, initial, allowSlash, allowEmp
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button variant="primary" loading={busy} disabled={invalid(name)} onClick={submit}>
             {confirm}
@@ -394,7 +395,7 @@ function FileEditor({ serverId, path, canWrite, onClose }: { serverId: string; p
       setOriginal(text);
       toast.success(`${name} gespeichert`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Speichern fehlgeschlagen");
+      toast.error(error instanceof Error ? error.message : t("Speichern fehlgeschlagen"));
     } finally {
       setSaving(false);
     }
@@ -413,19 +414,19 @@ function FileEditor({ serverId, path, canWrite, onClose }: { serverId: string; p
         <div className="flex min-w-0 items-center gap-2">
           <FileIcon className="h-4 w-4 shrink-0 text-muted" />
           <span className="truncate font-mono text-sm">{path}</span>
-          {dirty && <Badge tone="warn">Ungespeichert</Badge>}
-          {!canWrite && <Badge>Nur lesen</Badge>}
+          {dirty && <Badge tone="warn">{t("Ungespeichert")}</Badge>}
+          {!canWrite && <Badge>{t("Nur lesen")}</Badge>}
         </div>
         <div className="flex items-center gap-2">
           {canWrite && (
             <Button size="sm" variant="primary" onClick={save} loading={saving} disabled={!dirty}>
               <Save className="h-3.5 w-3.5" />
-              Speichern
+              {t("Speichern")}
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={() => (dirty ? setConfirmClose(true) : onClose())}>
             <X className="h-3.5 w-3.5" />
-            Schließen
+            {t("Schließen")}
           </Button>
         </div>
       </div>
@@ -435,12 +436,12 @@ function FileEditor({ serverId, path, canWrite, onClose }: { serverId: string; p
             <ErrorState error={failure} />
           </div>
         ) : original === null ? (
-          <Loading label="Datei wird geladen" />
+          <Loading label={t("Datei wird geladen")} />
         ) : (
           <CodeEditor key={path} value={original} language={languageFor(name)} onChange={setText} onSave={() => canWrite && save()} readOnly={!canWrite} />
         )}
       </div>
-      <ConfirmDialog open={confirmClose} onClose={() => setConfirmClose(false)} title="Änderungen verwerfen?" text="Die Datei hat ungespeicherte Änderungen." confirm="Verwerfen" danger onConfirm={onClose} />
+      <ConfirmDialog open={confirmClose} onClose={() => setConfirmClose(false)} title={t("Änderungen verwerfen?")} text={t("Die Datei hat ungespeicherte Änderungen.")} confirm={t("Verwerfen")} danger onConfirm={onClose} />
     </Card>
   );
 }

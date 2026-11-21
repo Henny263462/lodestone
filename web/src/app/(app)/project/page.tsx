@@ -23,6 +23,7 @@ import { megabytes } from "@/lib/format";
 import { usePoll } from "@/lib/live";
 import { useUrlState } from "@/lib/url-state";
 import { can, type Metrics, type Project, type Range } from "@/lib/types";
+import { formatNumber, t } from "@/lib/i18n";
 
 export default function ProjectPage() {
   return (
@@ -41,7 +42,7 @@ function ProjectView() {
   const [tab, setTab] = useUrlState<Tab>("tab", "servers", ["section"]);
   const [adding, setAdding] = useState(false);
 
-  if (!id) return <ErrorState error={new Error("Kein Projekt angegeben. Wähle eins in der Übersicht.")} />;
+  if (!id) return <ErrorState error={new Error(t("Kein Projekt angegeben. Wähle eins in der Übersicht."))} />;
   if (error) return <ErrorState error={error} retry={() => mutate()} />;
   if (!project) return <Loading />;
 
@@ -51,11 +52,11 @@ function ProjectView() {
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "servers", label: "Server", count: project.servers.length },
-    ...(network ? [{ id: "network" as const, label: "Netzwerk" }, { id: "groups" as const, label: "Gruppen", count: project.groups.length }] : []),
-    { id: "schedules", label: "Zeitpläne" },
-    { id: "events", label: "Ereignisse" },
-    { id: "members", label: "Mitglieder", count: project.members?.length },
-    ...(canSettings ? [{ id: "settings" as const, label: "Einstellungen" }] : []),
+    ...(network ? [{ id: "network" as const, label: t("Netzwerk") }, { id: "groups" as const, label: t("Gruppen"), count: project.groups.length }] : []),
+    { id: "schedules", label: t("Zeitpläne") },
+    { id: "events", label: t("Ereignisse") },
+    { id: "members", label: t("Mitglieder"), count: project.members?.length },
+    ...(canSettings ? [{ id: "settings" as const, label: t("Einstellungen") }] : []),
   ];
   const active = tabs.some((entry) => entry.id === tab) ? tab : "servers";
 
@@ -63,12 +64,12 @@ function ProjectView() {
     <>
       <PageHeader
         title={project.name}
-        description={project.description || (network ? "Netzwerk mit Velocity-Proxy" : "Einzelner Server")}
+        description={project.description || (network ? t("Netzwerk mit Velocity-Proxy") : t("Einzelner Server"))}
         action={
           canAdd && (
             <Button variant="primary" onClick={() => setAdding(true)}>
               <Plus className="h-4 w-4" />
-              {network && !project.servers.some((server) => server.role === "proxy") ? "Proxy hinzufügen" : "Server hinzufügen"}
+              {network && !project.servers.some((server) => server.role === "proxy") ? t("Proxy hinzufügen") : t("Server hinzufügen")}
             </Button>
           )
         }
@@ -115,14 +116,14 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
       <Card>
         <EmptyState
           icon={project.kind === "network" ? <Network className="h-6 w-6" /> : <ServerIcon className="h-6 w-6" />}
-          title="Noch kein Server"
-          text={project.kind === "network" ? "Beginne mit dem Velocity-Proxy, danach kommen die Server dahinter." : "Lege den Server dieses Projekts an."}
+          title={t("Noch kein Server")}
+          text={project.kind === "network" ? t("Beginne mit dem Velocity-Proxy, danach kommen die Server dahinter.") : t("Lege den Server dieses Projekts an.")}
         />
         {onAdd && (
           <div className="flex justify-center pb-10">
             <Button variant="primary" onClick={onAdd}>
               <Plus className="h-4 w-4" />
-              {project.kind === "network" ? "Proxy hinzufügen" : "Server anlegen"}
+              {project.kind === "network" ? t("Proxy hinzufügen") : t("Server anlegen")}
             </Button>
           </div>
         )}
@@ -155,16 +156,16 @@ function ServersTab({ project, refresh, onAdd }: { project: Project; refresh: ()
             </Link>
             <div className="flex flex-wrap items-center gap-2">
               {server.role === "proxy" && <Badge tone="accent">Proxy</Badge>}
-              {server.role === "backend" && <Badge>{server.inTry ? `Beitritt #${server.tryPosition + 1}` : "Backend"}</Badge>}
-              {server.groupId && <Badge tone="info">Gruppe {groupName(server.groupId)}</Badge>}
-              {server.voicechat && <Badge tone="info">Voicechat</Badge>}
+              {server.role === "backend" && <Badge>{server.inTry ? t("Beitritt #{value}", { value: server.tryPosition + 1 }) : "Backend"}</Badge>}
+              {server.groupId && <Badge tone="info">{t("Gruppe")} {groupName(server.groupId)}</Badge>}
+              {server.voicechat && <Badge tone="info">{t("Voicechat")}</Badge>}
               <StateBadge server={server} />
             </div>
             <div className="min-w-0 basis-36 text-xs">
-              {server.address ? <span className="font-mono text-ink/80">{server.address}</span> : <span className="text-muted">{server.role === "backend" ? "nur im Netzwerk" : "–"}</span>}
+              {server.address ? <span className="font-mono text-ink/80">{server.address}</span> : <span className="text-muted">{server.role === "backend" ? t("nur im Netzwerk") : "–"}</span>}
               {server.view?.stats && server.view.state === "running" && (
                 <p className="mt-0.5 text-muted">
-                  {server.view.stats.cpuPercent.toFixed(0)} % CPU · {Math.round(server.view.stats.memoryBytes / 1024 ** 2)} MB
+                  {server.view.stats.cpuPercent.toFixed(0)} {t("% CPU ·")} {Math.round(server.view.stats.memoryBytes / 1024 ** 2)} MB
                 </p>
               )}
             </div>
@@ -186,12 +187,12 @@ function ProjectStats({ project }: { project: Project }) {
   const series = data.series;
   return (
     <ChartCard
-      title={project.kind === "network" ? "Spieler im Netzwerk" : "Spieler"}
-      description={series.samples ? `Jetzt ${data.players} · Spitze ${series.peakPlayers} · Ø ${series.avgPlayers.toFixed(1).replace(".", ",")}` : undefined}
+      title={project.kind === "network" ? t("Spieler im Netzwerk") : t("Spieler")}
+      description={series.samples ? t("Jetzt {players} · Spitze {peakPlayers} · Ø {average}", { players: data.players, peakPlayers: series.peakPlayers, average: formatNumber(series.avgPlayers, 1) }) : undefined}
       empty={series.samples === 0}
       action={<RangeTabs value={range} onChange={setRange} />}
     >
-      <SeriesChart times={series.times} series={[{ name: "Spieler", color: "#f59e0b", values: series.players }]} height={170} long={range === "24h" || range === "7d"} format={(value) => String(Math.round(value))} />
+      <SeriesChart times={series.times} series={[{ name: t("Spieler"), color: "#f59e0b", values: series.players }]} height={170} long={range === "24h" || range === "7d"} format={(value) => String(Math.round(value))} />
     </ChartCard>
   );
 }

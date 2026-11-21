@@ -7,6 +7,7 @@ import { Dialog, useToast } from "@/components/ui/feedback";
 import { api, useApi } from "@/lib/api";
 import { usePoll } from "@/lib/live";
 import type { PlayerLists, Server } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export type PlayerAction = "kick" | "ban" | "pardon" | "op" | "deop" | "whitelist-add" | "whitelist-remove" | "whitelist-on" | "whitelist-off" | "message" | "ban-ip" | "pardon-ip";
 
@@ -16,7 +17,7 @@ const nameOk = /^\.?[A-Za-z0-9_]{1,16}$/;
 export function usePlayerActions(server: Server, onDone?: () => void) {
   const toast = useToast();
   return async (action: PlayerAction, name = "", extra: { reason?: string; text?: string } = {}, success?: string) => {
-    const ok = await toast.run(() => api.post(`/servers/${server.id}/player-action`, { action, name, ...extra }), success ?? "Erledigt");
+    const ok = await toast.run(() => api.post(`/servers/${server.id}/player-action`, { action, name, ...extra }), success ?? t("Erledigt"));
     if (ok) onDone?.();
     return ok;
   };
@@ -30,44 +31,44 @@ export function PlayerMenu({ server, name, onDone }: { server: Server; name: str
   return (
     <>
       <RowMenu
-        label={`Aktionen für ${name}`}
+        label={t("Aktionen für {name}", { name })}
         items={[
-          { label: "Nachricht senden", icon: <MessageSquare className="h-3.5 w-3.5" />, onClick: () => setDialog("message") },
-          { label: "Kicken", icon: <UserMinus className="h-3.5 w-3.5" />, onClick: () => setDialog("kick") },
-          { label: "Sperren", icon: <Ban className="h-3.5 w-3.5" />, danger: true, onClick: () => setDialog("ban") },
+          { label: t("Nachricht senden"), icon: <MessageSquare className="h-3.5 w-3.5" />, onClick: () => setDialog("message") },
+          { label: t("Kicken"), icon: <UserMinus className="h-3.5 w-3.5" />, onClick: () => setDialog("kick") },
+          { label: t("Sperren"), icon: <Ban className="h-3.5 w-3.5" />, danger: true, onClick: () => setDialog("ban") },
           "separator",
-          { label: "Zum Operator machen", icon: <ShieldCheck className="h-3.5 w-3.5" />, onClick: () => act("op", name, {}, `${name} ist jetzt Operator`) },
-          { label: "Operator entziehen", icon: <ShieldOff className="h-3.5 w-3.5" />, onClick: () => act("deop", name, {}, `${name} ist kein Operator mehr`) },
-          { label: "Auf die Whitelist", icon: <UserCheck className="h-3.5 w-3.5" />, onClick: () => act("whitelist-add", name, {}, `${name} steht auf der Whitelist`) },
+          { label: t("Zum Operator machen"), icon: <ShieldCheck className="h-3.5 w-3.5" />, onClick: () => act("op", name, {}, t("{name} ist jetzt Operator", { name })) },
+          { label: t("Operator entziehen"), icon: <ShieldOff className="h-3.5 w-3.5" />, onClick: () => act("deop", name, {}, t("{name} ist kein Operator mehr", { name })) },
+          { label: t("Auf die Whitelist"), icon: <UserCheck className="h-3.5 w-3.5" />, onClick: () => act("whitelist-add", name, {}, t("{name} steht auf der Whitelist", { name })) },
         ]}
       />
       <Dialog
         open={dialog !== null}
         onClose={() => setDialog(null)}
-        title={dialog === "message" ? `Nachricht an ${name}` : dialog === "ban" ? `${name} sperren` : `${name} kicken`}
+        title={dialog === "message" ? t("Nachricht an {name}", { name }) : dialog === "ban" ? `${name} sperren` : `${name} kicken`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setDialog(null)}>
-              Abbrechen
+              {t("Abbrechen")}
             </Button>
             <Button
               variant={dialog === "ban" ? "danger" : "primary"}
               disabled={dialog === "message" && !text.trim()}
               onClick={async () => {
-                const ok = await act(dialog as PlayerAction, name, dialog === "message" ? { text } : { reason: text }, dialog === "message" ? "Gesendet" : dialog === "ban" ? `${name} ist gesperrt` : `${name} wurde gekickt`);
+                const ok = await act(dialog as PlayerAction, name, dialog === "message" ? { text } : { reason: text }, dialog === "message" ? t("Gesendet") : dialog === "ban" ? t("{name} ist gesperrt", { name }) : t("{name} wurde gekickt", { name }));
                 if (ok) {
                   setDialog(null);
                   setText("");
                 }
               }}
             >
-              {dialog === "message" ? "Senden" : dialog === "ban" ? "Sperren" : "Kicken"}
+              {dialog === "message" ? t("Senden") : dialog === "ban" ? t("Sperren") : t("Kicken")}
             </Button>
           </>
         }
       >
         <div>
-          <label className="label">{dialog === "message" ? "Nachricht" : "Grund (optional)"}</label>
+          <label className="label">{dialog === "message" ? t("Nachricht") : t("Grund (optional)")}</label>
           <input className="field" value={text} onChange={(event) => setText(event.target.value)} maxLength={dialog === "message" ? 200 : 100} autoFocus />
         </div>
       </Dialog>
@@ -91,7 +92,7 @@ export function PlayerAdmin({ server }: { server: Server }) {
     : list === "whitelist"
       ? data.whitelist.map((p) => ({ key: p.uuid || p.name, label: p.name, note: "" }))
       : list === "ops"
-        ? data.ops.map((p) => ({ key: p.uuid || p.name, label: p.name, note: p.level ? `Stufe ${p.level}` : "" }))
+        ? data.ops.map((p) => ({ key: p.uuid || p.name, label: p.name, note: p.level ? t("Stufe {level}", { level: p.level }) : "" }))
         : list === "banned"
           ? data.banned.map((p) => ({ key: p.uuid || p.name, label: p.name, note: p.reason ?? "" }))
           : data.bannedIps.map((p) => ({ key: p.ip, label: p.ip, note: p.reason ?? "" }));
@@ -103,15 +104,15 @@ export function PlayerAdmin({ server }: { server: Server }) {
   return (
     <Card>
       <CardHeader
-        title="Verwaltung"
-        description={running ? "Änderungen gelten sofort. Die Listen stammen aus den Dateien des Servers." : "Der Server muss laufen, um Spieler zu verwalten. Die Listen siehst du trotzdem."}
+        title={t("Verwaltung")}
+        description={running ? t("Änderungen gelten sofort. Die Listen stammen aus den Dateien des Servers.") : t("Der Server muss laufen, um Spieler zu verwalten. Die Listen siehst du trotzdem.")}
         action={
           <div className="flex gap-2">
-            <Button size="sm" disabled={!running} onClick={() => act("whitelist-on", "", {}, "Whitelist ist an")}>
-              Whitelist an
+            <Button size="sm" disabled={!running} onClick={() => act("whitelist-on", "", {}, t("Whitelist ist an"))}>
+              {t("Whitelist an")}
             </Button>
-            <Button size="sm" disabled={!running} onClick={() => act("whitelist-off", "", {}, "Whitelist ist aus")}>
-              aus
+            <Button size="sm" disabled={!running} onClick={() => act("whitelist-off", "", {}, t("Whitelist ist aus"))}>
+              {t("aus")}
             </Button>
           </div>
         }
@@ -122,10 +123,10 @@ export function PlayerAdmin({ server }: { server: Server }) {
             value={list}
             onChange={setList}
             items={[
-              { id: "whitelist", label: "Whitelist", count: data?.whitelist.length },
-              { id: "ops", label: "Operatoren", count: data?.ops.length },
-              { id: "banned", label: "Gesperrt", count: data?.banned.length },
-              { id: "ips", label: "IP-Sperren", count: data?.bannedIps.length },
+              { id: "whitelist", label: t("Whitelist"), count: data?.whitelist.length },
+              { id: "ops", label: t("Operatoren"), count: data?.ops.length },
+              { id: "banned", label: t("Gesperrt"), count: data?.banned.length },
+              { id: "ips", label: t("IP-Sperren"), count: data?.bannedIps.length },
             ]}
           />
         </div>
@@ -133,17 +134,17 @@ export function PlayerAdmin({ server }: { server: Server }) {
           className="flex gap-2"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (await act(add, name, {}, "Hinzugefügt")) setName("");
+            if (await act(add, name, {}, t("Hinzugefügt"))) setName("");
           }}
         >
-          <input className="field max-w-xs" value={name} onChange={(event) => setName(event.target.value)} placeholder={list === "ips" ? "IP-Adresse" : "Spielername"} disabled={!running} />
+          <input className="field max-w-xs" value={name} onChange={(event) => setName(event.target.value)} placeholder={list === "ips" ? t("IP-Adresse") : t("Spielername")} disabled={!running} />
           <Button type="submit" disabled={!running || !valid}>
             {list === "banned" || list === "ips" ? <Gavel className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
-            {list === "banned" || list === "ips" ? "Sperren" : "Hinzufügen"}
+            {list === "banned" || list === "ips" ? t("Sperren") : t("Hinzufügen")}
           </Button>
         </form>
         {items.length === 0 ? (
-          <EmptyState icon={<Users className="h-6 w-6" />} title="Die Liste ist leer" />
+          <EmptyState icon={<Users className="h-6 w-6" />} title={t("Die Liste ist leer")} />
         ) : (
           <div className="divide-y divide-white/[0.05] rounded-lg border border-white/[0.06]">
             {items.map((item) => (
@@ -154,7 +155,7 @@ export function PlayerAdmin({ server }: { server: Server }) {
                 )}
                 <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
                 {item.note && <Badge>{item.note}</Badge>}
-                <Button variant="ghost" size="icon-sm" disabled={!running} aria-label="Entfernen" onClick={() => act(remove, item.label, {}, "Entfernt")}>
+                <Button variant="ghost" size="icon-sm" disabled={!running} aria-label={t("Entfernen")} onClick={() => act(remove, item.label, {}, t("Entfernt"))}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>

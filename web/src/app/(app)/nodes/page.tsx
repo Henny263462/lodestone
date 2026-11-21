@@ -13,6 +13,7 @@ import { api, useApi } from "@/lib/api";
 import { bytes } from "@/lib/format";
 import { usePoll } from "@/lib/live";
 import type { NodeInfo, NodeLink, PlayitStatus } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export default function NodesPage() {
   const user = useUser();
@@ -41,20 +42,20 @@ export default function NodesPage() {
   return (
     <>
       <PageHeader
-        title="Nodes"
-        description="Maschinen mit Docker, auf denen die Server laufen. Auf jeder läuft der Lodestone-Node-Daemon."
+        title={t("Nodes")}
+        description={t("Maschinen mit Docker, auf denen die Server laufen. Auf jeder läuft der Lodestone-Node-Daemon.")}
         action={
           user.isAdmin && (
             <Button variant="primary" onClick={() => setAdding(true)}>
               <Plus className="h-4 w-4" />
-              Node hinzufügen
+              {t("Node hinzufügen")}
             </Button>
           )
         }
       />
       {data.length === 0 ? (
         <Card>
-          <EmptyState icon={<Cpu className="h-6 w-6" />} title="Noch kein Node" text={user.isAdmin ? "Füge einen Node hinzu: Du bekommst einen Startbefehl, mit dem sich der Node selbst zum Panel verbindet." : "Ein Administrator muss einen Node einrichten."} />
+          <EmptyState icon={<Cpu className="h-6 w-6" />} title={t("Noch kein Node")} text={user.isAdmin ? t("Füge einen Node hinzu: Du bekommst einen Startbefehl, mit dem sich der Node selbst zum Panel verbindet.") : t("Ein Administrator muss einen Node einrichten.")} />
         </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -67,7 +68,7 @@ export default function NodesPage() {
                   </span>
                   <div>
                     <p className="text-sm font-semibold">{node.name}</p>
-                    <p className="text-xs text-muted">{node.publicHost || "keine öffentliche Adresse"}</p>
+                    <p className="text-xs text-muted">{node.publicHost || t("keine öffentliche Adresse")}</p>
                   </div>
                 </div>
                 <Badge tone={node.online ? "good" : "bad"}>
@@ -79,11 +80,11 @@ export default function NodesPage() {
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                   <dt className="text-muted">Docker</dt>
                   <dd>{node.system.dockerVersion}</dd>
-                  <dt className="text-muted">System</dt>
+                  <dt className="text-muted">{t("System")}</dt>
                   <dd>
                     {node.system.os} · {node.system.architecture}
                   </dd>
-                  <dt className="text-muted">Kerne / RAM</dt>
+                  <dt className="text-muted">{t("Kerne / RAM")}</dt>
                   <dd>
                     {node.system.cpus} · {bytes(node.system.memoryBytes)}
                   </dd>
@@ -99,12 +100,12 @@ export default function NodesPage() {
               {user.isAdmin && node.online && <PlayitCard node={node} />}
               {user.isAdmin && (
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
-                  <span className="truncate font-mono text-[11px] text-muted">{node.linked ? "verbindet sich selbst zum Panel" : node.url}</span>
+                  <span className="truncate font-mono text-[11px] text-muted">{node.linked ? t("verbindet sich selbst zum Panel") : node.url}</span>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon-sm" onClick={() => setEditing(node)} aria-label="Bearbeiten">
+                    <Button variant="ghost" size="icon-sm" onClick={() => setEditing(node)} aria-label={t("Bearbeiten")}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(node)} aria-label="Entfernen">
+                    <Button variant="ghost" size="icon-sm" onClick={() => setRemoving(node)} aria-label={t("Entfernen")}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -130,13 +131,13 @@ export default function NodesPage() {
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
-        title={`„${removing?.name}“ entfernen?`}
-        text="Der Node wird aus dem Panel entfernt. Das geht nur, wenn kein Server mehr auf ihm liegt. Der Daemon selbst wird nicht angehalten."
-        confirm="Entfernen"
+        title={t("„{name}“ entfernen?", { name: removing?.name })}
+        text={t("Der Node wird aus dem Panel entfernt. Das geht nur, wenn kein Server mehr auf ihm liegt. Der Daemon selbst wird nicht angehalten.")}
+        confirm={t("Entfernen")}
         danger
         onConfirm={async () => {
           if (!removing) return;
-          await toast.run(() => api.delete(`/nodes/${removing.id}`), "Node entfernt");
+          await toast.run(() => api.delete(`/nodes/${removing.id}`), t("Node entfernt"));
           mutate();
         }}
       />
@@ -157,23 +158,23 @@ function MemoryPlanner({ node }: { node: NodeInfo }) {
     <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-3">
       <div>
         <div className="mb-1.5 flex justify-between text-[11px] text-muted">
-          <span>Zugesagt (Limits laufender Server)</span>
+          <span>{t("Zugesagt (Limits laufender Server)")}</span>
           <span className="tabular-nums text-ink/80">
-            {bytes(committed)} von {bytes(total)}
+            {bytes(committed)} {t("von")} {bytes(total)}
           </span>
         </div>
         <Meter value={committedPercent} max={100} tone={committedPercent > 100 ? "bad" : committedPercent > 85 ? "warn" : "good"} />
       </div>
       <div>
         <div className="mb-1.5 flex justify-between text-[11px] text-muted">
-          <span>Tatsächlich belegt</span>
+          <span>{t("Tatsächlich belegt")}</span>
           <span className="tabular-nums text-ink/80">
-            {bytes(used)} · {bytes(available)} frei
+            {bytes(used)} · {bytes(available)} {t("frei")}
           </span>
         </div>
         <Meter value={usedPercent} max={100} tone={usedPercent > 90 ? "bad" : usedPercent > 75 ? "warn" : "good"} />
       </div>
-      {committedPercent > 100 && <p className="text-[11px] text-warn">Die Limits überschreiten den Speicher des Nodes. Das geht gut, solange nicht alle Server voll ausgelastet sind.</p>}
+      {committedPercent > 100 && <p className="text-[11px] text-warn">{t("Die Limits überschreiten den Speicher des Nodes. Das geht gut, solange nicht alle Server voll ausgelastet sind.")}</p>}
     </div>
   );
 }
@@ -193,15 +194,15 @@ function PlayitCard({ node }: { node: NodeInfo }) {
         <span className="flex items-center gap-2 text-xs">
           <Cable className="h-3.5 w-3.5 text-muted" />
           playit.gg
-          {data?.configured ? <Badge tone={data.running ? "good" : "warn"}>{data.running ? "Verbunden" : "Gestoppt"}</Badge> : <Badge>Nicht eingerichtet</Badge>}
+          {data?.configured ? <Badge tone={data.running ? "good" : "warn"}>{data.running ? t("Verbunden") : t("Gestoppt")}</Badge> : <Badge>{t("Nicht eingerichtet")}</Badge>}
         </span>
         <div className="flex gap-1">
           <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-            {data?.configured ? "Schlüssel ändern" : "Einrichten"}
+            {data?.configured ? t("Schlüssel ändern") : t("Einrichten")}
           </Button>
           {data?.configured && (
             <Button size="sm" variant="ghost" onClick={() => setRemoving(true)}>
-              Entfernen
+              {t("Entfernen")}
             </Button>
           )}
         </div>
@@ -211,12 +212,12 @@ function PlayitCard({ node }: { node: NodeInfo }) {
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title="playit.gg einrichten"
-        description="Spieler verbinden sich über eine playit-Adresse, du brauchst keine Portfreigabe im Router."
+        title={t("playit.gg einrichten")}
+        description={t("Spieler verbinden sich über eine playit-Adresse, du brauchst keine Portfreigabe im Router.")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
-              Abbrechen
+              {t("Abbrechen")}
             </Button>
             <Button
               variant="primary"
@@ -224,7 +225,7 @@ function PlayitCard({ node }: { node: NodeInfo }) {
               disabled={secret.trim().length < 16}
               onClick={async () => {
                 setBusy(true);
-                const ok = await toast.run(() => api.put(`/nodes/${node.id}/playit`, { secret: secret.trim() }), "playit-Agent gestartet");
+                const ok = await toast.run(() => api.put(`/nodes/${node.id}/playit`, { secret: secret.trim() }), t("playit-Agent gestartet"));
                 setBusy(false);
                 if (ok) {
                   setOpen(false);
@@ -233,37 +234,37 @@ function PlayitCard({ node }: { node: NodeInfo }) {
                 }
               }}
             >
-              Speichern und starten
+              {t("Speichern und starten")}
             </Button>
           </>
         }
       >
         <ol className="list-decimal space-y-1 pl-5 text-xs text-muted">
           <li>
-            Melde dich auf{" "}
+            {t("Melde dich auf")}{" "}
             <a className="text-accent hover:underline" href="https://playit.gg/account/agents" target="_blank" rel="noreferrer">
               playit.gg
             </a>{" "}
-            an und lege einen neuen Agenten an (Typ „Docker“).
+            {t("an und lege einen neuen Agenten an (Typ „Docker“).")}
           </li>
-          <li>Kopiere den Geheimschlüssel (SECRET_KEY) hierher.</li>
-          <li>Lege im playit-Dashboard einen Minecraft-Java-Tunnel an, der auf den Port des Servers auf dieser Maschine zeigt.</li>
-          <li>Trage die Tunnel-Adresse beim Server unter Einstellungen → Öffentliche Adresse ein.</li>
+          <li>{t("Kopiere den Geheimschlüssel (SECRET_KEY) hierher.")}</li>
+          <li>{t("Lege im playit-Dashboard einen Minecraft-Java-Tunnel an, der auf den Port des Servers auf dieser Maschine zeigt.")}</li>
+          <li>{t("Trage die Tunnel-Adresse beim Server unter Einstellungen → Öffentliche Adresse ein.")}</li>
         </ol>
         <div>
-          <label className="label">Schlüssel</label>
+          <label className="label">{t("Schlüssel")}</label>
           <input className="field font-mono text-xs" type="password" value={secret} onChange={(event) => setSecret(event.target.value)} autoComplete="off" />
         </div>
       </Dialog>
       <ConfirmDialog
         open={removing}
         onClose={() => setRemoving(false)}
-        title="playit-Agent entfernen?"
-        text="Der Agent wird gestoppt und der Schlüssel vergessen. Die Tunnel-Adressen funktionieren dann nicht mehr."
-        confirm="Entfernen"
+        title={t("playit-Agent entfernen?")}
+        text={t("Der Agent wird gestoppt und der Schlüssel vergessen. Die Tunnel-Adressen funktionieren dann nicht mehr.")}
+        confirm={t("Entfernen")}
         danger
         onConfirm={async () => {
-          await toast.run(() => api.delete(`/nodes/${node.id}/playit`), "Agent entfernt");
+          await toast.run(() => api.delete(`/nodes/${node.id}/playit`), t("Agent entfernt"));
           mutate();
         }}
       />
@@ -290,11 +291,11 @@ function NodeDialog({ node, onClose, onDone }: { node: NodeInfo | "new" | null; 
     <Dialog
       open={!!node}
       onClose={onClose}
-      title={existing ? "Node bearbeiten" : "Node hinzufügen"}
+      title={existing ? t("Node bearbeiten") : t("Node hinzufügen")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Abbrechen
+            {t("Abbrechen")}
           </Button>
           <Button
             variant="primary"
@@ -302,7 +303,7 @@ function NodeDialog({ node, onClose, onDone }: { node: NodeInfo | "new" | null; 
             disabled={!form.name.trim() || (!linked && !form.url.trim()) || (!existing && !form.token.trim())}
             onClick={async () => {
               setBusy(true);
-              const ok = await toast.run(() => (existing ? api.patch(`/nodes/${existing.id}`, form) : api.post("/nodes", form)), existing ? "Gespeichert" : "Node hinzugefügt");
+              const ok = await toast.run(() => (existing ? api.patch(`/nodes/${existing.id}`, form) : api.post("/nodes", form)), existing ? t("Gespeichert") : t("Node hinzugefügt"));
               setBusy(false);
               if (ok) {
                 onClose();
@@ -310,31 +311,31 @@ function NodeDialog({ node, onClose, onDone }: { node: NodeInfo | "new" | null; 
               }
             }}
           >
-            {existing ? "Speichern" : "Hinzufügen"}
+            {existing ? t("Speichern") : t("Hinzufügen")}
           </Button>
         </>
       }
     >
       <div>
-        <label className="label">Name</label>
+        <label className="label">{t("Name")}</label>
         <input className="field" value={form.name} onChange={set("name")} placeholder="home" maxLength={48} autoFocus />
       </div>
       {!linked && (
         <>
           <div>
-            <label className="label">Adresse des Daemons</label>
+            <label className="label">{t("Adresse des Daemons")}</label>
             <input className="field font-mono text-xs" value={form.url} onChange={set("url")} placeholder="http://node.example.org:8480" />
           </div>
           <div>
-            <label className="label">Token {existing && "(leer lassen, um es zu behalten)"}</label>
+            <label className="label">Token {existing && t("(leer lassen, um es zu behalten)")}</label>
             <input className="field font-mono text-xs" type="password" value={form.token} onChange={set("token")} autoComplete="off" />
           </div>
         </>
       )}
       <div>
-        <label className="label">Öffentliche Adresse (für Spieler)</label>
+        <label className="label">{t("Öffentliche Adresse (für Spieler)")}</label>
         <input className="field" value={form.publicHost} onChange={set("publicHost")} placeholder="mc.example.org" />
-        <p className="mt-1 text-xs text-muted">Wird für die Beitritts-Adresse und die Voicechat-Konfiguration verwendet.</p>
+        <p className="mt-1 text-xs text-muted">{t("Wird für die Beitritts-Adresse und die Voicechat-Konfiguration verwendet.")}</p>
       </div>
     </Dialog>
   );

@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { auditLabel } from "@/lib/audit";
 import { dateTime } from "@/lib/format";
 import type { AuditEntry } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 const PAGE = 100;
 
@@ -32,7 +33,7 @@ export default function AuditPage() {
       setMore(page.length === PAGE);
       setError(null);
     } catch (failure) {
-      setError(failure instanceof Error ? failure : new Error("Das Protokoll konnte nicht geladen werden. Versuche es erneut."));
+      setError(failure instanceof Error ? failure : new Error(t("Das Protokoll konnte nicht geladen werden. Versuche es erneut.")));
     } finally {
       setBusy(false);
     }
@@ -48,17 +49,17 @@ export default function AuditPage() {
     return () => clearTimeout(timer);
   }, [filter]);
 
-  if (!user.isAdmin) return <ErrorState error={new Error("Dafür braucht es einen Administrator.")} />;
+  if (!user.isAdmin) return <ErrorState error={new Error(t("Dafür braucht es einen Administrator."))} />;
   if (error && !entries) return <ErrorState error={error} retry={() => load(false, applied)} />;
   if (!entries) return <Loading />;
 
   return (
     <>
-      <PageHeader title="Protokoll" description="Wer hat wann was geändert. Einträge werden 90 Tage aufbewahrt." />
-      <SearchInput value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Nach Benutzername filtern" className="mb-5 max-w-sm" />
+      <PageHeader title={t("Protokoll")} description={t("Wer hat wann was geändert. Einträge werden 90 Tage aufbewahrt.")} />
+      <SearchInput value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t("Nach Benutzername filtern")} className="mb-5 max-w-sm" />
       <Card>
         {entries.length === 0 ? (
-          <EmptyState icon={<ScrollText className="h-6 w-6" />} title="Keine Einträge" />
+          <EmptyState icon={<ScrollText className="h-6 w-6" />} title={t("Keine Einträge")} />
         ) : (
           <div className="divide-y divide-white/[0.05]">
             {entries.map((entry) => (
@@ -79,7 +80,7 @@ export default function AuditPage() {
       {more && (
         <div className="mt-4 flex justify-center">
           <Button loading={busy} onClick={() => load(true, applied, entries[entries.length - 1].id)}>
-            Ältere laden
+            {t("Ältere laden")}
           </Button>
         </div>
       )}

@@ -5,6 +5,7 @@ import { Badge, Meter } from "@/components/ui/primitives";
 import { useApi } from "@/lib/api";
 import { usePoll } from "@/lib/live";
 import type { ModpackStatus, Server } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 /** Zeigt, aus welchem Modrinth-Modpack der Server stammt, und den Fortschritt der Installation. */
 export function ModpackBanner({ server }: { server: Server }) {
@@ -25,19 +26,19 @@ export function ModpackBanner({ server }: { server: Server }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{pack.title}</p>
         <p className="truncate text-xs text-muted">
-          Version {pack.versionNumber} · Minecraft {pack.minecraft}
+          {t("Version")} {pack.versionNumber} {t("· Minecraft")} {pack.minecraft}
         </p>
       </div>
-      {data?.state === "failed" && <Badge tone="bad">Installation fehlgeschlagen</Badge>}
-      {data?.state === "done" && <Badge tone="good">Installiert</Badge>}
+      {data?.state === "failed" && <Badge tone="bad">{t("Installation fehlgeschlagen")}</Badge>}
+      {data?.state === "done" && <Badge tone="good">{t("Installiert")}</Badge>}
       <a className="inline-flex items-center gap-1 text-xs text-accent hover:underline" href={`https://modrinth.com/modpack/${pack.slug}/version/${pack.versionId}`} target="_blank" rel="noreferrer">
         <ExternalLink className="h-3 w-3" />
-        Auf Modrinth
+        {t("Auf Modrinth")}
       </a>
       {running && (
         <div className="w-full">
           <div className="mb-1.5 flex justify-between text-[11px] text-muted">
-            <span>{data?.phase || "Wartet auf die Server-Datei"}</span>
+            <span>{data?.phase || t("Wartet auf die Server-Datei")}</span>
             {data && data.total > 0 && (
               <span className="tabular-nums">
                 {data.done} / {data.total}

@@ -72,9 +72,9 @@ Regeln:
 - Welches Recht? Das, dessen Erklärung im Katalog die Tat beschreibt: Lesen von Konsole/Protokoll `PermConsoleRead`, Befehle
   `PermConsoleCommand`, Start/Stopp `PermPower`, Dateien `PermFilesRead`/`PermFilesWrite`, Backups `PermBackups*`, Plugins/Mods
   `PermAddons`, Spieler `PermPlayers`, Einstellungen `PermSettings`, Server anlegen/löschen `PermServers`, Zeitpläne, Webhooks,
-  Mitglieder, Netzwerk. Passt keines, ein **neues Recht** in `permissionCatalog` anlegen (ID-Konstante, Gruppe, deutscher Name,
-  Erklärung, Mindestrolle = die Stufe, die du sonst gewählt hättest), den Typ `Permission` in `web/src/lib/types.ts` und den
-  Katalog in `web/demo/server.mjs` ergänzen. Im Zweifel die strengere Wahl.
+  Mitglieder, Netzwerk. Passt keines, ein **neues Recht** in `permissionCatalog` anlegen (ID-Konstante, `GroupID` + Gruppe, deutscher Name,
+  Erklärung, Mindestrolle = die Stufe, die du sonst gewählt hättest), den Typ `Permission` in `web/src/lib/types.ts`, die
+  englische Fassung in `permissionsEn` (`web/src/lib/messages/backend-en.ts`) und den Katalog in `web/demo/server.mjs` ergänzen. Im Zweifel die strengere Wahl.
 - **Rang statt Recht** nur für Eigentümer-Dinge (`requireProject(r, id, rankOwner)`: Projekt löschen) und Systemweites
   (`requireAdmin(r)`). `requireProject`/`requireServer` mit Mindeststufe gibt es weiter; neuer Code nimmt die Einzelrechte.
 - Kann ein Handler etwas anstoßen, das weitere Rechte braucht (ein Zeitplan führt Befehle aus, eine Gruppe legt Server an,
@@ -86,6 +86,9 @@ Regeln:
   (`accessFor` mit angepasster Liste, nicht nur der Rolle). Jede Änderung an Mitgliedern, Rechten oder Benutzern ruft
   `p.sftpWake()` auf, damit ein Entzug sofort gilt.
 - Fehler immer mit `fail(status, "deutscher Satz mit Ursache")` oder einem vorhandenen Fehler (`ErrNotFound`, `ErrExists`, `errForbidden`).
+  `writeError` schickt `{"error": …, "code": …}`; die Kennung `code` kommt bei 401/403/404/429/500 aus dem Status, sonst nur über
+  `failCode(status, "kennung", "Satz")`. Die Oberfläche übersetzt Meldungen ins Englische (`web/src/lib/messages/backend-en.ts`,
+  Schlüssel = deine deutsche Meldung): Eine neue Meldung, die oft vorkommt, trägst du dort ein; ändert sich der Satz, dort mit.
   Fehler vom Node reichen `writeError`/`NodeError` durch. Keine rohen `err.Error()` aus Bibliotheken an Benutzer, wenn sie Pfade oder
   Geheimnisse enthalten könnten.
 - Antworten sind JSON mit camelCase-Tags. Listen als `[]` (nie `null`: leere Slices anlegen).

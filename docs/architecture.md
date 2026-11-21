@@ -17,6 +17,10 @@ Panel (Next.js)  ──HTTPS/WebSocket──►  Panel-Backend (Go) ── Daten
 - **Panel-Oberfläche** (`web/`, Next.js als statischer Export, ins Panel-Binary eingebettet; Konsole mit ANSI-Farben,
   Datei-Editor mit CodeMirror 6, Plugins/Mods, Backups, Spieler). *Fertig (v0.1).* Das Panel liefert Text-Dateien gzip-
   komprimiert aus (`internal/panel/webui`, einmal gepackt und im Speicher gehalten); CodeMirror lädt erst beim Öffnen einer Datei.
+- **Sprachen der Oberfläche** (`web/src/lib/i18n.ts`, `web/src/lib/messages/`): Deutsch ist Quelle und Schlüssel, Englisch ein
+  Wörterbuch, das der Browser nur bei Bedarf lädt. Die Wahl steht pro Benutzer in `users.language` (`PUT /api/me/language`,
+  geliefert von `/api/me` und `/api/auth/status`), vor der Anmeldung gilt die Browsersprache. Das Backend bleibt deutsch; Fehler
+  tragen zusätzlich eine stabile Kennung `code`, Rechte eine `id`/`groupId`, damit die Oberfläche übersetzen kann.
 - **Live-Kanal Panel → Browser** (`internal/panel/updates.go`, `web/src/lib/live.ts`): `GET /api/live` ist ein Strom von
   Server-Sent Events. Er trägt nur Thema und IDs (`server`, `players`, `backups`, `events`, `ops`, `project`, `node`), nie Daten;
   die Oberfläche lädt daraufhin die betroffenen SWR-Abfragen über die normalen Routen neu. Quellen: erfolgreiche verändernde

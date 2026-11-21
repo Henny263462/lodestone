@@ -1,6 +1,9 @@
+import { t, type LanguageChoice } from "@/lib/i18n";
+
 export type Role = "viewer" | "operator" | "admin" | "owner";
 export const roleRank: Record<Role, number> = { viewer: 1, operator: 2, admin: 3, owner: 4 };
-export const roleLabel: Record<Role, string> = { viewer: "Betrachter", operator: "Operator", admin: "Admin", owner: "Eigentümer" };
+/** roleLabel sind die Namen der Rollen in der gültigen Sprache. */
+export const roleLabel = (): Record<Role, string> => ({ viewer: t("Betrachter"), operator: t("Operator"), admin: t("Admin"), owner: t("Eigentümer") });
 
 export interface User {
   id: string;
@@ -14,6 +17,8 @@ export interface AuthStatus {
   setupRequired: boolean;
   version: string;
   user?: User;
+  /** Sprache der Oberfläche des angemeldeten Benutzers ("" = wie der Browser); nur mit `user`. */
+  language?: LanguageChoice;
 }
 
 export interface NodeInfo {
@@ -328,6 +333,8 @@ export interface LogLine {
 export interface Me extends User {
   totpEnabled: boolean;
   recoveryCodes: number;
+  /** Gewählte Sprache der Oberfläche; "" heißt: wie der Browser. */
+  language: LanguageChoice;
 }
 
 export type StepAction = "backup" | "command" | "restart" | "start" | "stop" | "wait";
@@ -459,6 +466,8 @@ export type Permission =
 
 export interface PermissionInfo {
   id: Permission;
+  /** Stabile Kennung der Gruppe zum Übersetzen; `group` ist der deutsche Name. */
+  groupId: "console" | "files" | "backups" | "server" | "project";
   group: string;
   label: string;
   description: string;

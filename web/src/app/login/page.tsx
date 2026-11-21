@@ -4,9 +4,11 @@ import { ArrowRight, Eye, EyeOff, Loader2, Lock, User } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { LodestoneLogo, Wordmark } from "@/components/ui/mc";
 import { PasskeySecondFactor, SignInOptions } from "@/components/sign-in";
+import { LanguageSwitch } from "@/components/language";
 import { api } from "@/lib/api";
 import { signInErrorText } from "@/lib/sign-in";
 import type { AuthStatus, LoginStep, SecondFactor } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -54,7 +56,7 @@ export default function LoginPage() {
       }
       window.location.replace(nextTarget());
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Anmeldung fehlgeschlagen");
+      setError(failure instanceof Error ? failure.message : t("Anmeldung fehlgeschlagen"));
     } finally {
       setBusy(false);
     }
@@ -68,9 +70,9 @@ export default function LoginPage() {
         <div className="mb-7 flex flex-col items-center text-center">
           <LodestoneLogo size={56} className="mb-4" />
           <Wordmark className="text-xs text-muted" />
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{setup ? "Einrichtung" : "Willkommen zurück"}</h1>
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{setup ? t("Einrichtung") : t("Willkommen zurück")}</h1>
           <p className="mt-1.5 text-sm text-muted">
-            {setup ? "Lege den ersten Administrator an." : "Melde dich an, um deine Server zu verwalten."}
+            {setup ? t("Lege den ersten Administrator an.") : t("Melde dich an, um deine Server zu verwalten.")}
           </p>
         </div>
 
@@ -80,7 +82,7 @@ export default function LoginPage() {
               methods.includes("totp") && (
               <div>
                 <label className="label" htmlFor="code">
-                  Code aus deiner Authenticator-App
+                  {t("Code aus deiner Authenticator-App")}
                 </label>
                 <input
                   id="code"
@@ -93,16 +95,16 @@ export default function LoginPage() {
                   placeholder="000000"
                   required
                 />
-                <p className="mt-2 text-xs text-muted">Du hast die App nicht zur Hand? Gib stattdessen einen Wiederherstellungscode ein (z. B. a1b2c-d3e4f).</p>
+                <p className="mt-2 text-xs text-muted">{t("Du hast die App nicht zur Hand? Gib stattdessen einen Wiederherstellungscode ein (z. B. a1b2c-d3e4f).")}</p>
               </div>
               )
             ) : passwordOff ? (
-              <p className="text-center text-xs text-muted">Die Anmeldung mit Passwort ist auf diesem Panel abgeschaltet.</p>
+              <p className="text-center text-xs text-muted">{t("Die Anmeldung mit Passwort ist auf diesem Panel abgeschaltet.")}</p>
             ) : (
             <>
             <div>
               <label className="label" htmlFor="username">
-                Benutzername
+                {t("Benutzername")}
               </label>
               <div className="relative">
                 <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
@@ -112,7 +114,7 @@ export default function LoginPage() {
 
             <div>
               <label className="label" htmlFor="password">
-                Passwort
+                {t("Passwort")}
               </label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
@@ -123,14 +125,14 @@ export default function LoginPage() {
                   autoComplete={setup ? "new-password" : "current-password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={setup ? "mindestens 8 Zeichen" : "••••••••"}
+                  placeholder={setup ? t("mindestens 8 Zeichen") : "••••••••"}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setVisible((value) => !value)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted transition hover:bg-white/[0.06] hover:text-ink"
-                  aria-label={visible ? "Passwort verbergen" : "Passwort anzeigen"}
+                  aria-label={visible ? t("Passwort verbergen") : t("Passwort anzeigen")}
                 >
                   {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -150,7 +152,7 @@ export default function LoginPage() {
               className="group inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-accent text-sm font-semibold text-white transition duration-100 hover:bg-accent/90 active:scale-[0.97] active:brightness-90 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {busy ? "Einen Moment" : ticket ? "Bestätigen" : setup ? "Administrator anlegen" : "Anmelden"}
+              {busy ? t("Einen Moment") : ticket ? t("Bestätigen") : setup ? t("Administrator anlegen") : t("Anmelden")}
               {!busy && <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />}
             </button>
             )}
@@ -158,6 +160,9 @@ export default function LoginPage() {
             {!ticket && !setup && status && <SignInOptions status={status} divider={!passwordOff} next={nextTarget} onError={setError} />}
           </div>
         </form>
+        <div className="mt-6 flex justify-center">
+          <LanguageSwitch />
+        </div>
       </div>
     </main>
   );

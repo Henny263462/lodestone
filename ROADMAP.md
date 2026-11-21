@@ -27,7 +27,7 @@ Das sollte erledigt sein, bevor das Repository öffentlich wird oder jemand Frem
 
 Ohne diese Punkte wählen Fremde eher Pelican oder Pterodactyl.
 
-- [ ] **Englische Oberfläche (M).** Die Oberfläche ist komplett deutsch. Texte in Sprachdateien auslagern (Deutsch und Englisch), Sprache pro Benutzer wählbar, Browser-Sprache als Vorgabe. Danach Website und README zweisprachig. Das ist der größte Hebel für andere Nutzer.
+- [x] **Englische Oberfläche (M).** Deutsch bleibt Quelle und Standard, alle Texte laufen über `t()` (`web/src/lib/i18n.ts`), Englisch in `web/src/lib/messages/`. Sprache pro Benutzer im Konto, vor der Anmeldung aus dem Browser; Fehlermeldungen des Panels mit Kennung `code`. Offen: Website und README zweisprachig, Meldungen im Ereignisverlauf (entstehen im Backend als deutscher Text).
 - [ ] **Geplante und automatische Backups (M).** Zeitplan pro Server (täglich, wöchentlich), Aufbewahrung nach Alter und Anzahl, **Ziel außerhalb der Maschine** (S3/MinIO, SFTP, `restic`), Backup vor Updates, Versionswechsel und Modpack-Update automatisch. 
   - *Teilweise erledigt:* Zeitpläne können Backups auslösen (Aufbewahrung nach Anzahl), externes S3-kompatibles Ziel pro Projekt (Hochladen per Zeitplan oder von Hand, getrennte Aufbewahrung, Wiederherstellen aus dem Ziel), Ausschlüsse und Festhalten. Offen: SFTP/restic, inkrementelle Backups, Aufbewahrung nach Alter und automatische Backups vor Updates.
 - [x] **Zeitpläne und Aufgaben (M).** Neustart um 04:00, Befehl senden (z. B. `say Neustart in 5 Minuten`), Ankündigungen vor dem Neustart, Aufgabenketten („sichern, dann stoppen, dann starten“). 

@@ -10,6 +10,7 @@ import { useApi, type ApiError } from "@/lib/api";
 import { ago, bytes, dateTime } from "@/lib/format";
 import { usePoll } from "@/lib/live";
 import type { NodeInfo, Project, ProjectEvent } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 /** Kurzer Zustand aller Nodes für die Übersicht: erreichbar, Arbeitsspeicher, Anzahl Server. */
 export function NodesOverviewCard({ nodes, error, retry, isAdmin }: { nodes?: NodeInfo[]; error?: ApiError; retry: () => void; isAdmin: boolean }) {
@@ -17,11 +18,11 @@ export function NodesOverviewCard({ nodes, error, retry, isAdmin }: { nodes?: No
   return (
     <Card>
       <CardHeader
-        title="Nodes"
-        description="Maschinen, auf denen die Server laufen."
+        title={t("Nodes")}
+        description={t("Maschinen, auf denen die Server laufen.")}
         action={
           <Link href="/nodes/" className="text-xs text-accent hover:underline">
-            Alle Nodes
+            {t("Alle Nodes")}
           </Link>
         }
       />
@@ -31,12 +32,12 @@ export function NodesOverviewCard({ nodes, error, retry, isAdmin }: { nodes?: No
         <Loading />
       ) : nodes.length === 0 ? (
         <div className="pb-8">
-          <EmptyState icon={<Cpu className="h-6 w-6" />} title="Noch kein Node" text={isAdmin ? "Richte zuerst eine Maschine ein, dann kannst du Server anlegen." : "Ein Administrator muss einen Node einrichten."} />
+          <EmptyState icon={<Cpu className="h-6 w-6" />} title={t("Noch kein Node")} text={isAdmin ? t("Richte zuerst eine Maschine ein, dann kannst du Server anlegen.") : t("Ein Administrator muss einen Node einrichten.")} />
           {isAdmin && (
             <div className="flex justify-center">
               <Button variant="primary" onClick={() => router.push("/nodes/?add=1")}>
                 <Plus className="h-4 w-4" />
-                Node hinzufügen
+                {t("Node hinzufügen")}
               </Button>
             </div>
           )}
@@ -52,14 +53,14 @@ export function NodesOverviewCard({ nodes, error, retry, isAdmin }: { nodes?: No
                 <div className="flex items-center gap-3">
                   <Dot tone={node.online ? "good" : "bad"} />
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{node.name}</p>
-                  {node.online ? <span className="text-xs text-muted tabular-nums">{node.serverCount} Server</span> : <Badge tone="bad">Nicht erreichbar</Badge>}
+                  {node.online ? <span className="text-xs text-muted tabular-nums">{node.serverCount} Server</span> : <Badge tone="bad">{t("Nicht erreichbar")}</Badge>}
                 </div>
                 {node.online && total > 0 && (
                   <div>
                     <div className="mb-1 flex justify-between text-[11px] text-muted">
-                      <span>Arbeitsspeicher</span>
+                      <span>{t("Arbeitsspeicher")}</span>
                       <span className="tabular-nums text-ink/80">
-                        {bytes(used)} von {bytes(total)}
+                        {bytes(used)} {t("von")} {bytes(total)}
                       </span>
                     </div>
                     <Meter value={percent} max={100} tone={loadTone(percent)} />
@@ -82,13 +83,13 @@ export function RecentEventsCard({ projects }: { projects: Project[] }) {
   const serverName = new Map(projects.flatMap((project) => project.servers.map((server) => [server.id, server.name] as const)));
   return (
     <Card>
-      <CardHeader title="Letzte Ereignisse" description="Abstürze, Backups und Meldungen aus deinen Projekten." />
+      <CardHeader title={t("Letzte Ereignisse")} description={t("Abstürze, Backups und Meldungen aus deinen Projekten.")} />
       {error ? (
         <ErrorState inline error={error} retry={() => mutate()} />
       ) : !data ? (
         <Loading />
       ) : data.length === 0 ? (
-        <EmptyState icon={<Bell className="h-6 w-6" />} title="Noch nichts passiert" text="Hier erscheinen Abstürze, Neustarts, Backups und Ausfälle, sobald es welche gibt." />
+        <EmptyState icon={<Bell className="h-6 w-6" />} title={t("Noch nichts passiert")} text={t("Hier erscheinen Abstürze, Neustarts, Backups und Ausfälle, sobald es welche gibt.")} />
       ) : (
         <div className="divide-y divide-white/[0.05]">
           {data.map((event) => (
@@ -97,12 +98,12 @@ export function RecentEventsCard({ projects }: { projects: Project[] }) {
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-2 break-words text-[13px]">{event.message}</p>
                 <p className="mt-0.5 truncate text-xs text-muted">
-                  <span title={dateTime(event.time)}>{ago(event.time)}</span> · {eventLabels[event.kind] ?? event.kind} ·{" "}
+                  <span title={dateTime(event.time)}>{ago(event.time)}</span> · {eventLabels()[event.kind] ?? event.kind} ·{" "}
                   <Link
                     href={event.serverId && serverName.has(event.serverId) ? `/server/?id=${event.serverId}` : `/project/?id=${event.projectId}&tab=events`}
                     className="hover:text-ink hover:underline"
                   >
-                    {(event.serverId && serverName.get(event.serverId)) || projectName.get(event.projectId) || "Projekt"}
+                    {(event.serverId && serverName.get(event.serverId)) || projectName.get(event.projectId) || t("Projekt")}
                   </Link>
                 </p>
               </div>

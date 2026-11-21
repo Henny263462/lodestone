@@ -18,7 +18,7 @@ Projekt (/project/?id=&tab=)       Tabs: Server · Netzwerk · Gruppen (nur Netz
 Nodes (/nodes/)                    Maschinen, Speicher, playit (`?add=1` öffnet „Node hinzufügen“)
 Benutzer (/users/)                 nur Administratoren
 Protokoll (/audit/)                nur Administratoren
-Konto (/account/?section=)         Passwort · Zwei-Faktor · Passkeys · Anmeldung über OIDC · API-Schlüssel · SFTP-Zugang · Sitzungen
+Konto (/account/?section=)         Passwort · Zwei-Faktor · Passkeys · Anmeldung über OIDC · API-Schlüssel · SFTP-Zugang · Sitzungen · Sprache
 Status (/status/?p=)               öffentlich, ohne Anmeldung, ohne Shell
 Anmeldung (/login/)                ohne Shell
 ```
@@ -60,7 +60,8 @@ return …                                                                   // 
 
 - **Leer** erklärt in einem Satz, was das hier ist, und bietet nach Möglichkeit den Knopf zum Anlegen an (nur wenn der Benutzer darf;
   sonst: „Ein Administrator muss …“).
-- **Fehler** zeigt die Meldung des Backends (die ist schon deutsch und erklärt). Nie selbst „Fehler 500“ ausgeben.
+- **Fehler** zeigt die Meldung des Backends (die ist schon deutsch und erklärt; `lib/api.ts` übersetzt bekannte Meldungen
+  ins Englische, siehe `03` §9). Nie selbst „Fehler 500“ ausgeben.
 - Live-Daten aktualisieren sich selbst über den **Live-Kanal** (`GET /api/live`, Server-Sent Events, `lib/live.ts`): Das Panel meldet,
   dass sich etwas geändert hat (Zustand, Spieler, Backups, Ereignisse, Kopie/Umzug), und die Oberfläche lädt genau die betroffenen
   `useApi`-Schlüssel neu. Abfrage-Intervalle bleiben nur als Rückfall: `refreshInterval: usePoll(lang, kurz)` (z. B. `usePoll(60000, 5000)`),
@@ -141,7 +142,15 @@ Immer **du**, aktiv, konkret. Vorhandene Begriffe benutzen, keine Synonyme einf�
 | Zeitplan, Webhook, Protokoll, API-Schlüssel | Cronjob, Hook, Audit-Log |
 | Absturz, Neustart, Auto-Restart | Crash, Reboot |
 
-- Zahlen/Zeit nur über `lib/format.ts` (`bytes`, `megabytes`, `ago`, `compact` …), Datum deutsch (`28.10.2026, 14:05`), Dezimalkomma.
+- Zahlen/Zeit nur über `lib/format.ts` (`bytes`, `megabytes`, `ago`, `compact` …) und `formatNumber` aus `lib/i18n`: auf Deutsch
+  `28.10.2026, 14:05` mit Dezimalkomma, auf Englisch das US-Format von Intl. Nie `toFixed(…).replace(".", ",")` oder `"de-DE"` fest.
+- **Zwei Sprachen:** Jeder Text entsteht deutsch, in dieser Wörterliste, und geht über `t("…")`. Die englische Fassung schreibst
+  du im selben Commit nach `lib/messages/en.ts` (gleicher Ton: kurz, direkt, „you“). Bezeichnungen, die in beiden Sprachen gleich
+  sind (Server, Backups, Node, Proxy …), dürfen ohne `t()` stehen. Gibt es Zahlen, nimm einen Platzhalter (`t("{count} von {total}")`)
+  oder bei Mehrzahl `tp("schlüssel", anzahl)` – nie „Datei(en)“ und nie Sätze aus Bruchstücken zusammenstückeln, weil die
+  Wortstellung im Englischen anders ist.
+- Die Sprache wählt jeder Benutzer unter *Konto → Sprache* (gilt für alle Geräte); vor der Anmeldung gilt der Browser, die
+  Anmeldeseite hat einen Umschalter, die öffentliche Statusseite folgt immer dem Browser.
 - Titel: Substantiv oder Tätigkeit, ohne Punkt. Beschreibungen: ganzer Satz mit Punkt. Knöpfe: ein Verb oder „Verb + Objekt“.
 - Fehler: **Ursache + nächster Schritt.** „Der Node ist nicht erreichbar. Prüfe, ob er läuft.“
 - Leerzustand: „Noch kein/e …“ + Erklärung. Kein „Keine Daten“.

@@ -7,15 +7,16 @@ import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { api } from "@/lib/api";
 import { stateLabel, stateTone } from "@/lib/format";
 import type { Server } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export function StateBadge({ server }: { server: Server }) {
-  if (!server.online) return <Badge tone="bad">Node offline</Badge>;
+  if (!server.online) return <Badge tone="bad">{t("Node offline")}</Badge>;
   const state = server.view?.state;
   const tone = stateTone(state);
   return (
     <Badge tone={tone === "neutral" ? "neutral" : tone}>
       <Dot tone={tone} />
-      {state ? (stateLabel[state] ?? state) : "Unbekannt"}
+      {state ? stateLabel(state) : t("Unbekannt")}
     </Badge>
   );
 }
@@ -41,31 +42,31 @@ export function PowerButtons({ server, onDone, size = "sm", enabled = true }: { 
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Button size={size} variant="secondary" disabled={!canStart} loading={busy === "start"} onClick={() => power("start", "Server startet")}>
+      <Button size={size} variant="secondary" disabled={!canStart} loading={busy === "start"} onClick={() => power("start", t("Server startet"))}>
         <Play className="h-3.5 w-3.5 text-good" />
-        Start
+        {t("Start")}
       </Button>
-      <Button size={size} variant="secondary" disabled={!canRestart} loading={busy === "restart"} onClick={() => power("restart", "Server startet neu")}>
+      <Button size={size} variant="secondary" disabled={!canRestart} loading={busy === "restart"} onClick={() => power("restart", t("Server startet neu"))}>
         <RotateCw className="h-3.5 w-3.5" />
-        Neustart
+        {t("Neustart")}
       </Button>
-      <Button size={size} variant="secondary" disabled={!canStop} loading={busy === "stop"} onClick={() => power("stop", "Server wird gestoppt")}>
+      <Button size={size} variant="secondary" disabled={!canStop} loading={busy === "stop"} onClick={() => power("stop", t("Server wird gestoppt"))}>
         <Square className="h-3.5 w-3.5 text-bad" />
-        Stopp
+        {t("Stopp")}
       </Button>
       {usable && (state === "running" || state === "starting" || state === "stopping") && (
-        <Button size={size} variant="ghost" onClick={() => setKilling(true)} title="Beendet den Server sofort, ungespeicherte Daten gehen verloren">
+        <Button size={size} variant="ghost" onClick={() => setKilling(true)} title={t("Beendet den Server sofort, ungespeicherte Daten gehen verloren")}>
           <Skull className="h-3.5 w-3.5" />
         </Button>
       )}
       <ConfirmDialog
         open={killing}
         onClose={() => setKilling(false)}
-        title="Server beenden erzwingen?"
-        text="Der Server wird sofort beendet, ohne zu speichern. Nutze das nur, wenn „Stopp“ nicht mehr hilft."
-        confirm="Sofort beenden"
+        title={t("Server beenden erzwingen?")}
+        text={t("Der Server wird sofort beendet, ohne zu speichern. Nutze das nur, wenn „Stopp“ nicht mehr hilft.")}
+        confirm={t("Sofort beenden")}
         danger
-        onConfirm={() => power("kill", "Server beendet")}
+        onConfirm={() => power("kill", t("Server beendet"))}
       />
     </div>
   );

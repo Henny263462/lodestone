@@ -9,18 +9,19 @@ import { StorageCard } from "@/components/server/storage";
 import { useApi } from "@/lib/api";
 import { megabytes, uptime } from "@/lib/format";
 import type { Metrics, Range, Server } from "@/lib/types";
+import { formatNumber, t } from "@/lib/i18n";
 
-export const ranges: { id: Range; label: string }[] = [
-  { id: "1h", label: "1 Std" },
-  { id: "6h", label: "6 Std" },
-  { id: "24h", label: "24 Std" },
-  { id: "7d", label: "7 Tage" },
+export const ranges = (): { id: Range; label: string }[] => [
+  { id: "1h", label: t("1 Std") },
+  { id: "6h", label: t("6 Std") },
+  { id: "24h", label: t("24 Std") },
+  { id: "7d", label: t("7 Tage") },
 ];
 
 const MB = 1024 * 1024;
 
 export function RangeTabs({ value, onChange }: { value: Range; onChange: (range: Range) => void }) {
-  return <Tabs value={value} onChange={onChange} items={ranges} />;
+  return <Tabs value={value} onChange={onChange} items={ranges()} />;
 }
 
 /** Ein Diagramm mit Titel und Zusammenfassung; fehlen Messwerte, steht ein Hinweis statt einer leeren Fläche. */
@@ -41,7 +42,7 @@ export function ChartCard({
     <Card>
       <CardHeader title={title} description={description} action={action} />
       <div className="px-3 pb-3 pt-1">
-        {empty ? <p className="px-4 py-14 text-center text-sm text-muted">Für diesen Zeitraum gibt es noch keine Messwerte. Sie werden alle 30 Sekunden erfasst, solange der Server läuft.</p> : children}
+        {empty ? <p className="px-4 py-14 text-center text-sm text-muted">{t("Für diesen Zeitraum gibt es noch keine Messwerte. Sie werden alle 30 Sekunden erfasst, solange der Server läuft.")}</p> : children}
       </div>
     </Card>
   );
@@ -67,27 +68,27 @@ export function StatsTab({ server }: { server: Server }) {
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Laufzeit" value={running ? uptime(view?.startedAt) : "–"} icon={<Timer className="h-4 w-4" />} tone={running ? "green" : "neutral"} hint={running ? "seit dem letzten Start" : "Der Server läuft nicht"} />
+        <StatCard label={t("Laufzeit")} value={running ? uptime(view?.startedAt) : "–"} icon={<Timer className="h-4 w-4" />} tone={running ? "green" : "neutral"} hint={running ? t("seit dem letzten Start") : t("Der Server läuft nicht")} />
         <StatCard
           label="CPU"
           value={running && stats ? `${stats.cpuPercent.toFixed(0)} %` : "–"}
           icon={<Cpu className="h-4 w-4" />}
           tone="blue"
-          hint={series.samples ? `Ø ${series.avgCpu.toFixed(0)} % · Spitze ${series.peakCpu.toFixed(0)} %` : undefined}
+          hint={series.samples ? t("Ø {average} % · Spitze {peak} %", { average: series.avgCpu.toFixed(0), peak: series.peakCpu.toFixed(0) }) : undefined}
         />
         <StatCard
-          label="Arbeitsspeicher"
+          label={t("Arbeitsspeicher")}
           value={running && stats ? `${Math.round(stats.memoryBytes / MB)} MB` : "–"}
           icon={<MemoryStick className="h-4 w-4" />}
           tone={memoryPercent >= 90 ? "red" : memoryPercent >= 75 ? "amber" : "violet"}
-          hint={limitMB ? `von ${megabytes(limitMB)}${running && stats ? ` (${memoryPercent.toFixed(0)} %)` : ""}` : undefined}
+          hint={limitMB ? t("von {total}", { total: megabytes(limitMB) }) + (running && stats ? ` (${formatNumber(memoryPercent, 0)} %)` : "") : undefined}
         />
         <StatCard
-          label="Spieler"
+          label={t("Spieler")}
           value={running ? `${data.players}${data.maxPlayers ? ` / ${data.maxPlayers}` : ""}` : "–"}
           icon={<Users className="h-4 w-4" />}
           tone="amber"
-          hint={series.samples ? `Spitze ${series.peakPlayers} · Ø ${series.avgPlayers.toFixed(1).replace(".", ",")}` : undefined}
+          hint={series.samples ? t("Spitze {peakPlayers} · Ø {average}", { peakPlayers: series.peakPlayers, average: formatNumber(series.avgPlayers, 1) }) : undefined}
         />
       </div>
 
@@ -95,17 +96,17 @@ export function StatsTab({ server }: { server: Server }) {
         <RangeTabs value={range} onChange={setRange} />
       </div>
 
-      <ChartCard title="Spieler" description="Gleichzeitig online" empty={empty}>
-        <SeriesChart times={series.times} series={[{ name: "Spieler", color: "#f59e0b", values: series.players }]} long={long} format={(value) => String(Math.round(value))} />
+      <ChartCard title={t("Spieler")} description={t("Gleichzeitig online")} empty={empty}>
+        <SeriesChart times={series.times} series={[{ name: t("Spieler"), color: "#f59e0b", values: series.players }]} long={long} format={(value) => String(Math.round(value))} />
       </ChartCard>
       <div className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title="CPU" description="Auslastung des Containers" empty={empty}>
+        <ChartCard title="CPU" description={t("Auslastung des Containers")} empty={empty}>
           <SeriesChart times={series.times} series={[{ name: "CPU", color: "#3b82f6", values: series.cpu }]} long={long} format={(value) => `${Math.round(value)} %`} />
         </ChartCard>
-        <ChartCard title="Arbeitsspeicher" description={limitMB ? `Limit ${megabytes(limitMB)}` : undefined} empty={empty}>
+        <ChartCard title={t("Arbeitsspeicher")} description={limitMB ? t("Limit {limitMB}", { limitMB: megabytes(limitMB) }) : undefined} empty={empty}>
           <SeriesChart
             times={series.times}
-            series={[{ name: "Speicher", color: "#8b5cf6", values: memoryMB }]}
+            series={[{ name: t("Speicher"), color: "#8b5cf6", values: memoryMB }]}
             yMax={limitMB || undefined}
             long={long}
             format={(value) => `${Math.round(value)} MB`}
